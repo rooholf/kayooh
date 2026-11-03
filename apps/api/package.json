@@ -14,11 +14,13 @@
   "dependencies": {
     "@repo/contracts": "workspace:*",
     "@repo/db": "workspace:*",
+    "better-auth": "^1.7.15",
     "fastify": "^5.2.0",
     "pino": "^9.6.0",
     "zod": "^3.24.1"
   },
   "devDependencies": {
+    "@better-auth/cli": "^1.4.21",
     "@repo/config": "workspace:*",
     "@types/node": "^22.10.5",
     "tsx": "^4.19.2",
