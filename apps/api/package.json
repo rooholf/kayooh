@@ -9,26 +9,19 @@
     "build": "tsc",
     "start": "node dist/index.js",
     "typecheck": "tsc --noEmit",
-    "lint": "eslint .",
-    "test": "vitest run",
-    "test:concurrency": "vitest run test/t-01-concurrency.test.ts"
+    "lint": "eslint ."
   },
   "dependencies": {
     "@repo/contracts": "workspace:*",
     "@repo/db": "workspace:*",
-    "better-auth": "^1.7.15",
-    "drizzle-orm": "^0.38.3",
     "fastify": "^5.2.0",
-    "ioredis": "^6.0.0",
     "pino": "^9.6.0",
     "zod": "^3.24.1"
   },
   "devDependencies": {
-    "@better-auth/cli": "^1.4.21",
     "@repo/config": "workspace:*",
     "@types/node": "^22.10.5",
     "tsx": "^4.19.2",
-    "typescript": "^5.7.3",
-    "vitest": "^5.1.0"
+    "typescript": "^5.7.3"
   }
 }
