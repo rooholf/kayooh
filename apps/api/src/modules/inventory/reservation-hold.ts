@@ -46,6 +46,7 @@ import { quote } from "../pricing/index.js";
 import type { Principal } from "../identity/guards.js";
 import { computeAvailability, type QueryExecutor } from "./availability.js";
 import { isSlotAligned, isOpenAt } from "./opening-hours.js";
+import { enqueueReleaseHold } from "../jobs/index.js";
 
 interface HoldTransactionResult {
   reservationId: string;
@@ -385,6 +386,12 @@ export async function createReservationHold(
   }
 
   /* -------- After commit (never inside the lock) --------------------------- */
+  // SRS FR-INV-02 post-commit: enqueue the release-hold delayed job (job id
+  // `hold:<reservationId>`). Best-effort — the sweeper is the correctness floor.
+  if (result.expiresAt) {
+    await enqueueReleaseHold(result.reservationId, result.expiresAt, process.env.REDIS_URL);
+  }
+
   if (result.intentId !== null) {
     try {
       const gateway = createPaymentGateway({ nodeEnv: process.env.NODE_ENV ?? "development" });

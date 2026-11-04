@@ -10,7 +10,8 @@
     "start": "node dist/index.js",
     "typecheck": "tsc --noEmit",
     "lint": "eslint .",
-    "test": "vitest run"
+    "test": "vitest run",
+    "test:concurrency": "vitest run test/t-01-concurrency.test.ts"
   },
   "dependencies": {
     "@repo/contracts": "workspace:*",

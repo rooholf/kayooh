@@ -26,6 +26,7 @@ import {
   resolvePrincipal,
 } from "./modules/identity/index.js";
 import { registerReservationRoutes } from "./modules/reservations/create-reservation.js";
+import { registerSweeperSchedule } from "./modules/jobs/index.js";
 
 declare module "fastify" {
   interface FastifyRequest {
@@ -238,6 +239,10 @@ export async function buildApp(options: BuildAppOptions = {}): Promise<{
     routes: IDEMPOTENCY_ROUTES,
     getPrincipal: (request) => request.principal ?? null,
   });
+
+  // SRS FR-INV-03: register the minute sweeper as a repeatable job (best-effort;
+  // Redis-less deployments rely on an external cron hitting runSweeper()).
+  void registerSweeperSchedule(env.redisUrl).catch(() => undefined);
 
   return {
     app,
