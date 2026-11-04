@@ -1,2 +1,0 @@
-ALTER TABLE "idempotency_keys" DROP CONSTRAINT "idempotency_keys_response_check";--> statement-breakpoint
-ALTER TABLE "idempotency_keys" ADD CONSTRAINT "idempotency_keys_response_check" CHECK ((status_code IS NULL AND response IS NULL) OR (status_code BETWEEN 200 AND 599 AND response IS NOT NULL));

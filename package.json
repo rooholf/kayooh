@@ -12,7 +12,6 @@
     "lint": "turbo run lint",
     "typecheck": "turbo run typecheck",
     "test": "turbo run test",
-    "vitest:concurrency": "pnpm --filter @repo/api test:concurrency",
     "db:generate": "turbo run db:generate",
     "db:migrate": "turbo run db:migrate",
     "format": "prettier --write \"**/*.{ts,tsx,md,json}\""
