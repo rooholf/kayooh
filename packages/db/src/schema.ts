@@ -142,7 +142,7 @@ export const owners = pgTable(
     status: text("status").notNull().default("active"),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   },
-  (t) => [check("owners_status_check", sql`status IN ('active','suspended')`)],
+  () => [check("owners_status_check", sql`status IN ('active','suspended')`)],
 );
 
 /**
@@ -670,7 +670,7 @@ export const refunds = pgTable(
     status: refundStatus("status").notNull().default("pending"),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   },
-  (t) => [check("refunds_amount_positive_check", sql`amount_idr > 0`)],
+  () => [check("refunds_amount_positive_check", sql`amount_idr > 0`)],
 );
 
 /* ------------------------------------------------------------------ */
@@ -797,4 +797,36 @@ export const auditLog = pgTable(
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   },
   (t) => [index("audit_log_entity_idx").on(t.entity, t.entityId, t.createdAt)],
+);
+
+/* ------------------------------------------------------------------ */
+/* Idempotency middleware storage (SRS 3.2 key semantics, section 5)    */
+/* ------------------------------------------------------------------ */
+
+/**
+ * state: response + status_code NULL == request reserved and still running
+ * (retry with the same key while the first runs -> 409 IDEMPOTENCY_IN_PROGRESS).
+ * A stored 2xx response is replayed for 24 h with header Idempotent-Replay: true.
+ * A-19 (logged deviation): `created_at` is absent from the SRS section 5 sketch
+ * but is required to implement the "same key and same body within 24 h" window.
+ */
+export const idempotencyKeys = pgTable(
+  "idempotency_keys",
+  {
+    key: uuid("key").notNull(),
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => users.id),
+    requestHash: text("request_hash").notNull(),
+    response: jsonb("response"),
+    statusCode: integer("status_code"),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    primaryKey({ columns: [t.key, t.userId] }),
+    check(
+      "idempotency_keys_response_check",
+      sql`(status_code IS NULL AND response IS NULL) OR (status_code BETWEEN 200 AND 599 AND response IS NOT NULL)`,
+    ),
+  ],
 );

@@ -33,6 +33,8 @@ export {
   normalizePhone,
 } from "./validation";
 
+export * from "./reservations";
+
 import * as v from "./validation";
 
 /* Legacy aliases (pre-step-2 scaffolding names), kept as thin wrappers. */

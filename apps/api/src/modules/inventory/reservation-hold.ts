@@ -1,0 +1,437 @@
+/**
+ * createReservationHold — FR-INV-02 (the reservation "hold"), executed as the
+ * SKILL build_transactional_inventory_lock. Money is integer rupiah end to end
+ * (INV-5); the lock and the capacity counting are RAW SQL (INV-2, AGENTS
+ * directive: no ORM for the lock).
+ *
+ * Order of operations (SRS FR-INV-02 — first failure returns):
+ *   Pre-transaction validation (uncharged reads, outside the lock):
+ *     1. schema (done by route) -> renter verified (422 VERIFICATION_REQUIRED)
+ *        and deposit held (422 DEPOSIT_REQUIRED)
+ *     2. duration / slot / lead-time checks (422 DURATION/WINDOW_OUT_OF_RANGE)
+ *     3. startsAt and endsAt inside the outlet's WIB hours (422 OUTSIDE_OPENING_HOURS)
+ *     4. outlet active and (outletId, category) active (422 CATEGORY_NOT_OFFERED)
+ *   Single READ COMMITTED transaction (NFR-02: SET LOCAL lock_timeout = '3s'):
+ *     1. SELECT ... FOR UPDATE on outlet_categories      <- THE LOCK (INV-2)
+ *     2. computeAvailability; available < 1 -> 409 SOLD_OUT
+ *     3. quote() (FR-PRC-01)
+ *     4. insert reservation (held; directly confirmed when finalIdr = 0)
+ *     5. insert payment_intents (skipped when finalIdr = 0)
+ *     6. insert outbox reservation.held (skipped when finalIdr = 0)
+ *     COMMIT
+ *   After commit (never inside the lock): invoice via the PaymentGateway seam
+ *   with an 8 s timeout; success stores gateway_ref/payment_url on the intent
+ *   and answers 201 {reservation, price, paymentUrl}; failure cancels the
+ *   reservation (cancel_reason = gateway_error), fails the intent and answers
+ *   502 GATEWAY_UNAVAILABLE. The BullMQ release-hold enqueue arrives with
+ *   FR-INV-03; until then correctness is covered by the sweeper design rule
+ *   ("Redis loss never loses a booking", FR-INV-03).
+ */
+import { and, eq, sql } from "@repo/db";
+import {
+  db,
+  outboxEvents,
+  outletCategories,
+  outlets,
+  paymentIntents,
+  renters,
+  reservations,
+  type Database,
+} from "@repo/db";
+import type { CreateReservationBody, CreateReservationResponse } from "@repo/contracts";
+import { AppError } from "../../lib/errors.js";
+import { getConfig } from "../app-config/index.js";
+import { createPaymentGateway, withGatewayTimeout, GATEWAY_TIMEOUT_MS } from "../payments/index.js";
+import { quote } from "../pricing/index.js";
+import type { Principal } from "../identity/guards.js";
+import { computeAvailability, type QueryExecutor } from "./availability.js";
+import { isSlotAligned, isOpenAt } from "./opening-hours.js";
+
+interface HoldTransactionResult {
+  reservationId: string;
+  intentId: string | null;
+  finalIdr: number;
+  expiresAt: Date | null;
+}
+
+async function holdReservation(
+  pooledDb: Database,
+  args: {
+    body: CreateReservationBody;
+    renterId: string;
+    ownerId: string;
+    startsAt: Date;
+    endsAt: Date;
+  },
+): Promise<HoldTransactionResult> {
+  const { body, renterId, ownerId, startsAt, endsAt } = args;
+
+  return pooledDb.transaction(
+    async (tx) => {
+      // NFR-02: every reservation transaction declares its lock budget.
+      await tx.execute(sql`SET LOCAL lock_timeout = '3s'`);
+
+      // ---- 1. THE LOCK: raw SQL, FOR UPDATE — the only availability gate ----
+      const lockRes = (await tx.execute(sql`
+        SELECT safety_buffer FROM outlet_categories
+        WHERE outlet_id = ${body.outletId} AND category = ${body.category}
+        FOR UPDATE
+      `)) as unknown as { rows: Array<{ safety_buffer: string | number } | undefined> };
+      if (lockRes.rows.length === 0) {
+        // Vanished between pre-check and lock (admin deactivation race).
+        throw new AppError("STATE_CONFLICT", "Offering changed; retry.");
+      }
+
+      // ---- 2. availability: committed data only (INV-2) ----------------------
+      const available = await computeAvailability(tx as QueryExecutor, {
+        outletId: body.outletId,
+        category: body.category,
+        startsAt,
+        endsAt,
+      });
+      if (available < 1) {
+        throw new AppError("SOLD_OUT", "No bikes available for this window.");
+      }
+
+      // ---- 3. price quote (FR-PRC-01) ----------------------------------------
+      const q = await quote(tx as QueryExecutor, {
+        outletId: body.outletId,
+        category: body.category,
+        startsAt,
+        endsAt,
+        promoCode: body.promoCode,
+      });
+
+      const holdSeconds = (await getConfig("hold.checkout_minutes")) * 60;
+      const directConfirm = q.finalIdr === 0;
+
+      // ---- 4. the reservation row --------------------------------------------
+      const inserted = await tx
+        .insert(reservations)
+        .values({
+          renterId,
+          outletId: body.outletId,
+          ownerId,
+          category: body.category,
+          startsAt,
+          endsAt,
+          status: directConfirm ? "confirmed" : "held",
+          expiresAt: directConfirm ? null : (sql`(now() + make_interval(secs => ${holdSeconds}))` as unknown as Date),
+          confirmedAt: directConfirm ? (sql`now()` as unknown as Date) : null,
+          // INV-5: integer rupiah; bigint columns take BigInt params.
+          priceIdr: BigInt(q.priceIdr),
+          discountIdr: BigInt(q.discountIdr),
+          finalIdr: BigInt(q.finalIdr),
+          promoId: null,
+          ownerPromoBps: 0,
+          rateSnapshot: { rateIdr: q.rateIdr, unitMinutes: q.unitMinutes },
+        })
+        .returning({
+          id: reservations.id,
+          expiresAt: reservations.expiresAt,
+          finalIdr: reservations.finalIdr,
+          priceIdr: reservations.priceIdr,
+          discountIdr: reservations.discountIdr,
+          status: reservations.status,
+          confirmedAt: reservations.confirmedAt,
+          atRisk: reservations.atRisk,
+        });
+      const reservation = inserted[0];
+      if (!reservation) throw new AppError("INTERNAL", "reservation insert returned no row");
+
+      // ---- 5. payment intent (pressed only when money is due) -----------------
+      let intentId: string | null = null;
+      if (!directConfirm) {
+        const intent = await tx
+          .insert(paymentIntents)
+          .values({
+            purpose: "booking",
+            renterId,
+            reservationId: reservation.id,
+            amountIdr: BigInt(q.finalIdr),
+            status: "created",
+            expiresAt: reservation.expiresAt,
+          })
+          .returning({ id: paymentIntents.id });
+        const intentRow = intent[0];
+        if (!intentRow) throw new AppError("INTERNAL", "payment intent insert returned no row");
+        intentId = intentRow.id;
+      }
+
+      // ---- 6. outbox event (same transaction; free bookings skip step 5-6) ----
+      if (!directConfirm) {
+        await tx.insert(outboxEvents).values({
+          type: "reservation.held",
+          payload: {
+            reservationId: reservation.id,
+            renterId,
+            outletId: body.outletId,
+            category: body.category,
+            intentId,
+            expiresAt: reservation.expiresAt?.toISOString() ?? null,
+          },
+        });
+      }
+
+      return {
+        reservationId: reservation.id,
+        intentId,
+        finalIdr: Number(reservation.finalIdr),
+        expiresAt: reservation.expiresAt,
+      };
+    },
+    { isolationLevel: "read committed" }, // FR-INV-02 (INV-2 relies on it for the recheck)
+  );
+}
+
+/* ------------------------------------------------------------------ */
+/* After-commit legs                                                    */
+/* ------------------------------------------------------------------ */
+
+async function loadReservationForResponse(
+  pooledDb: Database,
+  reservationId: string,
+): Promise<{
+  id: string;
+  outletId: string;
+  category: string;
+  startsAt: Date;
+  endsAt: Date;
+  status: string;
+  expiresAt: Date | null;
+  confirmedAt: Date | null;
+  priceIdr: bigint;
+  discountIdr: bigint;
+  finalIdr: bigint;
+  atRisk: boolean;
+} | undefined> {
+  const rows = await pooledDb
+    .select({
+      id: reservations.id,
+      outletId: reservations.outletId,
+      category: reservations.category,
+      startsAt: reservations.startsAt,
+      endsAt: reservations.endsAt,
+      status: reservations.status,
+      expiresAt: reservations.expiresAt,
+      confirmedAt: reservations.confirmedAt,
+      priceIdr: reservations.priceIdr,
+      discountIdr: reservations.discountIdr,
+      finalIdr: reservations.finalIdr,
+      atRisk: reservations.atRisk,
+    })
+    .from(reservations)
+    .where(eq(reservations.id, reservationId))
+    .limit(1);
+  return rows[0];
+}
+
+const iso = (d: Date): string => d.toISOString(); // always ends in Z (SRS 3.1)
+const idr = (v: bigint): number => Number(v); // exact for |v| < 2^53 (INV-5)
+
+function toResource(row: NonNullable<Awaited<ReturnType<typeof loadReservationForResponse>>>) {
+  return {
+    id: row.id,
+    outletId: row.outletId,
+    category: row.category,
+    startsAt: iso(row.startsAt),
+    endsAt: iso(row.endsAt),
+    status: row.status as "held" | "confirmed",
+    expiresAt: row.expiresAt === null ? null : iso(row.expiresAt),
+    priceIdr: idr(row.priceIdr),
+    discountIdr: idr(row.discountIdr),
+    finalIdr: idr(row.finalIdr),
+    atRisk: row.atRisk,
+  };
+}
+
+/** Gateway failure compensation (FR-INV-02 post-commit): cancel + fail + 502. */
+async function compensateGatewayFailure(reservationId: string, intentId: string | null): Promise<void> {
+  await db.transaction(async (tx) => {
+    await tx
+      .update(reservations)
+      .set({ status: "cancelled", cancelReason: "gateway_error" })
+      .where(and(eq(reservations.id, reservationId), eq(reservations.status, "held")));
+    if (intentId !== null) {
+      await tx
+        .update(paymentIntents)
+        .set({ status: "failed" })
+        .where(and(eq(paymentIntents.id, intentId), eq(paymentIntents.status, "created")));
+    }
+  });
+}
+
+/* ------------------------------------------------------------------ */
+/* Public entry point                                                   */
+/* ------------------------------------------------------------------ */
+
+export async function createReservationHold(
+  pooledDb: Database,
+  body: CreateReservationBody,
+  renter: Principal,
+): Promise<CreateReservationResponse> {
+  const startsAt = new Date(body.startsAt);
+  const endsAt = new Date(body.endsAt);
+
+  /* -------- Step 1: renter verification + deposit (pre-check 1) ----------- */
+  const renterRows = await pooledDb
+    .select({
+      id: renters.id,
+      verificationStatus: renters.verificationStatus,
+      depositStatus: renters.depositStatus,
+    })
+    .from(renters)
+    .where(eq(renters.userId, renter.userId))
+    .limit(1);
+  const renterRow = renterRows[0];
+  if (!renterRow) throw new AppError("STATE_CONFLICT", "Renter profile does not exist for this user.");
+  if (renterRow.verificationStatus !== "verified") {
+    throw new AppError("VERIFICATION_REQUIRED", "Identity verification is not complete.");
+  }
+  if (renterRow.depositStatus !== "held") {
+    throw new AppError("DEPOSIT_REQUIRED", "Security deposit is not held.");
+  }
+
+  /* -------- Step 2: duration and window (pre-check 2) ---------------------- */
+  const [slotMinutes, minDuration, maxDuration, maxAdvanceDays, minLeadMinutes] = await Promise.all([
+    getConfig("booking.slot_minutes"),
+    getConfig("booking.min_duration_minutes"),
+    getConfig("booking.max_duration_minutes"),
+    getConfig("booking.max_advance_days"),
+    getConfig("booking.min_lead_minutes"),
+  ]);
+
+  // Server time source is the database now() (SRS 3.1).
+  const nowRes = (await pooledDb.execute(sql`SELECT now() AS now_ts`)) as unknown as {
+    rows: Array<{ now_ts: Date | string } | undefined>;
+  };
+  const nowRaw = nowRes.rows[0]?.now_ts;
+  if (!nowRaw) throw new AppError("INTERNAL", "Database clock unavailable.");
+  // node-pg normally yields Date; drizzle's raw path may hand back the ISO string.
+  const now = nowRaw instanceof Date ? nowRaw : new Date(nowRaw);
+  const nowMs = now.getTime();
+
+  const durationMinutes = Math.round((endsAt.getTime() - startsAt.getTime()) / 60_000);
+  if (
+    endsAt.getTime() <= startsAt.getTime() ||
+    durationMinutes < minDuration ||
+    durationMinutes > maxDuration ||
+    durationMinutes % slotMinutes !== 0
+  ) {
+    throw new AppError("DURATION_OUT_OF_RANGE", "Reservation duration is outside the booking rules.");
+  }
+  if (!isSlotAligned(startsAt, slotMinutes)) {
+    throw new AppError("WINDOW_OUT_OF_RANGE", `startsAt must align to ${slotMinutes}-minute slots and UTC seconds.`);
+  }
+  if (
+    startsAt.getTime() < nowMs + minLeadMinutes * 60_000 ||
+    startsAt.getTime() > nowMs + maxAdvanceDays * 86_400_000
+  ) {
+    throw new AppError("WINDOW_OUT_OF_RANGE", "startsAt is outside the bookable window.");
+  }
+
+  /* -------- Step 3: opening hours, WIB, both edges (pre-check 3) ----------- */
+  const outletRows = await pooledDb
+    .select({
+      id: outlets.id,
+      status: outlets.status,
+      hours: outlets.hours,
+      ownerId: outlets.ownerId,
+    })
+    .from(outlets)
+    .where(eq(outlets.id, body.outletId))
+    .limit(1);
+  const outletRow = outletRows[0];
+  if (!outletRow) throw new AppError("NOT_FOUND", "Outlet does not exist.");
+
+  if (!isOpenAt(outletRow.hours, startsAt) || !isOpenAt(outletRow.hours, endsAt)) {
+    throw new AppError("OUTSIDE_OPENING_HOURS", "Requested window is outside the outlet's opening hours.");
+  }
+
+  /* -------- Step 4: outlet active and offering active (pre-check 4) -------- */
+  const offeringRows = await pooledDb
+    .select({ active: outletCategories.active })
+    .from(outletCategories)
+    .where(and(eq(outletCategories.outletId, body.outletId), eq(outletCategories.category, body.category)))
+    .limit(1);
+  const offeringRow = offeringRows[0];
+  if (!offeringRow || !offeringRow.active || outletRow.status !== "active") {
+    throw new AppError("CATEGORY_NOT_OFFERED", "This category is not offered at the outlet.");
+  }
+
+  /* -------- THE TRANSACTION (steps 1-6 inside, lock held) ------------------ */
+  let result: HoldTransactionResult;
+  try {
+    result = await holdReservation(pooledDb, {
+      body,
+      renterId: renterRow.id,
+      ownerId: outletRow.ownerId,
+      startsAt,
+      endsAt,
+    });
+  } catch (e) {
+    // NFR-02: on lock timeout return 503 INTERNAL with Retry-After: 1.
+    if (typeof e === "object" && e !== null && "code" in e && (e as { code?: string }).code === "55P03") {
+      const err = new AppError(
+        "INTERNAL",
+        "Reservation lock contention; retry shortly.",
+        undefined,
+        503, // NFR-02: 503 INTERNAL with Retry-After: 1
+      );
+      (err as AppError & { retryAfterSec: number }).retryAfterSec = 1;
+      throw err;
+    }
+    throw e;
+  }
+
+  /* -------- After commit (never inside the lock) --------------------------- */
+  if (result.intentId !== null) {
+    try {
+      const gateway = createPaymentGateway({ nodeEnv: process.env.NODE_ENV ?? "development" });
+      const invoice = await withGatewayTimeout(
+        gateway.createInvoice({
+          externalId: result.intentId,
+          amount: result.finalIdr,
+          durationSeconds: (await getConfig("hold.checkout_minutes")) * 60,
+        }),
+        GATEWAY_TIMEOUT_MS,
+      );
+      await pooledDb
+        .update(paymentIntents)
+        .set({ gatewayRef: invoice.gatewayRef, paymentUrl: invoice.paymentUrl, status: "pending" })
+        .where(and(eq(paymentIntents.id, result.intentId), eq(paymentIntents.status, "created")));
+    } catch {
+      // SRS FR-INV-02: gateway failure = cancelled reservation + failed intent
+      // + 502 GATEWAY_UNAVAILABLE (the idempotency marker is reclaimed by the
+      // plugin's stall window, so the retry with the same key works).
+      await compensateGatewayFailure(result.reservationId, result.intentId);
+      throw new AppError(
+        "GATEWAY_UNAVAILABLE",
+        "The payment gateway did not accept the invoice; the hold was released.",
+      );
+    }
+  }
+
+  const row = await loadReservationForResponse(pooledDb, result.reservationId);
+  if (!row) throw new AppError("INTERNAL", "Reservation vanished after commit.");
+  const resource = toResource(row);
+
+  const response: CreateReservationResponse = {
+    reservation: resource,
+    price: {
+      priceIdr: resource.priceIdr,
+      discountIdr: resource.discountIdr,
+      finalIdr: resource.finalIdr,
+    },
+  };
+  if (result.intentId !== null && resource.status === "held") {
+    const intentRows = await pooledDb
+      .select({ paymentUrl: paymentIntents.paymentUrl })
+      .from(paymentIntents)
+      .where(eq(paymentIntents.id, result.intentId))
+      .limit(1);
+    const url = intentRows[0]?.paymentUrl;
+    if (url) response.paymentUrl = url;
+  }
+  return response;
+}
