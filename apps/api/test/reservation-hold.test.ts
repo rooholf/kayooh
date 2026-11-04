@@ -292,16 +292,15 @@ describe("FR-INV-02 create reservation (build_transactional_inventory_lock)", ()
     // the SUN rule must be empty. Pick a guaranteed weekday (tomorrow may be any
     // day) — this is why the window below lands inside mon-sat only if allowed.
     const renterId = await seedRenter();
-    const w = window();
-    const startsAt = new Date(w.startsAt);
-    // Force a Sunday start regardless of "today".
-    while (new Date(startsAt.getTime() + 7 * 3_600_000).getUTCDay() !== 0) {
-      startsAt.setUTCDate(startsAt.getUTCDate() + 1);
-    }
-    startsAt.setUTCHours(2, 0, 0, 0);
+    // Force a Sunday in WIB (outlet closed on Sundays in this test) that is
+    // within max_advance_days: next Sunday 00:00 UTC = 07:00 WIB, still closed.
+    const wibNow = new Date(Date.now() + 7 * 3_600_000);
+    const daysUntilSunday = (7 - wibNow.getUTCDay()) % 7 || 7;
+    const nextSundayWibMidnight = new Date(wibNow);
+    nextSundayWibMidnight.setUTCDate(nextSundayWibMidnight.getUTCDate() + daysUntilSunday);
+    nextSundayWibMidnight.setUTCHours(0, 0, 0, 0);
+    const startsAt = new Date(nextSundayWibMidnight.getTime() - 7 * 3_600_000);
     const endsAt = new Date(startsAt.getTime() + 3_600_000);
-    // anything within 7 days advance (max_advance_days) is not guaranteed, but
-    // day-offsets here stay <= 6 days beyond the 24h base.
     await expect(
       createReservationHold(
         db,
