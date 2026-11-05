@@ -1,8 +1,16 @@
 # Software Requirements Specification: Jambi Bike Rental Platform
 
-Version 1.0 | 3 November 2026
-Sources: PRD "Jambi Bike Rental Network: PRD and System Architecture" v1.0; "Tech Stack and Architecture: Jambi Bike Rental Platform" v1.0
+Version 1.1 | 6 November 2026
+Sources: PRD "Jambi Bike Rental Network: PRD and System Architecture" v1.1; "Tech Stack and Architecture: Jambi Bike Rental Platform" v1.0
 Audience: AI coding agent. Implement from this document without asking for clarification. Every MUST is testable.
+
+**Revision 1.1 — architecture pivot to local Jambi operational practice.** This revision supersedes any earlier statement in conflict with it:
+1. **Multi-bike reservations.** `reservations.quantity` (V-QTY) is stored and checked against `computeAvailability`: a lock succeeds only when `available >= quantity`, otherwise 409 `SOLD_OUT`.
+2. **Digital security deposits removed.** The `deposits` and `deposit_claims` tables, the `deposit_status` enum, and every deposit endpoint no longer exist.
+3. **50% down payment (DP).** A reservation moves `held` → `confirmed` only after the DP (config `booking.dp_rate_bps`, default 5000 = 50%) is paid online. The remaining 50% is collected **offline** (cash/QRIS) by staff at check-out.
+4. **Physical collateral.** The FR-RNT-01 check-out event carries `bikeAssetTags` (length = `reservation.quantity`) and a `collateral` object (`ktp`, `sim` or `vehicle`), logged on each rental.
+5. **Configurable seed pricing.** Weekday/weekend tiers and local penalties (e.g. Rp 20,000 per started 30 min; Rp 4,000,000 lost unit) are **seed/mock data only** — owners may override their own pricing (section 4).
+6. **Mock payments in P1.** Phase 1 uses the `FakeGateway` exclusively (section 2).
 
 ---
 
@@ -53,7 +61,7 @@ Network baseline (seed data): 4 outlets, 4 owners, 150 bikes.
 | Set safety buffer, promo opt-out | no | no | own tenant | all |
 | Raise payout dispute | no | no | own tenant | no |
 | Onboard owners, outlets, bikes, users; pricing; promotions; commission rules | no | no | no | yes |
-| Review ID verification, release deposit, approve damage claim, resolve dispute, run settlement | no | no | no | yes |
+| Review ID verification, resolve an offline collateral/damage claim, resolve dispute, run settlement | no | no | no | yes |
 
 ### 1.4 System invariants (the three PRD rules, made testable)
 
@@ -73,13 +81,13 @@ Network baseline (seed data): 4 outlets, 4 owners, 150 bikes.
 - **NEG-5** No inter-owner transfer or settlement. Revenue accrues to the owner of the bike's home outlet.
 - **NEG-6** No separately deployed services. One deployable API app; modules interact only through exported functions, never by importing another module's tables.
 - **NEG-7** No push notifications (A-01). Channels are WhatsApp and email.
-- **NEG-8** No renter cancellation endpoint and no down-payment or no-show forfeit logic (PRD silent or on hold; section 11).
+- **NEG-8** No renter cancellation endpoint and no renter-initiated refunds. The 50% DP is the only online payment; the balance is collected offline by staff. Any DP refund on no-show or reallocation is applied server-side per config (section 4).
 
 ### 1.6 Phase scope
 
 | Phase | Modules and features |
 |---|---|
-| P1 | Identity, tenancy, ID verification seam, deposit, catalog, inventory lock, reservation, Xendit payments, check-out/check-in/inspection, offline staff queue, hold expiry and no-show jobs, notifications, basic owner dashboard (live rentals, bike status counts, gross earnings accrual) |
+| P1 | Identity, tenancy, ID verification seam, catalog, inventory lock, multi-bike reservation (`quantity`), mock payments through `FakeGateway`, 50% down payment, physical collateral logging at check-out, check-out/check-in/inspection, offline staff queue, hold expiry and no-show jobs, notifications, basic owner dashboard (live rentals, bike status counts, gross earnings accrual) |
 | P2 | Ledger, commission rules, promotions, weekly statements and PDFs, Tuesday payouts, dispute queue, utilization and performance reports |
 | P3 | Sister-outlet groups in production (`feature.sister_outlets_enabled = true`), e-bike category, optional Capacitor wrapper |
 
@@ -98,7 +106,7 @@ Network baseline (seed data): 4 outlets, 4 owners, 150 bikes.
 | Staff app | Vite + React installable PWA, Dexie (IndexedDB), Workbox |
 | Realtime | Server-Sent Events (SSE), Redis pub/sub between API instances |
 | Auth | **Better Auth** (pinned). Verify plugin names and options against the installed version's docs at build time |
-| Payments | **Xendit** (pinned): Invoice API for collection, Disbursement API for payouts. Behind a `PaymentGateway` interface with `XenditGateway` and `FakeGateway` (used by all automated tests) |
+| Payments | **Phase 1 uses the `FakeGateway` exclusively** for every reservation, down-payment and refund flow (mock invoices, mock webhook verification). A real `XenditGateway` (Invoice API for collection, Disbursement API for payouts) implements the same `PaymentGateway` interface and is wired in only after gate G-01 and the Phase 2 money work |
 | Files | S3-compatible storage, private buckets, presigned uploads |
 | Messaging | WhatsApp Business API via a provider, plus email, behind a `NotificationProvider` interface |
 | Observability | pino JSON logs with `requestId`, Sentry, `GET /healthz` (liveness), `GET /readyz` (Postgres and Redis reachable) |
@@ -131,7 +139,7 @@ Network baseline (seed data): 4 outlets, 4 owners, 150 bikes.
 - Auth: Better Auth session cookie (`HttpOnly; Secure; SameSite=Lax`). Unauthenticated: 401. Authenticated but not permitted: 403. A resource outside the caller's scope returns 404 (never 403) to avoid leaking existence.
 - Single resource: the JSON object. List: `{ "data": [...], "nextCursor": string|null }`; query `limit` (V-LIMIT) and `cursor` (V-CURSOR); order `created_at DESC, id DESC` unless stated.
 - Error body (all non-2xx): `{ "error": { "code": string, "message": string, "details": [{ "path": string, "issue": string }]?, "requestId": string } }`.
-- `Idempotency-Key` header (UUID) is REQUIRED on `POST /reservations`, `POST /renters/me/deposit`, `POST /reservations/{id}/reallocate`. Same key and same body within 24 h returns the stored response with header `Idempotent-Replay: true`. Same key, different body: 422 `IDEMPOTENCY_KEY_REUSED`. Same key while the first request runs: 409 `IDEMPOTENCY_IN_PROGRESS`. Stored in `idempotency_keys`.
+- `Idempotency-Key` header (UUID) is REQUIRED on `POST /reservations` and `POST /reservations/{id}/reallocate`. Same key and same body within 24 h returns the stored response with header `Idempotent-Replay: true`. Same key, different body: 422 `IDEMPOTENCY_KEY_REUSED`. Same key while the first request runs: 409 `IDEMPOTENCY_IN_PROGRESS`. Stored in `idempotency_keys`.
 - Rate limits (Redis, per IP unless noted): anonymous 120 req/min; authenticated 600 req/min per user; exceeded: 429 `RATE_LIMITED` with `Retry-After`.
 
 ### 3.3 Error code catalog
@@ -143,7 +151,7 @@ Network baseline (seed data): 4 outlets, 4 owners, 150 bikes.
 | 403 | `FORBIDDEN` |
 | 404 | `NOT_FOUND` |
 | 409 | `SOLD_OUT`, `STATE_CONFLICT`, `DUPLICATE_RESOURCE`, `IDEMPOTENCY_IN_PROGRESS`, `SCAN_FLAGGED`, `MULTI_OUTLET_DISABLED` |
-| 422 | `VERIFICATION_REQUIRED`, `DEPOSIT_REQUIRED`, `OUTSIDE_OPENING_HOURS`, `DURATION_OUT_OF_RANGE`, `WINDOW_OUT_OF_RANGE`, `CATEGORY_NOT_OFFERED`, `PROMO_INVALID`, `AMOUNT_BELOW_MINIMUM`, `VOUCHER_INVALID`, `VOUCHER_EXPIRED`, `IDEMPOTENCY_KEY_REUSED`, `DISPUTE_WINDOW_CLOSED` |
+| 422 | `VERIFICATION_REQUIRED`, `OUTSIDE_OPENING_HOURS`, `DURATION_OUT_OF_RANGE`, `WINDOW_OUT_OF_RANGE`, `CATEGORY_NOT_OFFERED`, `PROMO_INVALID`, `AMOUNT_BELOW_MINIMUM`, `VOUCHER_INVALID`, `VOUCHER_EXPIRED`, `IDEMPOTENCY_KEY_REUSED`, `DISPUTE_WINDOW_CLOSED` |
 | 429 | `RATE_LIMITED` |
 | 500 / 502 / 503 | `INTERNAL`, `GATEWAY_UNAVAILABLE` |
 
@@ -164,6 +172,8 @@ Network baseline (seed data): 4 outlets, 4 owners, 150 bikes.
 - **V-PHOTO-KEY:** `^uploads/(checklist|damage|id)/[0-9a-f-]{36}\.(jpg|png|webp)$`. The server MUST `HEAD` the object: it must exist and be at most 5 MiB.
 - **V-CLIENT-EVENT-ID:** UUID v4, generated on the client.
 - **V-CHECKLIST:** object with exactly the keys `frame`, `brakes`, `tires`, `chain`, `saddle`, `handlebar_gears`, each one of `ok`, `minor_issue`, `damaged`. All keys required (A-02).
+- **V-QTY:** integer, 1 to `booking.max_quantity` (default 5). Number of bikes one reservation locks.
+- **V-COLLATERAL:** object `{type: "ktp"|"sim"|"vehicle", reference: V-TEXT-S}`. `reference` is a masked identifier (e.g. the last 4 digits of a KTP/SIM number) or a plate number. Only the masked reference is stored; the full document number is never persisted.
 - **V-HOURS:** object keys `mon..sun`, each an array of 0 to 2 intervals `{open:"HH:MM", close:"HH:MM"}`, 24 h, minutes in multiples of 15, `open < close`, no overlaps. Interpreted in WIB.
 - **V-WEEK:** `^[0-9]{4}-W(0[1-9]|[1-4][0-9]|5[0-3])$`.
 - **V-LIMIT:** integer 1 to 100, default 25. **V-CURSOR:** opaque string, max 256 chars.
@@ -185,17 +195,18 @@ Stored in table `app_config(key text PK, value jsonb, updated_by, updated_at)`, 
 | `dispute.raise_window_days`, `dispute.resolve_business_days` | FIXED | 7, 3 |
 | `sync.interval_minutes`, `sync.drift_max_pct` | FIXED | 5, 1 |
 | `pricing.billing_unit_minutes` | TBD | 60 |
-| `pricing_rules` (rate per unit, per category) | TBD | commuter 10000, road 20000, mtb 15000, fixie 10000 |
+| `pricing_rules` (rate per unit, per category, per day type) | TBD | weekday: commuter 10000, road 20000, mtb 15000, fixie 10000; weekend: commuter 15000, road 30000, mtb 20000, fixie 15000 |
 | `booking.slot_minutes` | TBD | 15 |
 | `booking.min_duration_minutes` / `max_duration_minutes` | TBD | 60 / 1440 |
 | `booking.max_advance_days` / `min_lead_minutes` | TBD | 7 / 0 |
+| `booking.max_quantity` | TBD | 5 (max bikes in one reservation) |
+| `booking.dp_rate_bps` | FIXED | 5000 (50% down payment collected online; balance collected offline) |
 | `checkout.early_minutes` | TBD | 0 |
 | `late.grace_minutes` | TBD | 15 |
-| `late.fee_per_started_hour_idr` | TBD | 10000 |
-| `late.collection_method` | TBD | `deposit_deduction` or `payment_intent`; FIXTURE `deposit_deduction` |
+| `late.fee_per_30min_idr` | TBD | 20000 (per started 30 min after grace) |
+| `late.collection_method` | TBD | `payment_intent` (generate an invoice) or `offline_cash` (collected by staff at check-in); FIXTURE `payment_intent` |
 | `late.escalation_minutes` | TBD | `{reminder:0, staff_call:30, owner_flag:60, claim_eligible:240}` minutes after `expected_end_at` |
-| `deposit.amount_idr` | TBD | 200000 |
-| `deposit.auto_release_enabled` | TBD | false (manual release only) |
+| `penalty.lost_unit_idr` | TBD | 4000000 (lost or unreturned unit; settled offline against collateral) |
 | `claims.owner_share_bps` | TBD | 10000 |
 | `condition.min_photos` / `max_photos` | TBD | 1 / 8 |
 | `qr.voucher_ttl_seconds` | TBD | 60 |
@@ -208,6 +219,8 @@ Stored in table `app_config(key text PK, value jsonb, updated_by, updated_at)`, 
 | `feature.sister_outlets_enabled` | P3 flag | false |
 
 **Seed fixtures:** outlet `lat`/`lng` and `hours` are not in the PRD. Seed placeholders near Jambi (about -1.61, 103.61) with hours Monday to Sunday 07:00 to 19:00, marked FIXTURE and replaced with real data before launch. Bike asset tags: `JMB-<outlet 3 digits>-<COM|ROD|MTB|FIX>-<001..>`.
+
+**Seed pricing is mock data, not policy.** Every rate, tier and penalty value in this table (weekday/weekend rental rates, `late.fee_per_30min_idr`, `penalty.lost_unit_idr`, the DP rate and every other TBD) is a **configurable seed/mock value** used only to bootstrap demos and tests. No amount may be hard-coded in business logic: the values live in `app_config` and `pricing_rules` and are read through `getConfig` / the FR-PRC-01 rate lookup. Owners may set their own pricing per outlet, category and day type via `POST /admin/pricing-rules`; the admin may change any value via `PATCH /admin/config`. T-10 MUST pass with any configured value, not with the fixtures above.
 
 ---
 
@@ -233,34 +246,35 @@ bike_events(bike_id, owner_id, type bike_event_type NOT NULL, from_state bike_st
 scan_events(client_event_id uuid UNIQUE NOT NULL, staff_id, outlet_id, type text, payload jsonb, occurred_at timestamptz,
       received_at timestamptz DEFAULT now(), status CHECK IN ('applied','flagged','rejected'), flag_reason text NULL,
       resolved_by uuid NULL, resolved_at timestamptz NULL)
-renters(user_id UNIQUE, phone text, verification_status verification_status NOT NULL DEFAULT 'not_started',
-      deposit_status deposit_status NOT NULL DEFAULT 'none')
+renters(user_id UNIQUE, phone text, verification_status verification_status NOT NULL DEFAULT 'not_started')
 verification_requests(renter_id, provider text, provider_ref text, document_type CHECK IN ('ktp','sim','passport'),
       document_key text, status verification_status, reviewed_by NULL, reviewed_at NULL, reject_reason text NULL)
 id_document_views(verification_request_id, viewer_id, viewed_at)     -- append-only
-deposits(renter_id UNIQUE, balance_idr bigint NOT NULL CHECK (>=0), status CHECK IN ('pending','held','released'))
-deposit_claims(rental_id, renter_id, owner_id, amount_idr bigint CHECK (>0), description text, photo_keys text[],
-      status CHECK IN ('proposed','approved','rejected'), decided_by NULL, decided_at NULL)
-pricing_rules(outlet_id NULL, category, rate_idr bigint CHECK (>0), effective_from timestamptz)
+pricing_rules(outlet_id NULL, category, day_type pricing_day_type NOT NULL DEFAULT 'all', rate_idr bigint CHECK (>0), effective_from timestamptz)
 promotions(code text UNIQUE, kind CHECK IN ('percent','fixed'), value bigint, max_discount_idr bigint NULL,
       starts_at, ends_at, category NULL, outlet_id NULL, max_uses int NULL, max_uses_per_renter int NULL, active boolean)
-reservations(renter_id, outlet_id, owner_id, category, starts_at, ends_at, CHECK (ends_at > starts_at),
+reservations(renter_id, outlet_id, owner_id, category, quantity smallint NOT NULL DEFAULT 1 CHECK (quantity >= 1),
+      starts_at, ends_at, CHECK (ends_at > starts_at),
       status reservation_status NOT NULL, expires_at timestamptz NULL, confirmed_at NULL,
-      price_idr bigint, discount_idr bigint DEFAULT 0, final_idr bigint, promo_id NULL,
-      owner_promo_bps int NOT NULL, rate_snapshot jsonb,            -- {rateIdr, unitMinutes}, immutable after insert
+      price_idr bigint, discount_idr bigint DEFAULT 0, final_idr bigint, dp_idr bigint NOT NULL DEFAULT 0, promo_id NULL,
+      owner_promo_bps int NOT NULL, rate_snapshot jsonb,            -- {rateIdr, unitMinutes, dayType}, immutable after insert
       at_risk boolean NOT NULL DEFAULT false, reallocation_deadline_at timestamptz NULL, cancel_reason text NULL)
    INDEX (outlet_id, category, status, starts_at, ends_at)
-rentals(reservation_id UNIQUE, renter_id, bike_id, owner_id, checkout_outlet_id, checked_out_at, expected_end_at,
+rentals(reservation_id, renter_id, bike_id, owner_id, checkout_outlet_id, checked_out_at, expected_end_at,
       checked_in_at NULL, checkin_outlet_id NULL, status rental_status NOT NULL DEFAULT 'open',
+      collateral jsonb NOT NULL DEFAULT '{}',                        -- {type: ktp|sim|vehicle, reference}, logged at check-out
+      balance_collected_idr bigint NOT NULL DEFAULT 0,               -- offline 50% collected at check-out
+      balance_method text NULL CHECK (balance_method IN ('cash','qris')),
       late_minutes int NULL, late_fee_idr bigint NOT NULL DEFAULT 0, mechanical_failure boolean NOT NULL DEFAULT false,
       escalation_stage smallint NOT NULL DEFAULT 0 CHECK (0..4), checkout_checklist jsonb, checkin_checklist jsonb NULL,
       completed_at NULL)
+   INDEX (reservation_id)                                          -- many rentals per reservation (multi-bike)
    UNIQUE INDEX (bike_id) WHERE status = 'open'                    -- DB guard: one open rental per bike
 payment_intents(purpose payment_purpose, renter_id, reservation_id NULL, rental_id NULL, amount_idr bigint CHECK (>0),
-      status payment_status, gateway text DEFAULT 'xendit', gateway_ref text NULL, payment_url text NULL, expires_at NULL)
+      status payment_status, gateway text DEFAULT 'fake', gateway_ref text NULL, payment_url text NULL, expires_at NULL)
 payment_webhook_events(provider text, event_id text, raw jsonb, received_at, processed_at NULL, UNIQUE (provider, event_id))
 refunds(payment_intent_id, reservation_id NULL, rental_id NULL, amount_idr bigint CHECK (>0),
-      reason CHECK IN ('mechanical_failure','reallocation_declined','late_payment_sold_out','no_show','dispute','deposit_release'),
+      reason CHECK IN ('mechanical_failure','reallocation_declined','late_payment_sold_out','no_show','dispute'),
       gateway_ref NULL, status CHECK IN ('pending','succeeded','failed'))
 idempotency_keys(key uuid, user_id, request_hash text, response jsonb NULL, status_code int, PRIMARY KEY (key, user_id))
 outbox_events(type text, payload jsonb, dispatched_at NULL)         -- transactional outbox for in-process event bus
@@ -288,11 +302,12 @@ audit_log(actor_id NULL, actor_role text, action text, entity text, entity_id uu
 - `reservation_status`: `held`, `confirmed`, `fulfilled`, `expired`, `cancelled`, `no_show`.
 - `rental_status`: `open`, `returned`, `completed`.
 - `verification_status`: `not_started`, `pending`, `verified`, `rejected`.
-- `deposit_status`: `none`, `pending`, `held`, `insufficient`, `released`.
-- `payment_purpose`: `booking`, `deposit`, `late_fee`. `payment_status`: `created`, `pending`, `paid`, `failed`, `expired`, `refunded`.
+- `payment_purpose`: `booking`, `late_fee`. `payment_status`: `created`, `pending`, `paid`, `failed`, `expired`, `refunded`.
+- `pricing_day_type`: `all`, `weekday`, `weekend`.
+- `collateral_type`: `ktp`, `sim`, `vehicle`.
 - `ledger_type`: `rental_revenue`, `platform_commission`, `promo_share`, `late_fee_share`, `refund_reversal`, `damage_claim_credit`, `manual_adjustment`, `payout` (P2; the last three extend the tech document list, A-04).
 
-**A-05 Bike states `held` and `reserved`.** They exist in the enum per the PRD but are unused in P1 to P3: reservations are category-level (tech document 5.2) and a bike is bound only at check-out. The owner dashboard shows held and reserved as per-category counts derived from `reservations`, not from `bikes.state`. No code path may set `bikes.state` to `held` or `reserved`.
+**A-05 Bike states `held` and `reserved`.** They exist in the enum per the PRD but are unused in P1 to P3: reservations are category-level (tech document 5.2) and a bike is bound only at check-out. A reservation locks a **count** of bikes (`quantity`) under one category row, not specific bikes. The owner dashboard shows held and reserved as per-category counts derived from `reservations` (sum of `quantity`), not from `bikes.state`. No code path may set `bikes.state` to `held` or `reserved`.
 
 ### 5.1 State machines
 
@@ -310,7 +325,7 @@ audit_log(actor_id NULL, actor_role text, action text, entity text, entity_id uu
 | `unavailable` | `available` | manual `bike_status_change` | admin |
 | `available`, `maintenance` | `charging` and back | reserved for e-bikes (P3) | n/a |
 
-**Reservation:** `held` → `confirmed` (payment paid, or `final_idr = 0`) | `expired` (hold lapsed, payment failed) | `cancelled` (gateway failure at creation, reallocation). `confirmed` → `fulfilled` (check-out) | `no_show` (start + 60 min) | `cancelled` (reallocation accepted or declined).
+**Reservation:** `held` → `confirmed` (50% DP paid, or `dp_idr = 0`) | `expired` (hold lapsed, payment failed) | `cancelled` (gateway failure at creation, reallocation). `confirmed` → `fulfilled` (check-out of all `quantity` bikes) | `no_show` (start + 60 min) | `cancelled` (reallocation accepted or declined).
 
 **Rental:** `open` → `returned` (check-in) → `completed` (inspection confirmed).
 
@@ -329,7 +344,7 @@ Better Auth phone-number plugin; OTP delivered by WhatsApp through `Notification
 3. Generate a 6-digit numeric OTP with a CSPRNG. Store only its hash. TTL 300 s.
 4. Send via WhatsApp template `otp`.
 5. On verify: at most 5 wrong attempts per OTP, then the OTP is invalidated. A wrong, expired or used OTP returns 401 `OTP_INVALID`.
-6. On first successful verify, in one transaction create the `users` row (role `renter`) and the `renters` row (`verification_status = not_started`, `deposit_status = none`).
+6. On first successful verify, in one transaction create the `users` row (role `renter`) and the `renters` row (`verification_status = not_started`).
 7. Issue a session (TTL 30 days, sliding).
 - **AC:** 6th OTP request within an hour returns 429. A correct OTP after 5 wrong attempts still returns 401. Inputs `081234567890`, `6281234567890` and `+6281234567890` all normalize to `+6281234567890` and resolve to the same user.
 
@@ -341,7 +356,7 @@ Better Auth phone-number plugin; OTP delivered by WhatsApp through `Notification
 - **AC:** staff user of JMB-001 calling `GET /staff/outlet/bikes` sees only JMB-001 bikes.
 
 #### FR-ID-03 Owner isolation [P1]
-1. RLS enabled on `outlets`, `outlet_categories`, `bikes`, `bike_events`, `reservations`, `rentals`, `deposit_claims`, `ledger_entries`, `statements`, `payouts`, `disputes`.
+1. RLS enabled on `outlets`, `outlet_categories`, `bikes`, `bike_events`, `reservations`, `rentals`, `ledger_entries`, `statements`, `payouts`, `disputes`.
 2. Policy per table: `USING (owner_id = current_setting('app.owner_id')::uuid)`. Role `app_rls` has no `BYPASSRLS`.
 3. Every owner endpoint runs in a transaction that first calls `set_config('app.owner_id', ownerId, true)`, and repository helpers require `ownerId` as a parameter (compile-time, no default).
 - **AC (T-02):** owner A's session cannot read, via any owner endpoint or direct `app_rls` SQL, any row of owner B's outlets, bikes or ledger; the response is 404 or zero rows.
@@ -355,14 +370,8 @@ Requirement stands; method is on hold, so it sits behind `VerificationProvider`.
 5. Document access: only role `admin`. Bucket private and encrypted at rest. Delete objects `idv.retention_days` after the renter's last rental or the rejection.
 - **AC:** a renter with `pending` status calling `POST /reservations` gets 422 `VERIFICATION_REQUIRED`.
 
-#### FR-ID-05 Security deposit [P1]
-Amount and release rules are TBD; implement the mechanism with config.
-1. `POST /renters/me/deposit` (Idempotency-Key required). `topUp = deposit.amount_idr - deposits.balance_idr`. If `topUp <= 0`: 409 `STATE_CONFLICT`.
-2. Create `payment_intents(purpose = deposit, amount = topUp)`, set `renters.deposit_status = pending`, create the Xendit invoice, return `{paymentUrl}`.
-3. On paid webhook (FR-PAY-02): `deposits.balance_idr += amount`, `status = held`, `renters.deposit_status = held` (same transaction).
-4. After any deduction (claim, late fee), if `balance_idr < deposit.amount_idr` set `renters.deposit_status = insufficient`.
-5. Release: `POST /admin/renters/{id}/deposit/release` `{amountIdr}` (V-IDR, `<= balance`). Rejected with 409 if the renter has an open rental, a `held`/`confirmed` reservation, or a `proposed` claim. Refunds via the gateway (reason `deposit_release`), reduces balance; zero balance sets status `released`. With `deposit.auto_release_enabled = false`, no automatic release exists.
-- **AC:** with `deposit.amount_idr = 200000`, balance 150000 gives topUp 50000; balance 200000 gives 409.
+#### FR-ID-05 (removed) Digital security deposit
+Removed in revision 1.1. There is **no** digital deposit: the `deposits` and `deposit_claims` tables, the `deposit_status` enum, `POST /renters/me/deposit`, `POST /admin/renters/{id}/deposit/release` and `PATCH /admin/deposit-claims/{id}` do not exist. A renter's good faith is secured by (a) the 50% down payment (FR-INV-02) and (b) the physical collateral collected at check-out (FR-RNT-01). Damage discovered at check-in is settled offline against that collateral (FR-RNT-03).
 
 ### 6.2 Catalog
 
@@ -384,12 +393,12 @@ Amount and release rules are TBD; implement the mechanism with config.
 
 #### FR-PRC-01 Price quote [P1]; promotions [P2]
 Pure function `quote({outletId, category, startsAt, endsAt, promoCode?, renterId}) → {priceIdr, discountIdr, finalIdr, rateSnapshot, promoId, ownerPromoBps}`.
-1. Rate: latest `pricing_rules` with `effective_from <= now()` for `(outlet_id, category)`; else the row with `outlet_id IS NULL`; else 422 `CATEGORY_NOT_OFFERED`.
+1. `dayType` = `weekend` when the WIB date of `startsAt` is Saturday or Sunday, else `weekday`. Rate: the latest `pricing_rules` with `effective_from <= now()` matching `(outlet_id, category, dayType)`, else `(NULL, category, dayType)`, else `(outlet_id, category, 'all')`, else `(NULL, category, 'all')`; none: 422 `CATEGORY_NOT_OFFERED`. `rateSnapshot` records `{rateIdr, unitMinutes, dayType}`.
 2. `units = ceil(durationMinutes / pricing.billing_unit_minutes)`; `priceIdr = rateIdr * units`.
 3. Promo (P2; P1 ignores `promoCode`, returning `PROMO_INVALID` if supplied): active, `starts_at <= now() < ends_at`, scope matches, `max_uses` and `max_uses_per_renter` not exceeded. `percent`: `discount = min(floor(price * value / 100), max_discount_idr ?? price)`; `fixed`: `min(value, price)`. `percent` value must be 1 to 100.
 4. `finalIdr = priceIdr - discountIdr`. `ownerPromoBps = owner.promo_opt_out ? 0 : promo.owner_share_bps`.
 5. If `0 < finalIdr < payments.min_charge_idr`: 422 `AMOUNT_BELOW_MINIMUM`.
-- **AC:** rate 10000, unit 60, window 90 min gives 20000. Percent 25 on 20000 gives discount 5000, final 15000. Window 61 min gives 2 units.
+- **AC:** weekday rate 10000, unit 60, window 90 min gives 20000; the same window on a Saturday uses the weekend rate 15000 and gives 30000. Percent 25 on 20000 gives discount 5000, final 15000. Window 61 min gives 2 units.
 
 ### 6.4 Inventory and Reservation (the lock)
 
@@ -397,35 +406,36 @@ Pure function `quote({outletId, category, startsAt, endsAt, promoCode?, renterId
 Function `computeAvailability(tx, {outletId, category, startsAt, endsAt, excludeReservationId?})`.
 1. `inService` = bikes with `home_outlet_id = outletId`, matching `category`, `state NOT IN ('maintenance','unavailable')`.
 2. `buffer` = `outlet_categories.safety_buffer`.
-3. `committedReservations` = reservations at `(outletId, category)` overlapping the window where (`status = held AND expires_at > now()`) OR (`status = confirmed AND at_risk = false AND starts_at + noshow.grace_minutes > now()`), excluding `excludeReservationId`.
+3. `committedReservations` = the **sum of `quantity`** over reservations at `(outletId, category)` overlapping the window where (`status = held AND expires_at > now()`) OR (`status = confirmed AND at_risk = false AND starts_at + noshow.grace_minutes > now()`), excluding `excludeReservationId`. A reservation therefore commits `quantity` bikes, not one.
 4. `committedRentals` = `open` rentals whose bike is homed at `outletId` with that category and (`expected_end_at > startsAt` OR `expected_end_at <= now()`). An overdue open rental counts as running until its staff check-in, so a late bike is never double-booked.
-5. `available = max(0, inService - buffer - committedReservations - committedRentals)`.
+5. `available = max(0, inService - buffer - committedReservations - committedRentals)`. The result is a **count of free bikes**; a request proceeds only when `available >= reservation.quantity`.
 - Conservative by design: it counts every overlapping reservation even when two of them do not overlap each other. This can under-report availability but never over-report it.
-- **AC (T-01 set):** inService 5, buffer 0, 4 overlapping confirmed, 0 rentals: available 1. Reservation 10:00 to 11:00 does not overlap window 11:00 to 12:00. Buffer 1 with inService 5 and 0 committed: available 4. An overdue open rental counts against a window next week.
+- **AC (T-01 set):** inService 5, buffer 0, four overlapping confirmed reservations of `quantity` 1, 0 rentals: available 1. With inService 5 and no other commitments, one confirmed reservation of `quantity` 3 leaves available 2, so a follow-up request of `quantity` 2 succeeds and one of `quantity` 3 fails `SOLD_OUT`. Reservation 10:00 to 11:00 does not overlap window 11:00 to 12:00. Buffer 1 with inService 5 and 0 committed: available 4. An overdue open rental counts against a window next week.
 
 #### FR-INV-02 Create reservation (hold) [P1]
-`POST /reservations`. Inputs: `outletId` (V-UUID), `category` (V-CAT), `startsAt`, `endsAt` (V-TS), `promoCode?` (V-PROMO); header `Idempotency-Key`.
+`POST /reservations`. Inputs: `outletId` (V-UUID), `category` (V-CAT), `quantity?` (V-QTY, default 1), `startsAt`, `endsAt` (V-TS), `promoCode?` (V-PROMO); header `Idempotency-Key`.
 Pre-transaction validation, in this order (first failure returns):
-1. Schema (400). Renter `verification_status = verified` else 422 `VERIFICATION_REQUIRED`; `deposit_status = held` else 422 `DEPOSIT_REQUIRED`.
+1. Schema (400). Renter `verification_status = verified` else 422 `VERIFICATION_REQUIRED`.
 2. `endsAt > startsAt`; minutes of `startsAt` and duration are multiples of `booking.slot_minutes`; duration within `booking.min/max_duration_minutes` else 422 `DURATION_OUT_OF_RANGE`; `startsAt >= now + booking.min_lead_minutes` and `<= now + booking.max_advance_days` else 422 `WINDOW_OUT_OF_RANGE`.
 3. `startsAt` and `endsAt` each fall inside the outlet's `hours` (WIB) else 422 `OUTSIDE_OPENING_HOURS`. Closed time between them is allowed.
 4. Outlet active and `(outletId, category)` active else 422 `CATEGORY_NOT_OFFERED`.
 
 Single database transaction (`READ COMMITTED`):
 1. `SELECT 1 FROM outlet_categories WHERE outlet_id = $1 AND category = $2 FOR UPDATE`.
-2. `computeAvailability`; if `available < 1` throw 409 `SOLD_OUT`.
+2. `computeAvailability`; if `available < quantity` throw 409 `SOLD_OUT`.
 3. `quote()` (FR-PRC-01).
-4. Insert reservation: `status = held`, `expires_at = now() + hold.checkout_minutes`, price fields and snapshots copied from the quote. If `finalIdr = 0` insert `confirmed` directly and skip steps 5 to 6.
-5. Insert `payment_intents(purpose = booking, amount = finalIdr, status = created, expires_at = reservation.expires_at)`.
-6. Insert outbox event `reservation.held`. Commit.
+4. Compute the online down payment: `dpIdr = roundHalfUp(finalIdr * booking.dp_rate_bps / 10000)`. The offline balance is `balanceIdr = finalIdr - dpIdr`, collected by staff at check-out (FR-RNT-01).
+5. Insert reservation: `status = held`, `quantity = quantity`, `dp_idr = dpIdr`, `expires_at = now() + hold.checkout_minutes`, price fields and snapshots copied from the quote. If `dpIdr = 0` insert `confirmed` directly and skip steps 6 to 7.
+6. Insert `payment_intents(purpose = booking, amount = dpIdr, status = created, expires_at = reservation.expires_at)`.
+7. Insert outbox event `reservation.held`. Commit.
 
 After commit (never inside the lock): enqueue BullMQ job `release-hold` at `expires_at` (job id `hold:<reservationId>`); call `gateway.createInvoice({externalId: intent.id, amount, durationSeconds: 900})` with an 8 s timeout. Success: store `gateway_ref`, `payment_url`, status `pending`; respond 201 `{reservation, price, paymentUrl}`. Failure: set reservation `cancelled` (`cancel_reason = gateway_error`), intent `failed`, respond 502 `GATEWAY_UNAVAILABLE`.
-- **AC (T-01, the protected rule):** an outlet with 5 commuter bikes and 50 parallel valid requests for the same window yields exactly 5 responses 201 and 45 responses 409 `SOLD_OUT`; `computeAvailability` afterwards returns 0.
+- **AC (T-01, the protected rule):** an outlet with 5 commuter bikes and 50 parallel valid requests (each `quantity = 1`) for the same window yields exactly 5 responses 201 and 45 responses 409 `SOLD_OUT`; `computeAvailability` afterwards returns 0. With the same 5 bikes, one request of `quantity = 3` leaves `available = 2`; a follow-up request of `quantity = 3` returns `SOLD_OUT` and one of `quantity = 2` returns 201.
 
 #### FR-INV-03 Hold expiry, no-show and sweeper [P1]
 1. Delayed job `release-hold` runs at `expires_at`; sweeper job `sweeper` runs every minute. Both execute the same idempotent SQL; Redis loss never loses a booking.
 2. Expire holds: `UPDATE reservations SET status = 'expired' WHERE status = 'held' AND expires_at <= now() RETURNING id`; set unpaid intents to `expired`; emit `reservation.released`.
-3. No-show: `UPDATE ... SET status = 'no_show' WHERE status = 'confirmed' AND starts_at + noshow.grace_minutes <= now()`. Apply `noshow.refund_policy`: `full_refund` creates a full refund (FR-PAY-03, reason `no_show`); `retain_full` does nothing. No penalty, no forfeit (NEG-8). Notify renter (`no_show`).
+3. No-show: `UPDATE ... SET status = 'no_show' WHERE status = 'confirmed' AND starts_at + noshow.grace_minutes <= now()`. Apply `noshow.refund_policy` to the online down payment (`dp_idr`): `full_refund` refunds the DP (FR-PAY-03, reason `no_show`); `retain_full` does nothing. Notify renter (`no_show`). The released reservation stops counting its `quantity` on the next availability computation.
 4. Sweeper also runs FR-RNT-04 escalation and FR-INV-04 reallocation deadlines.
 - **AC:** a `held` row with `expires_at` 1 s in the past is `expired` after one sweeper run with Redis stopped. A `confirmed` reservation with `starts_at` 61 min ago becomes `no_show`; one 59 min ago does not.
 
@@ -434,8 +444,8 @@ Trigger: staff event `incident` with `incidentType` `bike_missing` or `bike_dama
 1. In one transaction: lock the bike row; set `unavailable` (missing) or `maintenance` (damaged); write `bike_events`.
 2. Recompute availability for the bike's `(homeOutlet, category)`. While any reservation window has `committed > inService - buffer`, set `at_risk = true` on the overlapping `confirmed` reservation with the latest `created_at` (it then stops counting). Set `reallocation_deadline_at = min(now() + reallocation.response_minutes, starts_at)`. Reservations with `starts_at <= now()` are not touched.
 3. Notify each affected renter (`reallocation_offer`) with a link to the choices.
-4. `GET /reservations/{id}/alternatives`: outlets (any owner) with `availableNow >= 1` for the same category and window, via `computeAvailability`.
-5. `POST /reservations/{id}/reallocate` `{outletId}` (Idempotency-Key): run the FR-INV-02 lock at the target outlet (excluding checks that need payment). On success: original reservation `cancelled` (`cancel_reason = reallocated`), new reservation `confirmed` with `price_idr`, `discount_idr`, `final_idr` and `rate_snapshot` copied from the original (A-06), owner fields of the target outlet. No new payment.
+4. `GET /reservations/{id}/alternatives`: outlets (any owner) with `availableNow >= quantity` for the same category and window, via `computeAvailability`.
+5. `POST /reservations/{id}/reallocate` `{outletId}` (Idempotency-Key): run the FR-INV-02 lock at the target outlet (excluding checks that need payment), requiring `available >= quantity`. On success: original reservation `cancelled` (`cancel_reason = reallocated`), new reservation `confirmed` with `quantity`, `price_idr`, `discount_idr`, `final_idr`, `dp_idr` and `rate_snapshot` copied from the original (A-06), owner fields of the target outlet. No new payment (the DP is unchanged).
 6. `POST /reservations/{id}/decline-reallocation`, or no response by `reallocation_deadline_at` (sweeper): reservation `cancelled`, full refund (reason `reallocation_declined`).
 - **AC:** outlet has 3 road bikes and 3 overlapping confirmed reservations; marking one bike damaged flags exactly the latest-created reservation `at_risk`; a new booking attempt for that window returns `SOLD_OUT`.
 
@@ -448,19 +458,19 @@ Trigger: staff event `incident` with `incidentType` `bike_missing` or `bike_dama
 
 ### 6.5 Payments
 
-Invoice creation (FR-PAY-01) is specified inside FR-INV-02 and FR-ID-05; it is not a separate endpoint.
+Invoice creation (FR-PAY-01) is specified inside FR-INV-02; it is not a separate endpoint. In P1 the `FakeGateway` returns a mock `payment_url` and a mock paid webhook.
 
-#### FR-PAY-02 Xendit webhook [P1]
-`POST /webhooks/xendit` (public).
-1. Verify the callback token header with a constant-time comparison to the configured secret. Mismatch: 401 `WEBHOOK_SIGNATURE_INVALID`, nothing stored (confirm the exact mechanism in the Xendit sandbox).
+#### FR-PAY-02 Payment webhook [P1]
+`POST /webhooks/{gateway}` (public, `gateway = fake` in P1, `xendit` after G-01).
+1. Verify the callback token header with a constant-time comparison to the configured secret. Mismatch: 401 `WEBHOOK_SIGNATURE_INVALID`, nothing stored (confirm the exact mechanism against the gateway: a test header on the P1 `FakeGateway`, or the Xendit sandbox after G-01).
 2. Insert raw payload into `payment_webhook_events`; on `UNIQUE (provider, event_id)` conflict return 200 immediately (duplicate).
 3. Resolve the intent by `external_id`. Transaction, intent row locked `FOR UPDATE`. If already `paid`: no-op.
 4. Verify `paid_amount == intent.amount_idr`; otherwise set the event `processed_at` with a failure note, alert admin, change nothing.
-5. `PAID` for `booking`: if reservation is `held`: set `confirmed`, `confirmed_at = now()`, intent `paid`. If reservation is `expired`: re-run FR-INV-02 steps 1 to 2 under the lock; if `available >= 1` set `confirmed`; else issue a full refund (reason `late_payment_sold_out`) and notify the renter. Emit `reservation.confirmed` and send `reservation_confirmed`.
-6. `PAID` for `deposit`: per FR-ID-05 step 3. `PAID` for `late_fee`: intent `paid`.
+5. `PAID` for `booking` (this is the 50% DP, `amount_idr = reservation.dp_idr`): if the reservation is `held`: set `confirmed`, `confirmed_at = now()`, intent `paid`. If the reservation is `expired`: re-run FR-INV-02 steps 1 to 2 under the lock; if `available >= quantity` set `confirmed`; else refund the DP in full (reason `late_payment_sold_out`) and notify the renter. Emit `reservation.confirmed` and send `reservation_confirmed`.
+6. `PAID` for `late_fee`: intent `paid`.
 7. `EXPIRED` or `FAILED`: intent `expired`/`failed`; the sweeper handles the reservation.
-8. Always respond 200 within 2 s after commit; unexpected errors return 500 so Xendit retries.
-- **AC:** the same event delivered twice changes the DB once. Payment arriving after expiry with capacity 0 produces exactly one refund row.
+8. Always respond 200 within 2 s after commit; unexpected errors return 500 so the gateway retries.
+- **AC:** the same event delivered twice changes the DB once. A DP payment arriving after expiry with capacity below `quantity` produces exactly one refund row.
 
 #### FR-PAY-03 Refunds [P1]
 `issueRefund({intentId, amountIdr, reason, rentalId?})`:
@@ -480,28 +490,29 @@ All staff actions are events: `checkout`, `checkin`, `inspection`, `bike_status_
 - **AC:** posting the same checkout `clientEventId` twice yields one rental. A batch of 3 events replayed out of order is processed by ascending `occurredAt`.
 
 #### FR-RNT-01 Check-out (handover) [P1]
-Event `checkout`: `{clientEventId, occurredAt, voucherToken, bikeAssetTag (V-ASSET-TAG), checklist (V-CHECKLIST), photoKeys (V-PHOTO-KEY[], condition.min_photos to max_photos)}`.
+Event `checkout`: `{clientEventId, occurredAt, voucherToken, bikeAssetTags (V-ASSET-TAG[], length = reservation.quantity), checklist (V-CHECKLIST), photoKeys (V-PHOTO-KEY[], condition.min_photos to max_photos), collateral (V-COLLATERAL), balanceCollection {amountIdr (V-IDR), method: cash|qris}}`.
 1. Verify the token signature and `exp` (FR-SEC-01, tolerance 120 s against `occurredAt`); failure: `VOUCHER_INVALID` / `VOUCHER_EXPIRED` (rejected).
-2. Load reservation and bike (both `FOR UPDATE`, bike first by id order).
-3. Flag with these reasons if violated: `RESERVATION_NOT_CONFIRMED` (status not `confirmed`, e.g. already `no_show`), `WRONG_OUTLET` (reservation outlet or bike `current_outlet_id` differs from the staff outlet), `CATEGORY_MISMATCH`, `BIKE_NOT_AVAILABLE` (state not `available`), `TOO_EARLY` (`occurredAt < starts_at - checkout.early_minutes`).
-4. Apply: insert `rentals` (`expected_end_at = reservation.ends_at`, `checkout_checklist`), set bike `in_rental` (`current_outlet_id` unchanged), reservation `fulfilled`, `bike_events(checked_out, photo_keys)`, outbox `rental.checked_out`.
-- **AC:** a `no_show` reservation scanned at the counter is flagged `RESERVATION_NOT_CONFIRMED`; bike state stays `available`.
+2. `bikeAssetTags` MUST contain exactly `reservation.quantity` distinct tags; otherwise rejected `QUANTITY_MISMATCH`. `collateral` is REQUIRED — staff physically collect a KTP, SIM or vehicle and log its masked reference — else rejected `COLLATERAL_REQUIRED`. `balanceCollection.amountIdr` MUST equal the offline balance `final_idr - dp_idr`; otherwise rejected `BALANCE_MISMATCH`.
+3. Load the reservation (`FOR UPDATE`) and every listed bike (all `FOR UPDATE`, ordered by id).
+4. Flag with these reasons if violated: `RESERVATION_NOT_CONFIRMED` (status not `confirmed`, e.g. already `no_show`), `WRONG_OUTLET` (reservation outlet or any bike `current_outlet_id` differs from the staff outlet), `CATEGORY_MISMATCH`, `BIKE_NOT_AVAILABLE` (any bike state not `available`), `TOO_EARLY` (`occurredAt < starts_at - checkout.early_minutes`).
+5. Apply in one transaction: insert **one `rentals` row per bike tag** (`reservation_id`, `bike_id`, `expected_end_at = reservation.ends_at`, `checkout_checklist`, `collateral`, `balance_collected_idr`, `balance_method`); set each bike `in_rental` (`current_outlet_id` unchanged); reservation `fulfilled`; one `bike_events(checked_out, photo_keys)` per bike; outbox `rental.checked_out` per rental.
+- **AC:** a `no_show` reservation scanned at the counter is flagged `RESERVATION_NOT_CONFIRMED`; no bike state changes. A reservation of `quantity = 2` checked out with two tags creates two `open` rentals sharing the reservation id and the same `collateral`, each with `balance_collected_idr = final_idr - dp_idr`.
 
 #### FR-RNT-02 Check-in (return) [P1]
-Event `checkin`: `{clientEventId, occurredAt, bikeAssetTag}`. No renter or phone involvement (INV-3).
+Event `checkin`: `{clientEventId, occurredAt, bikeAssetTag}`. No renter or phone involvement (INV-3). A multi-bike reservation is closed one bike at a time, each bike scanning its own check-in.
 1. Find the `open` rental for the bike; none: flag `NO_OPEN_RENTAL`.
 2. Flag `WRONG_OWNER_OUTLET` if the staff outlet's `owner_id` differs from the bike's `owner_id`. Same-owner returns to any outlet are allowed (PRD agreed decision).
 3. Apply in one transaction: `rentals.checked_in_at = occurredAt`, `checkin_outlet_id`, `status = returned`; bike `pending_inspection`, `current_outlet_id = staff outlet`; `bike_events(checked_in)`.
-4. Late calculation: `lateMinutes = max(0, floor((occurredAt - expected_end_at) / 60 s))`. If `mechanical_failure` or `lateMinutes <= late.grace_minutes`: fee 0. Else `late_fee_idr = ceil(lateMinutes / 60) * late.fee_per_started_hour_idr`. Store both.
-5. If `late_fee_idr > 0`: collect per `late.collection_method`: `deposit_deduction` reduces `deposits.balance_idr` (floored at 0; any shortfall creates a `payment_intents(late_fee)`) , or `payment_intent` creates the invoice and notifies the renter.
-- **AC:** expected end 12:00, grace 15, rate 10000: check-in 12:15 gives fee 0; 12:16 gives 10000; 13:01 gives 20000.
+4. Late calculation: `lateMinutes = max(0, floor((occurredAt - expected_end_at) / 60 s))`. If `mechanical_failure` or `lateMinutes <= late.grace_minutes`: fee 0. Else `late_fee_idr = ceil(lateMinutes / 30) * late.fee_per_30min_idr` (seed Rp 20,000 per started 30 min). Store both.
+5. If `late_fee_idr > 0`: collect per `late.collection_method`: `payment_intent` creates a `payment_intents(late_fee)` invoice and notifies the renter, or `offline_cash` records that staff collected it at the counter (a `payment_intents(late_fee)` row marked `paid`). There is no deposit to deduct from.
+- **AC:** expected end 12:00, grace 15, rate 20000 per started 30 min: check-in 12:15 gives fee 0; 12:16 gives 20000; 13:01 gives 40000.
 
 #### FR-RNT-03 Inspection and completion [P1]
-Event `inspection`: `{clientEventId, occurredAt, rentalId, result: pass|damage_found|maintenance_required, checklist (V-CHECKLIST), photoKeys, damageDescription?, claimAmountIdr?}`.
+Event `inspection`: `{clientEventId, occurredAt, rentalId, result: pass|damage_found|maintenance_required, checklist (V-CHECKLIST), photoKeys, damageDescription?}`.
 1. The rental must be `returned`, else flag `NOT_RETURNED`. If `mechanical_failure = true`, `result` must be `maintenance_required` or `damage_found`, else flag `RESULT_MISMATCH`.
-2. `damage_found` requires `damageDescription` (V-TEXT-L) and at least 1 photo; optional `claimAmountIdr` (V-IDR, `> 0`) creates `deposit_claims(proposed)`.
+2. `damage_found` requires `damageDescription` (V-TEXT-L) and at least 1 photo.
 3. Apply: `pass` sets bike `available`; others set `maintenance`. Set `rentals.status = completed`, `completed_at`. `bike_events(inspected)`. Outbox `rental.completed` (consumed by reporting P1 and ledger P2).
-4. Admin approves or rejects a claim via `PATCH /admin/deposit-claims/{id}` `{decision}`. Approval: `amount <= deposit balance` else 409 `STATE_CONFLICT`; reduces balance; emits `claim.approved`. Owner credit is posted in P2 (FR-LED-01).
+4. Damage is settled **offline against the physical collateral** logged at check-out (FR-RNT-01); the platform keeps no in-system claim table. If the owner and admin agree a credit, an admin posts a signed `manual_adjustment`/`damage_claim_credit` (P2, FR-LED-01 step 6) to the owner ledger.
 - **AC:** inspection `pass` after check-in makes the bike bookable again; `damage_found` removes it from `inService` in `computeAvailability`.
 
 #### FR-RNT-04 Overdue escalation [P1]
@@ -509,13 +520,13 @@ Sweeper evaluates `open` rentals every minute; `escalation_stage` only increases
 1. Stage 1 `reminder` at `expected_end_at + late.escalation_minutes.reminder`: WhatsApp to renter (`late_reminder`).
 2. Stage 2 `staff_call` at `.staff_call`: appears in the staff app list "Call renter" (`GET /staff/outlet/overdue`).
 3. Stage 3 `owner_flag` at `.owner_flag`: notify owner (`owner_late_flag`) and flag in the dashboard.
-4. Stage 4 `claim` at `.claim_eligible`: appears in the admin dispute queue as `claim_eligible`; admin decides (no automatic charge).
+4. Stage 4 `claim` at `.claim_eligible`: appears in the admin dispute queue as `claim_eligible`; admin decides. If the unit is lost, the seed `penalty.lost_unit_idr` is recorded and settled offline against the renter's physical collateral (no automatic charge).
 5. Late fees accrue until the staff check-in (FR-RNT-02). Rentals with `mechanical_failure = true` skip stages 1 to 4.
 - **AC:** with config `{0,30,60,240}` and a rental 65 min overdue, the sweeper sets stage 3 once and sends one owner notification across repeated runs.
 
 #### FR-RNT-05 Incidents [P1]
 Event `incident`: `{clientEventId, occurredAt, incidentType: mechanical_failure|bike_missing|bike_damaged, bikeAssetTag, rentalId?, notes (V-TEXT-L), photoKeys?}`.
-1. `mechanical_failure` requires an `open` rental (else flag `NO_OPEN_RENTAL`): set `mechanical_failure = true`, issue a full refund of the booking intent's `final_idr` (FR-PAY-03, reason `mechanical_failure`), notify renter. The bike stays `in_rental` until check-in, then moves to `maintenance` through inspection (FR-RNT-03).
+1. `mechanical_failure` requires an `open` rental (else flag `NO_OPEN_RENTAL`): set `mechanical_failure = true`, issue a full refund of the online DP (`dp_idr`) to the renter (FR-PAY-03, reason `mechanical_failure`); staff return the offline balance in cash. Notify renter. The bike stays `in_rental` until check-in, then moves to `maintenance` through inspection (FR-RNT-03).
 2. `bike_missing` / `bike_damaged`: bike must be `available` or `pending_inspection`; run FR-INV-04.
 3. Write `bike_events(incident_reported)` in all cases.
 
@@ -523,7 +534,7 @@ Event `incident`: `{clientEventId, occurredAt, incidentType: mechanical_failure|
 
 #### FR-REP-01 Owner dashboard [P1 basic, P2 full]
 All endpoints use the owner transaction context (FR-ID-03).
-- **P1:** `GET /owner/dashboard/summary` returns, per outlet and category: counts of bikes by `state`, `heldCount` and `confirmedCount` (from `reservations`, overlapping now), open rentals list (`bikeAssetTag`, `renterPhoneMasked`, `checkedOutAt`, `expectedEndAt`, `overdue`, `escalationStage`), late returns, and `grossAccruedIdr` for the current WIB week = sum of `price_idr` of rentals completed this week (before commission, labeled gross).
+- **P1:** `GET /owner/dashboard/summary` returns, per outlet and category: counts of bikes by `state`, `heldCount` and `confirmedCount` (the **sum of `quantity`** over `reservations` overlapping now), open rentals list (`bikeAssetTag`, `renterPhoneMasked`, `checkedOutAt`, `expectedEndAt`, `overdue`, `escalationStage`), late returns, and `grossAccruedIdr` for the current WIB week = sum of `price_idr` of rentals completed this week (before commission, labeled gross).
 - **P2 reports** (`GET /owner/reports/*`, query `from`, `to` as WIB dates, max range 366 days):
   - Utilization = rented bike-hours / in-service bike-hours, per category and outlet. A bike-hour is rented when between `checked_out_at` and `checked_in_at` (or now if open), clipped to the period; in-service excludes time in `maintenance` or `unavailable`, derived from `bike_events` state history.
   - Peak hours: check-out count by WIB hour (0 to 23) and weekday.
@@ -554,7 +565,7 @@ Consumer of outbox `rental.completed` (idempotent by `rental_id`; unique `(renta
 3. `promo_share = -floor(D * owner_promo_bps / 10000)` (snapshot from reservation; 0 for an opted-out owner), only if `D > 0`.
 4. `late_fee_share = +floor(late_fee_idr * late.owner_share_bps / 10000)` only if `late_fee_idr > 0`.
 5. `refund_reversal = -refundedAmount` for each succeeded refund linked to the rental (mechanical failure). Platform commission is not reversed.
-6. Approved damage claim: `damage_claim_credit = +floor(amount * claims.owner_share_bps / 10000)`.
+6. Offline collateral/damage claim resolved by admin: `damage_claim_credit = +floor(amount * claims.owner_share_bps / 10000)`.
 7. `week_key` = ISO week of the WIB date of posting time (closed statements never change).
 - **AC (T-05):** P 25000, D 0, 1800 bps: revenue +25000, commission -4500, owner net 20500. P 33333 yields commission -6000 (roundHalfUp of 5999.94). P 20000, D 5000, opted-in: promo_share -2500; opted-out: 0. Late fee 10001: owner share +5000. Mechanical failure on P 20000, D 0: entries +20000, -3600, -20000.
 
@@ -592,7 +603,7 @@ Job `run-payouts`, cron `0 9 * * 2`, `tz: Asia/Jakarta`.
 4. Signing keys live in environment secrets; never in the repo.
 
 #### FR-SEC-02 Audit
-1. `audit_log` receives a row for: every admin mutation, ID document view, flagged-scan resolution, config change, commission rule change, payout and dispute action, deposit release and claim decision.
+1. `audit_log` receives a row for: every admin mutation, ID document view, flagged-scan resolution, config change, commission rule change, payout and dispute action, and offline collateral/damage claim decision.
 2. Flagged scans: `GET /admin/flagged-scans`, `PATCH /admin/flagged-scans/{id}` `{resolution: dismissed|corrected, note (V-TEXT-L)}`.
 
 ---
@@ -609,19 +620,18 @@ Base path `/api/v1` (Better Auth endpoints are mounted at `/api/auth/*`). All bo
 | `GET /outlets/{id}` | public | path V-UUID | 200 outlet + `availability` | n/a |
 | `GET /outlets/{id}/availability` | public | query `category` V-CAT, `startsAt`, `endsAt` V-TS | 200 `{available: int}` | 422 `WINDOW_OUT_OF_RANGE`, `DURATION_OUT_OF_RANGE` |
 | `GET /outlets/stream` | public | none | 200 `text/event-stream` | n/a |
-| `GET /renters/me` | renter | none | 200 `{phone, verificationStatus, depositStatus, depositBalanceIdr}` | n/a |
+| `GET /renters/me` | renter | none | 200 `{phone, verificationStatus}` | n/a |
 | `POST /renters/me/id-documents/upload-url` | renter | `documentType` ktp/sim/passport, `contentType` image/jpeg, image/png or image/webp, `sizeBytes` int 1 to 5242880 | 200 `{uploadUrl, key, expiresAt}` | n/a |
 | `POST /renters/me/verification` | renter | `documentType`, `documentKey` V-PHOTO-KEY (kind `id`) | 202 `{status: "pending"}` | 409 `STATE_CONFLICT` |
-| `POST /renters/me/deposit` | renter | header `Idempotency-Key`; empty body | 201 `{paymentUrl, amountIdr}` | 409 `STATE_CONFLICT`, 502 |
-| `POST /pricing/quote` | renter | `outletId, category, startsAt, endsAt, promoCode?` | 200 `{priceIdr, discountIdr, finalIdr, units}` | 422 `CATEGORY_NOT_OFFERED`, `PROMO_INVALID`, `AMOUNT_BELOW_MINIMUM`, window and duration codes |
-| `POST /reservations` | renter | header `Idempotency-Key`; `outletId, category, startsAt, endsAt, promoCode?` | 201 `{reservation, price, paymentUrl?}` (`paymentUrl` absent when `finalIdr = 0`) | 409 `SOLD_OUT`, `IDEMPOTENCY_IN_PROGRESS`; 422 `VERIFICATION_REQUIRED`, `DEPOSIT_REQUIRED`, `OUTSIDE_OPENING_HOURS`, `DURATION_OUT_OF_RANGE`, `WINDOW_OUT_OF_RANGE`, `CATEGORY_NOT_OFFERED`, `PROMO_INVALID`, `AMOUNT_BELOW_MINIMUM`, `IDEMPOTENCY_KEY_REUSED`; 502 `GATEWAY_UNAVAILABLE` |
+| `POST /pricing/quote` | renter | `outletId, category, startsAt, endsAt, promoCode?` | 200 `{priceIdr, discountIdr, finalIdr, dpIdr, units}` | 422 `CATEGORY_NOT_OFFERED`, `PROMO_INVALID`, `AMOUNT_BELOW_MINIMUM`, window and duration codes |
+| `POST /reservations` | renter | header `Idempotency-Key`; `outletId, category, quantity?, startsAt, endsAt, promoCode?` | 201 `{reservation, price, paymentUrl?}` (`paymentUrl` absent when `dpIdr = 0`) | 409 `SOLD_OUT`, `IDEMPOTENCY_IN_PROGRESS`; 422 `VERIFICATION_REQUIRED`, `OUTSIDE_OPENING_HOURS`, `DURATION_OUT_OF_RANGE`, `WINDOW_OUT_OF_RANGE`, `CATEGORY_NOT_OFFERED`, `PROMO_INVALID`, `AMOUNT_BELOW_MINIMUM`, `IDEMPOTENCY_KEY_REUSED`; 502 `GATEWAY_UNAVAILABLE` |
 | `GET /reservations` | renter | query `status?`, `limit`, `cursor` | 200 list (own only) | n/a |
-| `GET /reservations/{id}` | renter | path V-UUID | 200 reservation incl. `status`, `expiresAt`, price fields, `atRisk` | n/a |
+| `GET /reservations/{id}` | renter | path V-UUID | 200 reservation incl. `status`, `quantity`, `expiresAt`, price fields (`priceIdr`, `discountIdr`, `finalIdr`, `dpIdr`), `atRisk` | n/a |
 | `GET /reservations/{id}/voucher` | renter | none | 200 `{token, expiresAt}` | 409 `STATE_CONFLICT` (not `confirmed`) |
 | `GET /reservations/{id}/alternatives` | renter | none | 200 list of `{outletId, name, distanceKm?, availableNow}` | 409 `STATE_CONFLICT` (not `at_risk`) |
 | `POST /reservations/{id}/reallocate` | renter | header `Idempotency-Key`; `outletId` V-UUID | 200 new reservation | 409 `SOLD_OUT`, `STATE_CONFLICT` |
 | `POST /reservations/{id}/decline-reallocation` | renter | none | 200 `{refundId}` | 409 `STATE_CONFLICT` |
-| `POST /webhooks/xendit` | public | gateway payload | 200 | 401 `WEBHOOK_SIGNATURE_INVALID` |
+| `POST /webhooks/{gateway}` | public | gateway payload (`fake` in P1) | 200 | 401 `WEBHOOK_SIGNATURE_INVALID` |
 
 There is no endpoint to cancel, end, or relocate a rental or a bike (NEG-3, NEG-8).
 
@@ -638,9 +648,9 @@ There is no endpoint to cancel, end, or relocate a rental or a bike (NEG-3, NEG-
 | `POST /staff/health-sync` | `sentAt`, `physicalCounts?` (FR-INV-05) | 200 `{driftPct?}` | n/a |
 
 **Event** (discriminated by `type`). Common fields: `type`, `clientEventId` V-CLIENT-EVENT-ID, `occurredAt` V-TS (not later than server time + 5 min). Per type:
-- `checkout`: `voucherToken` string (compact JWT, max 2048 chars), `bikeAssetTag` V-ASSET-TAG, `checklist` V-CHECKLIST, `photoKeys` V-PHOTO-KEY[] (length `condition.min_photos` to `max_photos`).
+- `checkout`: `voucherToken` string (compact JWT, max 2048 chars), `bikeAssetTags` V-ASSET-TAG[] (length equal to `reservation.quantity`; the specific bikes the renter takes), `checklist` V-CHECKLIST, `photoKeys` V-PHOTO-KEY[] (length `condition.min_photos` to `max_photos`), `collateral` V-COLLATERAL (collected and logged at the counter), `balanceCollection` `{amountIdr: V-IDR, method: cash|qris}` (the offline 50% balance).
 - `checkin`: `bikeAssetTag`.
-- `inspection`: `rentalId` V-UUID, `result` pass/damage_found/maintenance_required, `checklist`, `photoKeys` (0 to 8; at least 1 when `damage_found`), `damageDescription?` V-TEXT-L (required when `damage_found`), `claimAmountIdr?` V-IDR (> 0, only with `damage_found`).
+- `inspection`: `rentalId` V-UUID, `result` pass/damage_found/maintenance_required, `checklist`, `photoKeys` (0 to 8; at least 1 when `damage_found`), `damageDescription?` V-TEXT-L (required when `damage_found`). Damage is settled offline against the logged collateral; no online claim amount is submitted by staff.
 - `bike_status_change`: `bikeAssetTag`, `to` available/maintenance/unavailable, `reason` V-TEXT-L. Transition must be in the section 5.1 table, else flagged `ILLEGAL_TRANSITION`; staff may not move `unavailable` to `available` (flag `ROLE_NOT_ALLOWED`).
 - `incident`: per FR-RNT-05.
 
@@ -669,13 +679,11 @@ There is no endpoint to cancel, end, or relocate a rental or a bike (NEG-3, NEG-
 | `POST /admin/bikes`, `POST /admin/bikes/bulk` | FR-CAT-02 fields | 201 | 409 `DUPLICATE_RESOURCE`; 422 `CATEGORY_NOT_OFFERED` |
 | `PATCH /admin/bikes/{id}/state` | `to`, `reason` V-TEXT-L | 200 | 409 `STATE_CONFLICT` |
 | `POST /admin/users` | `email`, `password`, `role` staff/owner/admin, `outletId?` (required for staff), `ownerId?` (required for owner) | 201 | 409 `DUPLICATE_RESOURCE` |
-| `POST /admin/pricing-rules` | `outletId?`, `category`, `rateIdr` (V-IDR, > 0), `effectiveFrom` V-TS | 201 | n/a |
+| `POST /admin/pricing-rules` | `outletId?`, `category`, `dayType` all/weekday/weekend, `rateIdr` (V-IDR, > 0), `effectiveFrom` V-TS | 201 | n/a |
 | `POST /admin/promotions`, `PATCH /admin/promotions/{id}` [P2] | `code` V-PROMO, `kind`, `value` (percent 1 to 100; fixed V-IDR > 0), `maxDiscountIdr?`, `startsAt`, `endsAt` (> `startsAt`), `category?`, `outletId?`, `maxUses?`, `maxUsesPerRenter?` | 201 / 200 | 409 `DUPLICATE_RESOURCE` |
 | `POST /admin/commission-rules` [P2] | FR-LED-02 | 201 | n/a |
 | `PATCH /admin/config` | `{key, value}`; key must exist in section 4, value type-checked | 200 | n/a |
 | `GET /admin/verification-requests`, `PATCH .../{id}` | `status?`, paging; `decision`, `reason?` | 200 | 409 `STATE_CONFLICT` |
-| `POST /admin/renters/{id}/deposit/release` | `amountIdr` | 200 | 409 `STATE_CONFLICT` |
-| `PATCH /admin/deposit-claims/{id}` | `decision` approve/reject | 200 | 409 `STATE_CONFLICT` |
 | `GET /admin/flagged-scans`, `PATCH .../{id}` | paging; `resolution`, `note` | 200 | n/a |
 | `POST /admin/settlements/build` [P2] | `weekKey` V-WEEK (must be a completed week) | 202 | 409 `STATE_CONFLICT` |
 | `POST /admin/settlements/run-payouts`, `POST /admin/payouts/{id}/retry`, `POST /admin/payouts/{id}/mark-paid`, `GET /admin/payouts/export?weekKey=` [P2] | as FR-LED-04 | 202 / 200 / CSV | 409 `STATE_CONFLICT` |
@@ -705,7 +713,7 @@ OpenAPI 3.1 is generated from the Zod schemas in `packages/contracts` and served
 
 | ID | Requirement |
 |---|---|
-| NFR-01 | **Latency** (seed data, 50 concurrent users, server time excluding Xendit calls): `GET /outlets` p95 < 300 ms and p99 < 600 ms; `GET /outlets/{id}/availability` p95 < 200 ms; `POST /reservations` p95 < 500 ms; `POST /staff/events` p95 < 400 ms; webhook acknowledged < 2 s; SSE event delivered < 2 s after commit; statement PDF < 10 s; `build-statements` for 4 owners < 60 s |
+| NFR-01 | **Latency** (seed data, 50 concurrent users, server time excluding external gateway calls): `GET /outlets` p95 < 300 ms and p99 < 600 ms; `GET /outlets/{id}/availability` p95 < 200 ms; `POST /reservations` p95 < 500 ms; `POST /staff/events` p95 < 400 ms; webhook acknowledged < 2 s; SSE event delivered < 2 s after commit; statement PDF < 10 s; `build-statements` for 4 owners < 60 s |
 | NFR-02 | **Scale and contention:** design target 20 outlets, 1,000 bikes, 200 concurrent renter sessions, 50 req/s peak reads, 5 reservation transactions/s on one `(outlet, category)` with no error other than `SOLD_OUT`. Reservation transactions run `SET LOCAL lock_timeout = '3s'`; on timeout return 503 `INTERNAL` with `Retry-After: 1` |
 | NFR-03 | **Availability and recovery:** 99.5% monthly API uptime; Postgres point-in-time recovery, RPO <= 5 min, RTO <= 60 min |
 | NFR-04 | **Security:** TLS 1.2+ with HSTS; CSP and CORS allow-list; cookies `HttpOnly; Secure; SameSite=Lax`; password hashing by Better Auth defaults; parameterized SQL only; secrets in environment, never in the repo; `pnpm audit` fails CI on high severity; webhook verification (FR-PAY-02); rate limits (3.2); RLS (FR-ID-03) |
@@ -737,10 +745,10 @@ Tests derive directly from the requirements above. Integration tests use real Po
 | T-10 | FR-PRC-01, FR-RNT-02 | Table-driven pricing and late-fee cases from the ACs (61 min gives 2 units; 12:15 / 12:16 / 13:01 late fees) |
 | T-11 | section 5.1 | Every pair not in the transition table throws `STATE_CONFLICT`; every allowed transition writes exactly one `bike_events` row |
 | T-12 | INV-6 | UPDATE and DELETE on each append-only table raise an exception |
-| T-13 | End to end (Playwright) | Verified, funded renter books; Fake paid event; staff scans voucher and bike; staff check-in; inspection `pass`. Expect rental `completed`, bike `available`, availability restored |
+| T-13 | End to end (Playwright) | Verified renter books a reservation with `quantity = 2`; FakeGateway DP paid event confirms it; staff scans voucher, checks out 2 bikes with `bikeAssetTags` (length 2), logs `collateral`, and records the offline `balanceCollection`; staff check-in; inspection `pass`. Expect 2 `rentals` `completed` (sharing the reservation), bikes `available`, availability restored |
 | T-14 | Section 3.4, section 7 | Table-driven from the Zod schemas: each endpoint rejects unknown fields, each V-rule rejects its boundary value (n-1, n+1) with 400 and `details[].path` |
 | T-15 | FR-INV-04 | The FR-INV-04 AC; accepting an alternative creates a `confirmed` reservation with copied price and no payment intent; declining creates one full refund |
-| T-16 | FR-RNT-01, 02, 03, 05 | Flag reasons: each condition produces the listed `reason` and leaves bike and rental state unchanged |
+| T-16 | FR-RNT-01, 02, 03, 05 | Flag reasons: each condition produces the listed `reason` (`QUANTITY_MISMATCH`, `COLLATERAL_REQUIRED`, `BALANCE_MISMATCH`, `RESERVATION_NOT_CONFIRMED`, plus the inspection/incident reasons) and leaves bike and rental state unchanged |
 
 ---
 
@@ -759,32 +767,32 @@ Tests derive directly from the requirements above. Integration tests use real Po
 | A-01 | WhatsApp and email only; no push | PRD says push and WhatsApp; tech document says WhatsApp and email; apps are PWAs |
 | A-02 | Fixed six-item condition checklist; 1 to 8 photos per scan | PRD says "short checklist with photos" without items |
 | A-03 | On no-show, `noshow.refund_policy` decides refund; fixture is full refund | PRD says no forfeit until down-payment is decided but is silent on the paid amount |
-| A-04 | Added ledger types `damage_claim_credit`, `manual_adjustment`, and tables `deposits`, `deposit_claims`, `payment_intents`, `commission_rules`, `outbox_events`, `scan_events` | Needed by PRD features; absent from the tech document's core table list |
+| A-04 | Added ledger types `damage_claim_credit`, `manual_adjustment`, and tables `payment_intents`, `commission_rules`, `outbox_events`, `scan_events` | Needed by PRD features; absent from the tech document's core table list. The `deposits` and `deposit_claims` tables were removed in revision 1.1 |
 | A-05 | Bike states `held`, `reserved` unused in code | Reservations are category-level; a bike is bound only at check-out |
 | A-06 | Reallocation keeps the original price and paid amount; the target outlet may belong to another owner | PRD says "offers an alternative bike or outlet" without pricing |
 | A-07 | Bike tag "rotation" is key rotation, not per-scan change | A printed tag cannot change per scan |
 | A-08 | Promo opt-out means the promotion still applies and the owner's share is 0 (platform bears the whole discount); opt-out is snapshotted per reservation | Literal reading of the tech document; the alternative reading (no promos at that owner's outlets) is a one-line change in FR-PRC-01 |
-| A-09 | Late fee is waived on mechanical failure; default collection is deposit deduction | PRD defines the split, not the collection |
+| A-09 | Late fee is waived on mechanical failure; collection follows `late.collection_method` (`payment_intent` invoice or `offline_cash` recorded at the counter) | PRD defines the split, not the collection. Revision 1.1 removed deposit deduction |
 | A-10 | Renters sign in by phone OTP; staff, owner and admin by email and password, admin-created | PRD and tech document name roles but not credentials |
 | A-11 | Capacity counts bikes by `home_outlet_id`; creating a second outlet per owner is blocked until `feature.sister_outlets_enabled`. P3 MUST revisit the capacity basis before enabling it | Tech document specifies home outlet; sister returns change `current_outlet_id` |
-| A-12 | One standing deposit balance per renter, topped up when below `deposit.amount_idr` | PRD says deposit required before any rental; amount and release are on hold |
-| A-13 | Damage claims: staff propose, admin approves, owner credited `claims.owner_share_bps` of the amount | PRD says "can be claimed against the deposit" without approval or crediting |
+| A-12 | A reservation is secured by a 50% online down payment (`booking.dp_rate_bps`); the balance and any extra charge are collected offline at the counter. There is no standing deposit balance | Revision 1.1 pivot to local practice: the PRD's "security deposit" is realized as a down payment plus physical collateral |
+| A-13 | Damage discovered at check-in is assessed by staff and settled offline against the collateral logged at check-out (FR-RNT-01, FR-RNT-03); an optional admin `manual_adjustment`/`damage_claim_credit` (P2) reconciles the ledger | PRD says "can be claimed against the deposit" without an online claim flow; revision 1.1 has no `deposit_claims` |
 | A-14 | Rental is `returned` at check-in and `completed` at inspection; ledger posts at `completed` | PRD says revenue posts "at rental completion" |
 | A-15 | Drift check compares server custody counts with staff-reported `physicalCounts` | PRD names the check but not its inputs |
 | A-16 | P1 dashboard earnings shows gross only; commission appears with the P2 ledger | Ledger is P2 in the tech document |
 
 ### 11.3 Source discrepancies found
 
-- The tech document says two PRD items are on hold; the PRD lists three (down-payment, ID verification, deposit amount and release). This SRS treats all three as on hold (sections 4 and 6.1).
+- The tech document said two PRD items were on hold (down-payment, ID verification); the PRD also listed a deposit amount and release. Revision 1.1 resolves the down-payment by specifying a 50% DP (section 4) and removes the digital deposit entirely; ID verification remains in scope (FR-ID-04).
 - The PRD lists payment by cards, GoPay and OVO; the tech document adds QRIS. This SRS requires all four to be confirmed in G-01.
 
 ### 11.4 Not specified in the PRD, deliberately excluded
 
-Renter-initiated cancellation or refund on request, multi-owner carts, loyalty or referral features, subscriptions, per-bike GPS, in-app chat, and any down-payment or no-show forfeit. Add a requirement here before building any of them.
+Renter-initiated cancellation or refund on request, multi-owner carts, loyalty or referral features, subscriptions, per-bike GPS, in-app chat, and any digital security deposit. The 50% down payment (FR-INV-02) and no-show forfeit per `noshow.refund_policy` are in scope as of revision 1.1. Add a requirement here before building any of them.
 
 ### 11.5 Decisions still owed by the business (implemented as config, section 4)
 
-Rental rates and billing unit, booking window limits, late-fee rate and grace, escalation timings, deposit amount and release, down-payment, ID verification provider and retention, QR token lifetime.
+Rental rates and billing unit (including weekday/weekend tiers), booking window limits, late-fee rate and grace, escalation timings, down-payment rate (`booking.dp_rate_bps`, seed 50%), lost-unit penalty, ID verification provider and retention, QR token lifetime. The seed values in section 4 are illustrative mock data: owners and admin may change every amount.
 
 ---
 
@@ -796,7 +804,7 @@ Rental rates and billing unit, booking window limits, late-fee rate and grace, e
 3. Inventory core: FR-INV-01, FR-INV-02, FR-PRC-01 (without promos), FR-PAY-02, FR-PAY-03 with `FakeGateway`. Tests T-01, T-04, T-09, T-10. Then Xendit adapter after gate G-01.
 4. FR-INV-03 jobs and sweeper. Test T-03.
 5. Staff PWA and rental lifecycle: FR-OFF-01, FR-RNT-01 to FR-RNT-05, FR-INV-04, FR-INV-05, FR-SEC-01. Tests T-07, T-15, T-16.
-6. Catalog and renter site: FR-CAT-01, FR-CAT-02, FR-ID-04, FR-ID-05, FR-REP-02, FR-NOT-01. Test T-13.
+6. Catalog and renter site: FR-CAT-01, FR-CAT-02, FR-ID-04, FR-REP-02, FR-NOT-01. Test T-13.
 7. Basic owner dashboard (FR-REP-01 P1) and admin console pages.
 
 **Phase 2**
@@ -817,7 +825,8 @@ Rental rates and billing unit, booking window limits, late-fee rate and grace, e
 | 2 Network baseline | Section 1.1, FR-CAT-02, seed (NFR-10) |
 | 3 Users | Sections 1.2, 1.3 |
 | 4.1 Discovery | FR-CAT-01, FR-REP-02 |
-| 4.2 Reservation, verification, deposit, payment, 15 min, 1 h | FR-ID-04, FR-ID-05, FR-INV-02, FR-INV-03, FR-PAY-02 |
+| 4.2 Reservation, verification, payment, 15 min, 1 h | FR-ID-04, FR-INV-02, FR-INV-03, FR-PAY-02 |
+| 4.2b Multi-bike reservation and 50% down payment | FR-INV-01, FR-INV-02, FR-PRC-01, section 4 |
 | 4.3 Check-out | FR-RNT-01, FR-SEC-01 |
 | 4.4 Check-in | FR-RNT-02, FR-RNT-03 |
 | 4.5 Late, damage, failure | FR-RNT-02, FR-RNT-03, FR-RNT-04, FR-RNT-05, FR-PAY-03 |
