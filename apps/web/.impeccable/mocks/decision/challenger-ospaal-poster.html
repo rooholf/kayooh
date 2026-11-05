@@ -1,0 +1,115 @@
+<!doctype html>
+<html lang="id">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=390,initial-scale=1">
+<title>Kayooh — Sepeda siap, outlet nyata</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Archivo+Black&family=Archivo:wght@500;600;700&display=swap" rel="stylesheet">
+<style>
+:root{--kertas:#F0E3C4;--merah:#DC2110;--kuning:#F2B300;--tinta:#171009;--biru:#12408C}
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{width:390px;height:844px;overflow:hidden}
+body{background:var(--kertas);color:var(--tinta);font-family:'Archivo',sans-serif;
+  -webkit-font-smoothing:antialiased}
+.lembar{position:absolute;inset:0;overflow:hidden;display:flex;flex-direction:column}
+.lembar::before{content:"";position:absolute;left:9px;right:9px;top:44px;bottom:30px;
+  border:3px solid var(--tinta);pointer-events:none;z-index:3}
+
+.border{background:var(--merah);color:var(--kertas);padding:6px 0 5px;white-space:nowrap;
+  overflow:hidden;font-weight:700;font-size:9.5px;letter-spacing:.22em;position:relative;z-index:2}
+.border i{font-style:normal;color:var(--kuning);margin:0 8px}
+.border.b2{padding-top:0;padding-bottom:7px;font-size:8px;letter-spacing:.3em;color:var(--kuning)}
+
+.emblem{margin:26px 24px 0;position:relative;z-index:4}
+.piring{background:var(--merah);padding:20px 18px 16px;box-shadow:0 0 0 3px var(--tinta)}
+.atas{display:flex;align-items:flex-start;justify-content:space-between}
+.merek{font-family:'Archivo Black',sans-serif;font-size:24px;line-height:1;color:var(--kertas)}
+.merek span{display:block;font-family:'Archivo';font-weight:600;font-size:8px;letter-spacing:.3em;
+  color:var(--kuning);margin-top:7px}
+.tanggal{background:var(--kuning);color:var(--tinta);padding:5px 8px 6px;text-align:center;
+  font-family:'Archivo Black',sans-serif}
+.tanggal b{display:block;font-size:9px;letter-spacing:.12em}
+.tanggal i{display:block;font-style:normal;font-size:16px;margin-top:2px}
+.sepeda{display:block;width:100%;height:112px;margin-top:8px}
+.siap{margin-top:12px;background:var(--kuning);color:var(--tinta);display:flex;
+  align-items:baseline;gap:10px;padding:7px 12px;transform:rotate(-1.2deg)}
+.siap b{font-family:'Archivo Black',sans-serif;font-size:26px;line-height:1}
+.siap span{font-weight:700;font-size:10px;letter-spacing:.08em;text-transform:uppercase}
+
+.kaki-emblem{margin-top:15px;color:var(--kertas);font-weight:600;font-size:11.5px;line-height:1.45}
+.kaki-emblem b{color:var(--kuning);font-weight:700}
+
+.cari{margin:22px 24px 0;position:relative;z-index:4}
+.label{font-family:'Archivo Black',sans-serif;font-size:9px;letter-spacing:.24em;
+  color:var(--merah);text-transform:uppercase}
+.baris{display:flex;margin-top:9px;border:2.5px solid var(--tinta);background:var(--kertas)}
+.baris>div{flex:1;padding:11px 0 10px;text-align:center;border-right:2.5px solid var(--tinta);
+  font-weight:700;font-size:9px;letter-spacing:.1em}
+.baris>div:last-child{border-right:0}
+.baris .on{background:var(--merah);color:var(--kertas)}
+.baris.waktu>div{padding:9px 0;font-size:8.5px;letter-spacing:.14em;color:var(--tinta)}
+.baris .lapis{background:var(--biru);color:var(--kuning);box-shadow:inset 0 0 0 3px var(--kuning)}
+
+.aksi{margin:auto 24px 0;position:relative;z-index:4;background:var(--tinta);color:var(--kertas);
+  height:68px;display:flex;align-items:center;padding:0 18px;gap:14px;box-shadow:0 0 0 3px var(--kuning)}
+.aksi .t{flex:1}
+.aksi .t i{display:block;font-style:normal;font-weight:600;font-size:9px;letter-spacing:.22em;
+  color:var(--kuning)}
+.aksi .t b{display:block;font-family:'Archivo Black',sans-serif;font-size:17px;margin-top:5px;
+  letter-spacing:.01em}
+.aksi .p{font-family:'Archivo Black',sans-serif;font-size:24px;color:var(--merah)}
+.utara{margin:16px 24px 0;display:flex;justify-content:space-between;position:relative;z-index:4;
+  font-weight:700;font-size:8.5px;letter-spacing:.18em;color:var(--tinta)}
+</style>
+</head>
+<body>
+<div class="lembar">
+
+  <div class="border">SEPEDA SIAP<i>&#9670;</i>DI OUTLET NYATA<i>&#9670;</i>SEPEDA SIAP<i>&#9670;</i>DI OUTLET NYATA</div>
+  <div class="border b2">A BIKE IS WAITING &#9670; AT A REAL OUTLET &#9670; A BIKE IS WAITING &#9670; AT A REAL OUTLET</div>
+
+  <div class="emblem">
+    <div class="piring">
+      <div class="atas">
+        <div class="merek">KAYOOH<span>JAMBI</span></div>
+        <div class="tanggal"><b>SELASA</b><i>05/11</i></div>
+      </div>
+      <svg class="sepeda" viewBox="0 0 200 116" aria-hidden="true">
+        <g fill="none" stroke="#F0E3C4" stroke-width="6" stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="40" cy="82" r="28"/><circle cx="160" cy="82" r="28"/>
+          <path d="M40 82 L80 36 L120 36 L160 82"/>
+          <path d="M80 36 L98 82 L160 82"/>
+          <path d="M98 82 L66 82"/>
+          <path d="M120 36 L130 16 L152 16"/>
+          <path d="M80 36 L70 18 L52 18"/>
+        </g>
+      </svg>
+      <div class="siap"><b>12</b><span>unit siap hari ini &middot; 5 outlet</span></div>
+      <p class="kaki-emblem">Angka ini datang dari <b>satu transaksi di server</b>, bukan dari salinan di ponselmu.</p>
+    </div>
+  </div>
+
+  <div class="cari">
+    <p class="label">Pilih waktu</p>
+    <div class="baris waktu">
+      <div>PAGI</div><div class="lapis">SIANG</div><div>SORE</div><div>MALAM</div>
+    </div>
+
+    <p class="label" style="margin-top:17px">Jenis sepeda</p>
+    <div class="baris">
+      <div class="on">COMMUTER</div><div>ROAD</div><div>MTB</div><div>FIXIE</div>
+    </div>
+  </div>
+
+  <button class="aksi">
+    <span class="t"><i>COMMUTER &middot; SIANG &middot; 05/11</i><b>Lihat ketersediaan</b></span>
+    <span class="p">&#9656;</span>
+  </button>
+
+  <div class="utara"><span>TELANAIPURA</span><span>KOTA BARU</span><span>JELUTUNG</span><span>PAAL MERAH</span><span>SIPIN</span></div>
+
+</div>
+</body>
+</html>

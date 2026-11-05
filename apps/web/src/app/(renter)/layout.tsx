@@ -6,6 +6,7 @@
  * is fully separated from (owner) and (admin) (AGENTS Web directives).
  */
 import type { Viewport } from "next";
+import { RenterQueryProvider } from "./providers";
 
 export const viewport: Viewport = {
   width: "device-width",
@@ -14,8 +15,10 @@ export const viewport: Viewport = {
 
 export default function RenterLayout({ children }: { children: React.ReactNode }) {
   return (
-    <div className="mx-auto flex min-h-dvh w-full min-w-[360px] max-w-md flex-col bg-white text-slate-900">
-      {children}
-    </div>
+    <RenterQueryProvider>
+      <div className="mx-auto flex min-h-dvh w-full min-w-[360px] max-w-md flex-col bg-white text-slate-900">
+        {children}
+      </div>
+    </RenterQueryProvider>
   );
 }
