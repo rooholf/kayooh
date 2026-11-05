@@ -35,7 +35,7 @@ async function countRows(exec: QueryExecutor, query: SQL): Promise<number> {
 
 /** async count(*) helpers, one per FR-INV-01 term. */
 
-async function countInService(exec: QueryExecutor, input: AvailabilityInput): Promise<number> {
+export async function countInService(exec: QueryExecutor, input: AvailabilityInput): Promise<number> {
   const res = (await exec.execute(sql`
     SELECT count(*)::int AS n FROM bikes
     WHERE home_outlet_id = ${input.outletId}
@@ -45,7 +45,7 @@ async function countInService(exec: QueryExecutor, input: AvailabilityInput): Pr
   return Number(res.rows[0]?.n ?? 0);
 }
 
-async function countCommittedReservations(
+export async function countCommittedReservations(
   exec: QueryExecutor,
   input: AvailabilityInput,
   graceSeconds: number,
@@ -68,7 +68,7 @@ async function countCommittedReservations(
   return Number(res.rows[0]?.n ?? 0);
 }
 
-async function countCommittedRentals(exec: QueryExecutor, input: AvailabilityInput): Promise<number> {
+export async function countCommittedRentals(exec: QueryExecutor, input: AvailabilityInput): Promise<number> {
   const res = (await exec.execute(sql`
     SELECT count(*)::int AS n FROM rentals r
     JOIN bikes b ON b.id = r.bike_id

@@ -107,6 +107,19 @@ export const vClientEventId = z
     "V-CLIENT-EVENT-ID",
   );
 
+/* V-CHECKLIST-STATUS: per-item rental checklist value (FR-RNT-01). */
+export const vChecklistStatus = z.enum(["ok", "issue"]);
+
+/**
+ * V-CHECKLIST: key/value checklist map (item label -> ok|issue). Item labels
+ * are outlet-defined in P1 (e.g. brakes, tires, lights), so the keys stay
+ * free-form short strings; only the VALUE vocabulary is fixed here.
+ */
+export const vChecklist = z.record(
+  z.string().min(1).max(64).regex(/^[a-z][a-z0-9_]*$/, "V-CHECKLIST"),
+  vChecklistStatus,
+);
+
 /* V-LIMIT / V-CURSOR (list convention SRS 3.2). */
 export const vLimit = z.coerce.number().int().min(1).max(100).default(25);
 export const vCursor = z.string().max(256).optional();

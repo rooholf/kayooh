@@ -11,6 +11,8 @@ export {
 export {
   vAssetTag,
   vCategoryCode,
+  vChecklist,
+  vChecklistStatus,
   vClientEventId,
   vCursor,
   vEmail,
