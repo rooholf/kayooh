@@ -199,6 +199,7 @@ export function ScanSheet({ mode, focus = "voucher", blocked, onClose, onSubmit 
           {current === "checkout" && (
             <Labelled label="Token voucher renter" hint="Dari QR milik renter">
               <input
+                name="voucherToken"
                 value={voucher}
                 onChange={(e) => setVoucher(e.target.value)}
                 autoFocus={focus === "voucher"}
@@ -212,6 +213,7 @@ export function ScanSheet({ mode, focus = "voucher", blocked, onClose, onSubmit 
 
           <Labelled label="Kode sepeda" hint="Pindai tag atau ketik kodenya">
             <input
+              name="bikeAssetTag"
               value={assetTag}
               onChange={(e) => setAssetTag(e.target.value.toUpperCase())}
               autoFocus={focus === "tag"}
@@ -290,6 +292,7 @@ export function ScanSheet({ mode, focus = "voucher", blocked, onClose, onSubmit 
                 {photoKeys.map((key, index) => (
                   <div key={index} className="flex items-center gap-2 border-b border-line py-[6px]">
                     <input
+                      name="photoKeys"
                       value={key}
                       onChange={(e) => updatePhotoKey(index, e.target.value)}
                       autoComplete="off"
