@@ -107,6 +107,20 @@ export const vClientEventId = z
     "V-CLIENT-EVENT-ID",
   );
 
+/* V-CHECKLIST: fixed six-item condition checklist (SRS 3.4 / A-02). */
+export const vChecklistStatus = z.enum(["ok", "minor_issue", "damaged"]);
+
+export const vChecklist = z
+  .object({
+    frame: vChecklistStatus,
+    brakes: vChecklistStatus,
+    tires: vChecklistStatus,
+    chain: vChecklistStatus,
+    saddle: vChecklistStatus,
+    handlebar_gears: vChecklistStatus,
+  })
+  .strict();
+
 /* V-LIMIT / V-CURSOR (list convention SRS 3.2). */
 export const vLimit = z.coerce.number().int().min(1).max(100).default(25);
 export const vCursor = z.string().max(256).optional();
