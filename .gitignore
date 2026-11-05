@@ -12,3 +12,6 @@ turbo/
 !.env.example
 .DS_Store
 drizzle/meta/
+
+# Playwright visual artifacts
+apps/web/e2e-artifacts/
