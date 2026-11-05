@@ -42,6 +42,7 @@ export function App() {
       ...(draft.note ? { note: draft.note } : {}),
       ...(draft.toState ? { toState: draft.toState } : {}),
       ...(draft.checklist ? { checklist: draft.checklist } : {}),
+      ...(draft.photoKeys ? { photoKeys: draft.photoKeys } : {}),
     };
     await enqueueEvent({ type: draft.type, payload });
     syncEngine.kick();

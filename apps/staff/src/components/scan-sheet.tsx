@@ -1,6 +1,6 @@
-import { vAssetTag } from "@repo/contracts";
+import { vAssetTag, vPhotoKey } from "@repo/contracts";
 import { useEffect, useMemo, useState, type ReactNode } from "react";
-import type { BikeState, EventType } from "../db/scan-events";
+import type { BikeState, ChecklistStatus, EventType } from "../db/scan-events";
 import { staffConfig } from "../lib/config";
 
 export type ScanMode = "checkout" | "checkin" | "incident" | "bike_status_change";
@@ -11,7 +11,8 @@ export interface ScanDraft {
   voucherToken?: string;
   note?: string;
   toState?: BikeState;
-  checklist?: Record<string, boolean>;
+  checklist?: Record<string, ChecklistStatus>;
+  photoKeys?: string[];
 }
 
 const MODES: Array<{ id: ScanMode; label: string }> = [
@@ -30,6 +31,12 @@ const STATE_LABEL: Record<string, string> = {
   charging: "Mengisi daya",
 };
 
+const CHECKLIST_OPTIONS: Array<{ value: ChecklistStatus; label: string }> = [
+  { value: "ok", label: "OK" },
+  { value: "minor_issue", label: "Masalah kecil" },
+  { value: "damaged", label: "Rusak" },
+];
+
 interface ScanSheetProps {
   mode: ScanMode;
   focus?: "voucher" | "tag";
@@ -44,7 +51,10 @@ export function ScanSheet({ mode, focus = "voucher", blocked, onClose, onSubmit 
   const [voucher, setVoucher] = useState("");
   const [note, setNote] = useState("");
   const [toState, setToState] = useState<BikeState>("maintenance");
-  const [checklist, setChecklist] = useState<Record<string, boolean>>({});
+  const [checklist, setChecklist] = useState<Record<string, ChecklistStatus>>(() =>
+    Object.fromEntries(staffConfig.checklistItems.map((item) => [item, "ok" as ChecklistStatus])),
+  );
+  const [photoKeys, setPhotoKeys] = useState<string[]>([""]);
 
   useEffect(() => {
     const onKey = (event: KeyboardEvent) => {
@@ -56,26 +66,85 @@ export function ScanSheet({ mode, focus = "voucher", blocked, onClose, onSubmit 
 
   const tagOk = vAssetTag.safeParse(assetTag.trim()).success;
   const noteOk = current !== "incident" || note.trim().length >= 4;
-  const voucherOk = current !== "checkout" || voucher.trim().length >= 4;
-  const canSubmit = tagOk && noteOk && voucherOk && !blocked;
+  const voucherOk =
+    current !== "checkout" ||
+    (voucher.trim().length >= 4 && voucher.trim().length <= staffConfig.voucherTokenMaxLength);
+  const checklistOk =
+    current !== "checkout" ||
+    staffConfig.checklistItems.every((item) => {
+      const v = checklist[item];
+      return v === "ok" || v === "minor_issue" || v === "damaged";
+    });
+  const cleanedPhotoKeys = photoKeys.map((k) => k.trim()).filter((k) => k.length > 0);
+  const photoKeysOk =
+    current !== "checkout" ||
+    (cleanedPhotoKeys.length >= staffConfig.minPhotos &&
+      cleanedPhotoKeys.length <= staffConfig.maxPhotos &&
+      cleanedPhotoKeys.every((k) => vPhotoKey.safeParse(k).success));
+  const canSubmit =
+    tagOk && noteOk && voucherOk && checklistOk && photoKeysOk && !blocked;
 
   const reason = useMemo(() => {
     if (blocked) return "Antrean penuh — pindaian baru diblokir.";
     if (assetTag.trim().length > 0 && !tagOk) return "Kode sepeda harus berformat JMB-000-XXX-000.";
-    if (!voucherOk) return "Isi token voucher renter.";
+    if (current === "checkout" && !voucherOk) return "Isi token voucher renter.";
+    if (current === "checkout" && !checklistOk) return "Lengkapi semua 6 item pemeriksaan.";
+    if (current === "checkout" && !photoKeysOk) {
+      if (cleanedPhotoKeys.length < staffConfig.minPhotos) return `Minimal ${staffConfig.minPhotos} foto.`;
+      if (cleanedPhotoKeys.length > staffConfig.maxPhotos) return `Maksimal ${staffConfig.maxPhotos} foto.`;
+      return "Kunci foto tidak valid.";
+    }
     if (!noteOk) return "Tulis catatan singkat untuk insiden.";
     return null;
-  }, [blocked, assetTag, tagOk, voucherOk, noteOk]);
+  }, [
+    blocked,
+    assetTag,
+    tagOk,
+    current,
+    voucherOk,
+    checklistOk,
+    photoKeysOk,
+    cleanedPhotoKeys.length,
+    noteOk,
+  ]);
 
   function submit() {
     if (!canSubmit) return;
     onSubmit({
       type: current,
       assetTag: assetTag.trim(),
-      ...(current === "checkout" ? { voucherToken: voucher.trim(), checklist } : {}),
+      ...(current === "checkout"
+        ? {
+            voucherToken: voucher.trim(),
+            checklist: staffConfig.checklistItems.reduce<Record<string, ChecklistStatus>>(
+              (acc, item) => {
+                acc[item] = checklist[item] ?? "ok";
+                return acc;
+              },
+              {},
+            ),
+            photoKeys: cleanedPhotoKeys,
+          }
+        : {}),
       ...(current === "incident" ? { note: note.trim() } : {}),
       ...(current === "bike_status_change" ? { note: note.trim(), toState } : {}),
     });
+  }
+
+  function updatePhotoKey(index: number, value: string) {
+    setPhotoKeys((prev) => {
+      const next = [...prev];
+      next[index] = value;
+      return next;
+    });
+  }
+
+  function addPhotoKey() {
+    setPhotoKeys((prev) => [...prev, ""]);
+  }
+
+  function removePhotoKey(index: number) {
+    setPhotoKeys((prev) => (prev.length <= 1 ? [""] : prev.filter((_, i) => i !== index)));
   }
 
   return (
@@ -132,6 +201,7 @@ export function ScanSheet({ mode, focus = "voucher", blocked, onClose, onSubmit 
           {current === "checkout" && (
             <Labelled label="Token voucher renter" hint="Dari QR milik renter">
               <input
+                name="voucherToken"
                 value={voucher}
                 onChange={(e) => setVoucher(e.target.value)}
                 autoFocus={focus === "voucher"}
@@ -145,6 +215,7 @@ export function ScanSheet({ mode, focus = "voucher", blocked, onClose, onSubmit 
 
           <Labelled label="Kode sepeda" hint="Pindai tag atau ketik kodenya">
             <input
+              name="bikeAssetTag"
               value={assetTag}
               onChange={(e) => setAssetTag(e.target.value.toUpperCase())}
               autoFocus={focus === "tag"}
@@ -185,27 +256,72 @@ export function ScanSheet({ mode, focus = "voucher", blocked, onClose, onSubmit 
           )}
 
           {current === "checkout" && (
-            <fieldset className="mt-4">
-              <legend className="mb-2 font-mono text-[9px] font-medium uppercase tracking-[0.12em] text-rule">
-                Pemeriksaan kondisi · {staffConfig.minPhotos}–{staffConfig.maxPhotos} foto
-              </legend>
-              {staffConfig.checklistItems.map((item) => (
-                <label
-                  key={item}
-                  className="flex min-h-[44px] items-center gap-3 border-b border-line font-sans text-[13px]"
+            <>
+              <fieldset className="mt-4">
+                <legend className="mb-2 font-mono text-[9px] font-medium uppercase tracking-[0.12em] text-rule">
+                  Pemeriksaan kondisi · 6 item
+                </legend>
+                {staffConfig.checklistItems.map((item) => (
+                  <label
+                    key={item}
+                    className="flex min-h-[44px] items-center justify-between gap-3 border-b border-line font-sans text-[13px]"
+                  >
+                    <span>{staffConfig.checklistLabels[item as keyof typeof staffConfig.checklistLabels] ?? item}</span>
+                    <select
+                      value={checklist[item] ?? "ok"}
+                      onChange={(e) =>
+                        setChecklist((prev) => ({
+                          ...prev,
+                          [item]: e.target.value as ChecklistStatus,
+                        }))
+                      }
+                      className="border-b-2 border-line bg-transparent py-[6px] font-sans text-[13px] outline-none focus:border-rule"
+                    >
+                      {CHECKLIST_OPTIONS.map((opt) => (
+                        <option key={opt.value} value={opt.value}>
+                          {opt.label}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                ))}
+              </fieldset>
+
+              <fieldset className="mt-4">
+                <legend className="mb-2 font-mono text-[9px] font-medium uppercase tracking-[0.12em] text-rule">
+                  Foto kondisi · {staffConfig.minPhotos}–{staffConfig.maxPhotos}
+                </legend>
+                {photoKeys.map((key, index) => (
+                  <div key={index} className="flex items-center gap-2 border-b border-line py-[6px]">
+                    <input
+                      name="photoKeys"
+                      value={key}
+                      onChange={(e) => updatePhotoKey(index, e.target.value)}
+                      autoComplete="off"
+                      spellCheck={false}
+                      placeholder="uploads/checklist/••••.jpg"
+                      className="min-h-[44px] flex-1 border-b-2 border-line bg-transparent py-[6px] font-mono text-[12px] outline-none focus:border-rule"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => removePhotoKey(index)}
+                      className="min-h-[44px] px-2 font-sans text-[12px] font-semibold text-rule"
+                      aria-label="Hapus foto"
+                    >
+                      Hapus
+                    </button>
+                  </div>
+                ))}
+                <button
+                  type="button"
+                  onClick={addPhotoKey}
+                  disabled={photoKeys.length >= staffConfig.maxPhotos}
+                  className="mt-2 min-h-[44px] w-full border-2 border-ink font-sans text-[12px] font-semibold text-ink disabled:cursor-not-allowed disabled:border-ink/30 disabled:text-ink/40"
                 >
-                  <input
-                    type="checkbox"
-                    checked={checklist[item] ?? false}
-                    onChange={(e) =>
-                      setChecklist((prev) => ({ ...prev, [item]: e.target.checked }))
-                    }
-                    className="h-[18px] w-[18px] accent-[var(--rule)]"
-                  />
-                  {item}
-                </label>
-              ))}
-            </fieldset>
+                  Tambah foto
+                </button>
+              </fieldset>
+            </>
           )}
         </div>
 

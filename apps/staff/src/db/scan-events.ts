@@ -11,6 +11,8 @@ export type EventType =
 /** Local queue state, then the server verdict once it is known (FR-OFF-01.3). */
 export type EventStatus = "pending" | "syncing" | "applied" | "flagged" | "rejected";
 
+export type ChecklistStatus = "ok" | "minor_issue" | "damaged";
+
 export type BikeState =
   | "available"
   | "held"
@@ -27,7 +29,7 @@ export interface ScanEventPayload {
   renterPhoneMasked?: string;
   note?: string;
   toState?: BikeState;
-  checklist?: Record<string, boolean>;
+  checklist?: Record<string, ChecklistStatus>;
   photoKeys?: string[];
 }
 
