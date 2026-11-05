@@ -85,6 +85,23 @@ export async function buildApp(options: BuildAppOptions = {}): Promise<{
   loggingPlugin(app);
   app.decorate("limiter", limiter);
 
+  /* CORS for browser clients (renter web app). Reflects the request origin for
+     dev; public catalog endpoints need no credentials. Preflight short-circuits
+     before rate limiting and auth resolution. */
+  app.addHook("onRequest", async (request, reply) => {
+    const origin = request.headers.origin;
+    if (typeof origin === "string" && origin.length > 0) {
+      void reply.header("Access-Control-Allow-Origin", origin);
+      void reply.header("Vary", "Origin");
+    }
+    if (request.method === "OPTIONS") {
+      void reply.header("Access-Control-Allow-Methods", "GET,POST,PUT,PATCH,DELETE,OPTIONS");
+      void reply.header("Access-Control-Allow-Headers", "content-type,authorization,x-requested-with");
+      void reply.code(204);
+      void reply.send();
+    }
+  });
+
   /* Error envelope (SRS 3.2) for everything outside /api/auth. */
   app.setErrorHandler((error: FastifyError, request, reply) => {
     if (error instanceof AppError) {
@@ -124,6 +141,7 @@ export async function buildApp(options: BuildAppOptions = {}): Promise<{
   /* Global rate limits (SRS 3.2): anonymous 120 req/min per IP. The
    * authenticated 600 req/min per user lives in the /api/v1 preHandler. */
   app.addHook("onRequest", async (request: FastifyRequest, reply) => {
+    if (reply.sent) return;
     const result = await limiter.hit(`global:ip:${request.ip}`, { limit: 120, windowSec: 60 });
     if (!result.allowed) {
       void reply.header("Retry-After", String(result.retryAfterSec));
@@ -133,7 +151,8 @@ export async function buildApp(options: BuildAppOptions = {}): Promise<{
 
   /* /api/v1: session -> principal (with per-role absolute TTL), then the
    * authenticated user rate limit (600 req/min per user). */
-  app.addHook("preHandler", async (request) => {
+  app.addHook("preHandler", async (request, reply) => {
+    if (reply.sent) return;
     if (!request.url.startsWith("/api/v1")) return;
     const principal = await resolvePrincipal(request, async (headers) => {
       return (await auth.api.getSession({ headers })) as never;
