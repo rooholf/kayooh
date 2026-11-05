@@ -51,7 +51,9 @@ export function ScanSheet({ mode, focus = "voucher", blocked, onClose, onSubmit 
   const [voucher, setVoucher] = useState("");
   const [note, setNote] = useState("");
   const [toState, setToState] = useState<BikeState>("maintenance");
-  const [checklist, setChecklist] = useState<Record<string, ChecklistStatus>>({});
+  const [checklist, setChecklist] = useState<Record<string, ChecklistStatus>>(() =>
+    Object.fromEntries(staffConfig.checklistItems.map((item) => [item, "ok" as ChecklistStatus])),
+  );
   const [photoKeys, setPhotoKeys] = useState<string[]>([""]);
 
   useEffect(() => {
