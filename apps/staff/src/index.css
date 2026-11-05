@@ -1,0 +1,109 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    /* Kartu Stok world — buff stock card, near-black ink, rule blue, correction red */
+    --card: #e7dfc9;
+    --ink: #1b1b18;
+    --rule: #2c4a7c;
+    --signal: #a03227;
+    --line: rgba(27, 27, 24, 0.26);
+    --dim: rgba(27, 27, 24, 0.7);
+    --rule-tint: rgba(44, 74, 124, 0.08);
+    --rule-tint-2: rgba(44, 74, 124, 0.18);
+    --signal-tint: rgba(160, 50, 39, 0.07);
+  }
+
+  html,
+  body,
+  #root {
+    height: 100%;
+  }
+
+  body {
+    background: var(--card);
+    color: var(--ink);
+    font-family: Inter, system-ui, sans-serif;
+    -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
+  }
+
+  /* Browser surfaces themed from the palette, not left at platform default. */
+  ::selection {
+    background: var(--rule);
+    color: var(--card);
+  }
+
+  :focus-visible {
+    outline: 2px solid var(--rule);
+    outline-offset: 2px;
+  }
+
+  input,
+  textarea,
+  select {
+    caret-color: var(--rule);
+  }
+
+  * {
+    scrollbar-width: thin;
+    scrollbar-color: rgba(44, 74, 124, 0.5) transparent;
+  }
+  *::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+  }
+  *::-webkit-scrollbar-thumb {
+    background: rgba(44, 74, 124, 0.5);
+  }
+  *::-webkit-scrollbar-track {
+    background: transparent;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+      animation-duration: 0.001ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.001ms !important;
+    }
+  }
+}
+
+@layer components {
+  /* The card's edge: a 2px ink rule, the stock card's own frame. */
+  .rule-t {
+    border-top: 2px solid var(--ink);
+  }
+  .rule-b {
+    border-bottom: 2px solid var(--ink);
+  }
+
+  /* Ruled data columns — the ledger's one vertical accent is the Sisa column. */
+  .ruled > * + * {
+    border-left: 1px solid var(--line);
+  }
+
+  .sisa-col {
+    border-left: 2px solid var(--rule);
+    background: var(--rule-tint);
+  }
+
+  /* The one authored motion moment: a freshly posted line settles in. */
+  @keyframes line-post {
+    from {
+      background: var(--rule-tint-2);
+      transform: translateY(-2px);
+    }
+    to {
+      background: var(--rule-tint-2);
+      transform: translateY(0);
+    }
+  }
+  .posted-in {
+    animation: line-post 480ms cubic-bezier(0.16, 1, 0.3, 1);
+  }
+}

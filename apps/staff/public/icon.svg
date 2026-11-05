@@ -1,0 +1,23 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 512 512" role="img" aria-label="Kayooh Pindai Staf">
+  <rect width="512" height="512" fill="#E7DFC9"/>
+  <rect x="40" y="40" width="432" height="432" fill="none" stroke="#1B1B18" stroke-width="16"/>
+  <line x1="40" y1="168" x2="472" y2="168" stroke="#1B1B18" stroke-width="16"/>
+  <line x1="40" y1="232" x2="472" y2="232" stroke="#1B1B18" stroke-width="8"/>
+  <rect x="336" y="176" width="136" height="256" fill="#2C4A7C" opacity="0.08"/>
+  <line x1="336" y1="168" x2="336" y2="432" stroke="#2C4A7C" stroke-width="16"/>
+  <line x1="40" y1="300" x2="472" y2="300" stroke="#1B1B18" stroke-width="8" opacity="0.28"/>
+  <line x1="40" y1="368" x2="472" y2="368" stroke="#1B1B18" stroke-width="8" opacity="0.28"/>
+  <line x1="40" y1="424" x2="472" y2="424" stroke="#1B1B18" stroke-width="16"/>
+  <g fill="#1B1B18">
+    <rect x="72" y="116" width="72" height="20"/>
+    <rect x="72" y="196" width="120" height="16"/>
+    <rect x="72" y="264" width="96" height="16"/>
+    <rect x="72" y="332" width="104" height="16"/>
+  </g>
+  <g fill="#2C4A7C" font-family="Roboto Mono, monospace" font-weight="700" text-anchor="end">
+    <text x="448" y="214" font-size="56">12</text>
+    <text x="448" y="282" font-size="56">11</text>
+    <text x="448" y="350" font-size="56">10</text>
+    <text x="448" y="410" font-size="64">9</text>
+  </g>
+</svg>

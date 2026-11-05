@@ -1,0 +1,126 @@
+<!doctype html>
+<html lang="id">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=390,initial-scale=1">
+<title>Kayooh — Outlet Telanaipura</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Kanit:ital,wght@0,600;0,700;0,900;1,800&family=Saira:wght@400;600;700&display=swap" rel="stylesheet">
+<style>
+:root{
+  --enamel:#0E4C46; --enamel-d:#082E2A; --ivory:#F3EEE3;
+  --race:#D8341F; --gold:#C9A227;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{width:390px;height:844px;overflow:hidden}
+body{background:var(--enamel);color:var(--ivory);font-family:'Saira',system-ui,sans-serif;
+  -webkit-font-smoothing:antialiased}
+.panggung{position:absolute;inset:0;overflow:hidden}
+
+.tabung-bawah{
+  position:absolute;left:-60px;right:-60px;top:230px;height:700px;
+  transform:rotate(-12deg);background:var(--ivory);
+  border-top:7px solid var(--gold);border-bottom:7px solid var(--gold);
+  box-shadow:0 0 0 2px var(--race),0 34px 80px rgba(0,0,0,.55)}
+.tabung-atas{
+  position:absolute;left:0;right:0;top:104px;height:62px;background:var(--enamel-d);
+  border-top:4px solid var(--gold);border-bottom:4px solid var(--gold);
+  display:flex;align-items:stretch}
+.tabung-atas i.skala{
+  position:absolute;left:0;right:0;bottom:0;height:7px;
+  background:repeating-linear-gradient(90deg,var(--gold) 0 1px,transparent 1px 14px);
+  opacity:.5}
+
+.kepala{position:absolute;left:22px;right:22px;top:0;height:104px;
+  display:flex;align-items:center;justify-content:space-between}
+.merek{font-family:'Kanit',sans-serif;font-style:italic;font-weight:800;font-size:30px;
+  line-height:1;letter-spacing:.01em}
+.merek span{display:block;font-family:'Saira',sans-serif;font-style:normal;font-weight:600;
+  font-size:9px;letter-spacing:.3em;color:var(--gold);margin-top:6px}
+.lencana{border:3px solid var(--gold);border-radius:11px;background:var(--ivory);
+  padding:6px 12px 7px;text-align:center;box-shadow:0 3px 0 rgba(0,0,0,.35)}
+.lencana b{display:block;font-family:'Kanit',sans-serif;font-weight:900;font-size:15px;
+  letter-spacing:.08em;color:var(--race);line-height:1}
+.lencana i{display:block;font-style:normal;font-weight:700;font-size:8.5px;
+  letter-spacing:.18em;color:var(--enamel);margin-top:3px}
+
+.blok{flex:1;display:flex;align-items:center;justify-content:center;
+  font-family:'Kanit',sans-serif;font-weight:600;font-size:13px;letter-spacing:.14em;
+  text-transform:uppercase;color:rgba(243,238,227,.48)}
+.blok.on{background:var(--ivory);color:var(--race);font-weight:900;
+  box-shadow:0 0 0 2px var(--race)}
+
+.isi{position:absolute;left:26px;right:26px;top:288px;height:530px;
+  display:flex;flex-direction:column;color:var(--enamel)}
+.kicker{font-weight:700;font-size:10.5px;letter-spacing:.24em;color:var(--race);
+  text-transform:uppercase}
+h1{font-family:'Kanit',sans-serif;font-weight:700;font-size:34px;line-height:1.07;
+  letter-spacing:-.012em;margin-top:11px}
+.mikro{font-size:12.5px;line-height:1.5;margin-top:13px;max-width:292px;
+  color:rgba(14,76,70,.8)}
+.label{font-weight:700;font-size:9.5px;letter-spacing:.24em;text-transform:uppercase;
+  color:rgba(14,76,70,.58);margin-top:26px}
+.gir{display:flex;margin-top:9px}
+.gir>div{flex:1;text-align:center}
+.cincin{width:58px;height:58px;margin:0 auto;border-radius:50%;
+  border:3px dashed var(--gold);display:flex;align-items:center;justify-content:center;
+  font-family:'Kanit',sans-serif;font-weight:900;font-size:15px;color:var(--gold)}
+.on .cincin{background:var(--enamel);border-style:solid;color:var(--ivory)}
+.gir p{margin-top:7px;font-weight:700;font-size:9px;letter-spacing:.08em;
+  text-transform:uppercase;color:rgba(14,76,70,.72)}
+.on p{color:var(--race)}
+.aksi{margin-top:auto;height:64px;border:0;border-radius:4px;background:var(--race);
+  color:var(--ivory);font-family:'Kanit',sans-serif;font-weight:700;font-size:17px;
+  letter-spacing:.04em;box-shadow:inset 0 0 0 2px var(--gold),0 5px 0 rgba(14,76,70,.3)}
+.rantai{margin-top:16px;display:flex;align-items:center;gap:12px;
+  border-top:1px dashed rgba(14,76,70,.45);padding-top:12px}
+.rantai p{flex:1;font-size:11.5px;line-height:1.4;color:rgba(14,76,70,.88)}
+.rantai p b{font-weight:700}
+.hub{width:42px;height:42px;border-radius:50%;background:var(--enamel);color:var(--gold);
+  display:flex;align-items:center;justify-content:center;font-family:'Kanit',sans-serif;
+  font-weight:900;font-size:17px}
+</style>
+</head>
+<body>
+<div class="panggung">
+
+  <div class="tabung-atas">
+    <i class="skala"></i>
+    <div class="blok">Pagi</div>
+    <div class="blok on">Siang</div>
+    <div class="blok">Sore</div>
+    <div class="blok">Malam</div>
+  </div>
+
+  <div class="tabung-bawah"></div>
+
+  <div class="kepala">
+    <div class="merek">KAYOOH<span>JAMBI &middot; WIB</span></div>
+    <div class="lencana"><b>TLP</b><i>TELANAIPURA</i></div>
+  </div>
+
+  <div class="isi">
+    <p class="kicker">Stok pasti &middot; antar-outlet</p>
+    <h1>Sepeda yang kamu lihat, itu yang kamu dapat.</h1>
+    <p class="mikro">Angka stok dihitung ulang di server setiap kali kamu mencari. Tidak ada peta sepeda, tidak ada tebakan.</p>
+
+    <p class="label">Pilih jenis sepeda</p>
+    <div class="gir">
+      <div class="on"><div class="cincin">4</div><p>Commuter</p></div>
+      <div><div class="cincin">1</div><p>Road</p></div>
+      <div><div class="cincin">3</div><p>MTB</p></div>
+      <div><div class="cincin">0</div><p>Fixie</p></div>
+    </div>
+
+    <button class="aksi">Lihat ketersediaan</button>
+
+    <div class="rantai">
+      <p><b>Pagi ini</b> Commuter tersedia di 3 dari 5 outlet &mdash; terbaru: Kota Baru, 2 unit.</p>
+      <div class="hub">3</div>
+    </div>
+  </div>
+
+</div>
+</body>
+</html>

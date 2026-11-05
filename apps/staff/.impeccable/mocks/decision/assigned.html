@@ -1,0 +1,141 @@
+<!doctype html>
+<html lang="id">
+<head>
+<meta charset="utf-8">
+<title>Kayooh — Papan Panggil</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Roboto+Condensed:wght@300..900&family=Roboto:wght@400;500;700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --papan:#0E3A2F; --papan-dalam:#092A22; --papan-terang:#175445;
+    --kertas:#F4F1E6; --tinta:#111512; --lembut:#5C6359; --garis:#D9D3C0;
+    --kuning:#F2A81D; --merah:#C0392B;
+  }
+  *{margin:0;padding:0;box-sizing:border-box}
+  html,body{width:390px;height:844px;overflow:hidden}
+  body{
+    display:flex;flex-direction:column;
+    background:var(--kertas);color:var(--tinta);
+    font-family:Roboto,"Helvetica Neue",Arial,sans-serif;
+    -webkit-font-smoothing:antialiased;
+  }
+  .angka{font-family:"Roboto Condensed",Arial Narrow,sans-serif;font-variant-numeric:tabular-nums}
+
+  /* ── papan: the committed calling rail ── */
+  .papan{background:var(--papan);color:#F6F3E7;padding:13px 18px 0;flex:0 0 auto}
+  .baris-atas{display:flex;align-items:center;justify-content:space-between}
+  .merek{font-family:"Roboto Condensed";font-weight:700;font-size:17px;letter-spacing:.2em;text-transform:uppercase}
+  .merek span{display:block;font-family:Roboto;font-weight:400;font-size:11.5px;letter-spacing:.02em;text-transform:none;opacity:.72;margin-top:2px}
+  .sinkron{display:flex;align-items:center;gap:6px;font-size:11.5px;letter-spacing:.02em;
+    border:1px solid rgba(246,243,231,.34);border-radius:999px;padding:6px 11px}
+  .sinkron b{width:7px;height:7px;border-radius:50%;background:#7FD3A6;display:inline-block}
+
+  .panggil{margin-top:16px}
+  .panggil .label{font-family:"Roboto Condensed";font-weight:600;font-size:12px;letter-spacing:.28em;text-transform:uppercase;color:var(--kuning)}
+  .nomor{font-size:142px;line-height:.82;font-weight:760;
+    font-variation-settings:"wght" 760;letter-spacing:-.03em;margin:6px 0 0}
+  .nomor sup{font-size:34px;font-weight:600;letter-spacing:0;vertical-align:super;opacity:.55;margin-left:8px}
+  .pemesan{font-size:13.5px;opacity:.9;margin-top:8px;letter-spacing:.01em}
+  .pemesan b{font-weight:500}
+  .tombol{display:block;width:100%;margin:14px 0 0;height:56px;border:0;border-radius:3px;
+    background:#F6F3E7;color:var(--papan-dalam);font-family:Roboto;font-weight:700;font-size:16.5px;
+    letter-spacing:.01em;text-align:center;line-height:56px}
+  .papan-kaki{height:10px}
+
+  /* ── work area ── */
+  .kerja{flex:1 1 auto;padding:16px 0 0;overflow:hidden}
+  .judul{display:flex;align-items:baseline;justify-content:space-between;padding:0 18px 10px}
+  .judul h2{font-family:"Roboto Condensed";font-weight:700;font-size:15px;letter-spacing:.14em;text-transform:uppercase}
+  .judul em{font-style:normal;font-size:12px;color:var(--lembut);font-variant-numeric:tabular-nums}
+
+  .antrean{list-style:none;border-top:1px solid var(--garis)}
+  .antrean li{display:flex;align-items:center;gap:14px;height:66px;padding:0 18px;border-bottom:1px solid var(--garis)}
+  .antrean .no{font-family:"Roboto Condensed";font-weight:700;font-size:27px;width:52px;font-variant-numeric:tabular-nums}
+  .antrean .isi{flex:1;min-width:0}
+  .antrean .isi b{display:block;font-size:14px;font-weight:500}
+  .antrean .isi span{display:block;font-size:11.5px;color:var(--lembut);margin-top:2px;font-variant-numeric:tabular-nums}
+  .antrean .waktu{font-family:"Roboto Condensed";font-weight:600;font-size:14px;color:var(--lembut);font-variant-numeric:tabular-nums}
+  li.bendera{background:#FBF2DC;box-shadow:inset 4px 0 0 var(--kuning)}
+  li.bendera .waktu{color:#8A5E06}
+  li.terlambat .no{color:var(--merah)}
+  .alasan{display:block;font-size:11.5px;color:#8A5E06;margin-top:3px;font-weight:500}
+
+  /* ── tab bar (standard) ── */
+  .tab{flex:0 0 auto;display:flex;border-top:1px solid var(--garis);background:#EFEBDE;height:74px}
+  .tab a{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:5px;
+    text-decoration:none;color:#8A8F83;font-size:11px;letter-spacing:.01em}
+  .tab a.aktif{color:var(--papan)}
+  .tab i{width:21px;height:21px;border:1.6px solid currentColor;border-radius:2px;display:block}
+  .tab a.aktif i{background:var(--papan);border-color:var(--papan)}
+</style>
+</head>
+<body>
+
+  <header class="papan">
+    <div class="baris-atas">
+      <div class="merek">Kayooh<span>Outlet Telanaipura · Rina</span></div>
+      <div class="sinkron"><b></b>Tersinkron 14:06</div>
+    </div>
+
+    <section class="panggil">
+      <div class="label">Sedang dipanggil</div>
+      <div class="nomor angka">027<sup>RDW</sup></div>
+      <div class="pemesan"><b>0812••••4471</b> · Road · 14:00–15:00 WIB</div>
+    </section>
+
+    <button class="tombol">Mulai serah terima</button>
+    <div class="papan-kaki"></div>
+  </header>
+
+  <main class="kerja">
+    <div class="judul">
+      <h2>Antrean hari ini</h2>
+      <em>4 menunggu · 1 terlambat</em>
+    </div>
+    <ul class="antrean">
+      <li class="bendera">
+        <span class="no angka">028</span>
+        <span class="isi">
+          <b>0813••••9021 · Commuter</b>
+          <span>14:30–15:30 WIB</span>
+          <span class="alasan">Ditandai: voucher belum dikonfirmasi</span>
+        </span>
+        <span class="waktu">14:30</span>
+      </li>
+      <li class="terlambat">
+        <span class="no angka">029</span>
+        <span class="isi">
+          <b>0852••••1130 · MTB</b>
+          <span>Terlambat 12 menit · 13:45–14:45 WIB</span>
+        </span>
+        <span class="waktu">13:45</span>
+      </li>
+      <li>
+        <span class="no angka">030</span>
+        <span class="isi">
+          <b>0812••••7788 · Fixie</b>
+          <span>15:30–16:30 WIB</span>
+        </span>
+        <span class="waktu">15:30</span>
+      </li>
+      <li>
+        <span class="no angka">031</span>
+        <span class="isi">
+          <b>0819••••3304 · Road</b>
+          <span>16:00–17:00 WIB</span>
+        </span>
+        <span class="waktu">16:00</span>
+      </li>
+    </ul>
+  </main>
+
+  <nav class="tab">
+    <a class="aktif" href="#"><i></i>Antrean</a>
+    <a href="#"><i></i>Sepeda</a>
+    <a href="#"><i></i>Periksa</a>
+    <a href="#"><i></i>Akun</a>
+  </nav>
+
+</body>
+</html>
