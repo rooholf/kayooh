@@ -26,7 +26,6 @@ import {
   depositClaims,
   notifications,
   outboxEvents,
-  outletCategories,
   paymentIntents,
   refunds,
   rentals,
@@ -38,7 +37,6 @@ import {
 } from "@repo/db";
 import {
   vAssetTag,
-  vCategoryCode,
   vChecklist,
   vClientEventId,
   vIdr,
@@ -85,14 +83,6 @@ type ClassifyingVerdict = { status: Exclude<ScanStatus, "applied">; reason: stri
 /* ------------------------------------------------------------------ */
 /* Wire schemas (strict, so unknown fields are rejected)               */
 /* ------------------------------------------------------------------ */
-
-const STAFF_EVENT_TYPES: readonly StaffEventType[] = [
-  "checkout",
-  "checkin",
-  "inspection",
-  "bike_status_change",
-  "incident",
-];
 
 const staffEventBaseSchema = z
   .object({
@@ -153,14 +143,6 @@ const incidentPayloadSchema = z
     photoKeys: z.array(vPhotoKey).max(64).optional(),
   })
   .strict();
-
-const PAYLOAD_SCHEMAS: Record<StaffEventType, z.ZodTypeAny> = {
-  checkout: checkoutPayloadSchema,
-  checkin: checkinPayloadSchema,
-  inspection: inspectionPayloadSchema,
-  bike_status_change: bikeStatusPayloadSchema,
-  incident: incidentPayloadSchema,
-};
 
 /* ------------------------------------------------------------------ */
 /* Shared helpers                                                      */

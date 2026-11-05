@@ -20,13 +20,12 @@ import {
   renters,
   reservations,
   users,
-  type Database,
 } from "@repo/db";
 import { createReservationHold } from "../src/modules/inventory/index.js";
 import { signVoucher } from "../src/lib/voucher.js";
 import type { Principal } from "../src/modules/identity/guards.js";
 import type { CreateReservationBody } from "@repo/contracts";
-import { buildTestApp, truncateAll, sessionCookie, type TestApp } from "./helpers.js";
+import { sessionCookie, type TestApp } from "./helpers.js";
 
 /* ------------------------------------------------------------------ */
 /* Offering + bikes                                                    */

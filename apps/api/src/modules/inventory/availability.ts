@@ -9,7 +9,7 @@
  * outlet_categories row (INV-2): decisions are made only from committed rows
  * visible to that transaction; nothing here may read caches (CONS).
  */
-import { db as pooledDb, sql, type SQL, type TxOrDb } from "@repo/db";
+import { sql, type TxOrDb } from "@repo/db";
 import { getConfig } from "../app-config/index.js";
 
 /** Either the pooled db or a transaction handle — both expose .execute(). */
@@ -25,12 +25,6 @@ export interface AvailabilityInput {
 
 interface CountResult {
   rows: Array<{ n: string | number } | undefined>;
-}
-
-async function countRows(exec: QueryExecutor, query: SQL): Promise<number> {
-  const res = (await exec.execute(query)) as unknown as CountResult;
-  const row = res.rows[0];
-  return Number(row?.n ?? 0);
 }
 
 /** async count(*) helpers, one per FR-INV-01 term. */

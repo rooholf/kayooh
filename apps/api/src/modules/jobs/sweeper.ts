@@ -11,10 +11,7 @@ import {
   outboxEvents,
   paymentIntents,
   refunds,
-  rentals,
-  reservations,
   renters,
-  users,
 } from "@repo/db";
 import { getConfig } from "../app-config/index.js";
 

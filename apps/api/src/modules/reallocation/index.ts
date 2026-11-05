@@ -34,10 +34,6 @@ import {
 
 const toDate = (value: Date | string): Date => (value instanceof Date ? value : new Date(value));
 
-function rows<T>(result: { rows: Array<T | undefined> }): T[] {
-  return result.rows.filter(Boolean) as T[];
-}
-
 /* ------------------------------------------------------------------ */
 /* FR-INV-04.2: at_risk marking + deadline + renter notifications       */
 /* ------------------------------------------------------------------ */

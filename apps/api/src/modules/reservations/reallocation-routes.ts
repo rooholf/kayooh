@@ -7,7 +7,7 @@
  * Resources elsewhere in the caller's scope 404 (SRS 3.2): a renter may only
  * act on their own reservation.
  */
-import type { FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
+import type { FastifyInstance, FastifyRequest } from "fastify";
 import { eq } from "@repo/db";
 import { vUuid } from "@repo/contracts";
 import { db, renters, reservations } from "@repo/db";
