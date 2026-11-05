@@ -26,6 +26,9 @@ import {
   resolvePrincipal,
 } from "./modules/identity/index.js";
 import { registerReservationRoutes } from "./modules/reservations/create-reservation.js";
+import { registerReallocationRoutes } from "./modules/reservations/reallocation-routes.js";
+import { registerStaffRoutes } from "./modules/staff/routes.js";
+import { registerCatalogRoutes } from "./modules/catalog/index.js";
 import { registerSweeperSchedule } from "./modules/jobs/index.js";
 
 declare module "fastify" {
@@ -159,6 +162,9 @@ export async function buildApp(options: BuildAppOptions = {}): Promise<{
   /* Versioned SRS routes. */
   registerIdentityRoutes(app);
   registerReservationRoutes(app);
+  registerReallocationRoutes(app);
+  registerStaffRoutes(app);
+  registerCatalogRoutes(app);
 
   /* Better Auth scoped mount (raw body preserved for the BA handler). */
   await app.register(async (scope) => {

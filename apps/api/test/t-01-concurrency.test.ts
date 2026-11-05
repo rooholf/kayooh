@@ -10,7 +10,7 @@
  * is carried on every reservation request.
  */
 import { describe, expect, it, beforeEach, afterEach } from "vitest";
-import { and, eq, sql } from "@repo/db";
+import { eq } from "@repo/db";
 import { randomUUID } from "node:crypto";
 import {
   bikes,

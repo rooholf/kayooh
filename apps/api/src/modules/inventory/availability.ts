@@ -9,7 +9,7 @@
  * outlet_categories row (INV-2): decisions are made only from committed rows
  * visible to that transaction; nothing here may read caches (CONS).
  */
-import { db as pooledDb, sql, type SQL, type TxOrDb } from "@repo/db";
+import { sql, type TxOrDb } from "@repo/db";
 import { getConfig } from "../app-config/index.js";
 
 /** Either the pooled db or a transaction handle — both expose .execute(). */
@@ -27,15 +27,9 @@ interface CountResult {
   rows: Array<{ n: string | number } | undefined>;
 }
 
-async function countRows(exec: QueryExecutor, query: SQL): Promise<number> {
-  const res = (await exec.execute(query)) as unknown as CountResult;
-  const row = res.rows[0];
-  return Number(row?.n ?? 0);
-}
-
 /** async count(*) helpers, one per FR-INV-01 term. */
 
-async function countInService(exec: QueryExecutor, input: AvailabilityInput): Promise<number> {
+export async function countInService(exec: QueryExecutor, input: AvailabilityInput): Promise<number> {
   const res = (await exec.execute(sql`
     SELECT count(*)::int AS n FROM bikes
     WHERE home_outlet_id = ${input.outletId}
@@ -45,7 +39,7 @@ async function countInService(exec: QueryExecutor, input: AvailabilityInput): Pr
   return Number(res.rows[0]?.n ?? 0);
 }
 
-async function countCommittedReservations(
+export async function countCommittedReservations(
   exec: QueryExecutor,
   input: AvailabilityInput,
   graceSeconds: number,
@@ -68,7 +62,7 @@ async function countCommittedReservations(
   return Number(res.rows[0]?.n ?? 0);
 }
 
-async function countCommittedRentals(exec: QueryExecutor, input: AvailabilityInput): Promise<number> {
+export async function countCommittedRentals(exec: QueryExecutor, input: AvailabilityInput): Promise<number> {
   const res = (await exec.execute(sql`
     SELECT count(*)::int AS n FROM rentals r
     JOIN bikes b ON b.id = r.bike_id

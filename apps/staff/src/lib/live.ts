@@ -15,7 +15,6 @@ export function useLiveQuery<T>(
       error: (error) => console.error("[liveQuery]", error),
     });
     return () => subscription.unsubscribe();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, deps);
   return value;
 }

@@ -36,6 +36,7 @@ export {
 } from "./validation";
 
 export * from "./reservations";
+export * from "./catalog";
 
 import * as v from "./validation";
 
