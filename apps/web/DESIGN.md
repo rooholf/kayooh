@@ -251,7 +251,8 @@ No shadows — flat by doctrine. Depth is conveyed by (1) hard 3 px zero-blur ke
 
 ## Shapes
 
-Zero radii everywhere (`0px`). Outlines are 2–3 px solid ink (3 px on the plate, pickers, CTA, count grid; 2 px on inner rules and dashed notice boxes). The only non-rectangular form is the bicycle line-art and the diamond separators (◆) in the slogan border. No circles, polygons, or clip-path cutouts beyond the bicycle's two wheels.
+Zero radii everywhere (`0px`). Outlines are 2–3 px solid ink (3 px on the plate, pickers, CTA, count grid; 2 px on inner rules and dashed notice boxes). The only non-rectangular form is the bicycle line-art (the drawn glyph and the emblem plate bicycle) and the diamond separators (◆) in the slogan border. No circles, polygons, or clip-path cutouts beyond the bicycle's two wheels.
+- **BikeGlyph**: four monoline silhouettes (commuter, road, mtb, fixie), one continuous `currentColor` stroke at the emblem's stroke ratio (~5% of viewBox), outline-only, never filled, never an icon set. Decorative (`aria-hidden`); the type name carries the meaning. If a variant fails to read at 64 px wide, the strip falls back to name-only cells and the drawing lives only in the specimen row.
 
 ## Components
 
@@ -265,7 +266,8 @@ Zero radii everywhere (`0px`). Outlines are 2–3 px solid ink (3 px on the plat
 - **Buka / Tutup**: flat solid chips — Merah Cetak ("Buka") and Tinta ("Tutup"), kertas text, Archivo Black 9px, letterspaced. No dots, no icons.
 
 ### Rows (not cards)
-- **Outlet ticket** (`.pos`): name in Archivo Black, address in Archivo 500, distance uppercase tabular; right-aligned Buka/Tutup chip; below a ruled 4-column count grid (2 px ink rules, `dt` headers COM/ROD/MTB/FIX, `dd` figures in Archivo Black tabular). Zeros in **Nol** grey; the selected category cell floods Kuning Matahari with ink figures. Never boxed in cards; the row is capped top and bottom by 3 px ink rules.
+- **Outlet ticket** (`.pos`): name in Archivo Black, address in Archivo 500, distance uppercase tabular; right-aligned Buka/Tutup chip; below a ruled 4-column count grid (2 px ink rules, `dt` headers COM/ROD/MTB/FIX, `dd` figures in Archivo Black tabular). Zeros in **Nol** grey; the selected category cell floods Kuning Matahari with ink figures. Never boxed in cards; the row is capped top and bottom by 3 px ink rules. One affordance: the name plus the visible action line ("Lihat sepeda di outlet ini") form a single link to `/outlets/[id]` — never a second control.
+- **Specimen row** (`.spesimen`, `BikeSpecimen`): the bicycle drawn as glyph + type name + live figure, the unit used on both the poster and `/outlets/[id]`. 3 px ink keyline on kertas ground; glyph box ~96 px in `currentColor` (decorative, `aria-hidden`); name in Archivo Black uppercase; figure tabular in Archivo Black; caption in body voice. Zeros render in **Nol** grey with an inline recovery switch ("Yang siap: …") when another type is ready; `count === null` (fetch failed) renders nothing — the parent shows the honest dashed notice instead of a fabricated number. Detail mode rows are selectable (`aria-pressed`, `tabIndex=0`, Enter/Space); the selected type floods Merah Cetak with kertas text/glyph and is stamped in `?jenis=`.
 
 ### Notices
 - **Error / empty**: dashed 2 px ink box on paper for empty and loading; solid Merah Cetak box with kertas text for failure, always with a named recovery action ("Muat ulang" link/button). Error copy names the problem and the way out.

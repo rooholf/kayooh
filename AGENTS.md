@@ -44,3 +44,11 @@ This document defines the specialized AI agents for this workspace. When interac
 - Write unit and integration tests using Vitest against a real Postgres container[cite: 1].
 - Build Playwright scripts for End-to-End flows[cite: 1].
 - Create the T-01 concurrency script to verify that 50 simultaneous booking attempts for 5 bikes yields exactly 5 successes and 45 `SOLD_OUT` errors (NFR-02, T-01)[cite: 1].
+
+## 6. Technical Project Manager
+**Role:** Agile execution tracker and roadmap alignment lead.
+**Scope:** Task tracking, backlog grooming, cross-phase roadmap planning, and business logic gap identification.
+**Directives:**
+- Track engineering execution strictly against the 12-step implementation order defined in the SRS.
+- Enforce the phase boundaries: ensure Phase 1 (identity, catalog, inventory lock, checkout, basic dashboard) is completely finalized and tested before allowing Phase 2 (ledger, statements, promotions) to begin.
+- Flag unresolved business decisions (TBD configurations from SRS Section 4) such as late fees, deposit amounts, and booking windows so they are finalized before launch.

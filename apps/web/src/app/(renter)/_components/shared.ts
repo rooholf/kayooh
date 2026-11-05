@@ -80,3 +80,82 @@ export function wibDateParts(now: Date = new Date()): {
 export function formatDistanceKm(km: number): string {
   return `${km.toFixed(1).replace(".", ",")} km`;
 }
+
+/** Live ready total for one category across outlets (0 = none ready). */
+export function typeTotals(
+  outlets: OutletListItem[],
+  category: CategoryCode,
+): number {
+  return outlets.reduce((sum, outlet) => sum + availabilityCount(outlet, category), 0);
+}
+
+/** Outlets with at least one bike ready in the category. */
+export function outletsWithType(
+  outlets: OutletListItem[],
+  category: CategoryCode,
+): OutletListItem[] {
+  return outlets.filter((outlet) => availabilityCount(outlet, category) > 0);
+}
+
+/** Display helpers shared with the specimen rows (Indonesian words). */
+export const CATEGORY_WORD: Record<CategoryCode, string> = {
+  commuter: "Commuter",
+  road: "Road",
+  mtb: "MTB",
+  fixie: "Fixie",
+};
+
+/** WIB day keys matching the outlet `hours` jsonb (SRS V-HOURS). */
+const DAY_KEYS = ["sun", "mon", "tue", "wed", "thu", "fri", "sat"] as const;
+type DayKey = (typeof DAY_KEYS)[number];
+
+function isValidDayKey(value: unknown): value is DayKey {
+  return (
+    typeof value === "string" &&
+    (DAY_KEYS as readonly string[]).includes(value)
+  );
+}
+
+/**
+ * Today's opening intervals from an outlet's `hours`, in WIB. Unknown shapes
+ * render as no line rather than an invented one (fail closed, never wrong).
+ */
+export function todaysHours(
+  hours: unknown,
+  now: Date = new Date(),
+): Array<{ open: string; close: string }> | null {
+  if (!hours || typeof hours !== "object" || Array.isArray(hours)) return null;
+  const shifted = new Date(now.getTime() + 7 * 60 * 60 * 1000);
+  const dayKey = DAY_KEYS[shifted.getUTCDay()];
+  if (!isValidDayKey(dayKey)) return null;
+  const intervals = (hours as Record<string, unknown>)[dayKey];
+  if (!Array.isArray(intervals)) return null;
+  const parsed: Array<{ open: string; close: string }> = [];
+  for (const interval of intervals) {
+    if (!interval || typeof interval !== "object") return null;
+    const { open, close } = interval as Record<string, unknown>;
+    if (
+      typeof open !== "string" ||
+      typeof close !== "string" ||
+      !/^\d{2}:\d{2}$/.test(open) ||
+      !/^\d{2}:\d{2}$/.test(close)
+    ) {
+      return null;
+    }
+    parsed.push({ open, close });
+  }
+  return parsed;
+}
+
+/** "07.00–19.00" from today's intervals (24 h, WIB conventions, dot separator). */
+export function formatTodayHours(
+  hours: unknown,
+  now: Date = new Date(),
+): string | null {
+  const intervals = todaysHours(hours, now);
+  if (intervals === null || intervals.length === 0) return null;
+  const toDot = (hhmm: string) => hhmm.replace(":", ".");
+  return intervals
+    .map((iv) => `${toDot(iv.open)}–${toDot(iv.close)}`)
+    .join(", ");
+}

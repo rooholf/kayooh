@@ -759,3 +759,116 @@
   border-bottom: 3px solid var(--merah);
   padding-bottom: 4px;
 }
+
+/* specimen row — drawn bike + live figure, one ruled unit (not a card) */
+.spesimen-daftar {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+}
+.spesimen-daftar > li + li {
+  border-top: 2px solid var(--tinta);
+}
+.spesimen-daftar > li:first-child {
+  border-top: 3px solid var(--tinta);
+}
+.spesimen-daftar > li:last-child {
+  border-bottom: 3px solid var(--tinta);
+}
+.spesimen {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 12px 4px 13px;
+  background: var(--kertas);
+  border: 3px solid var(--tinta);
+  min-height: 96px;
+}
+.spesimen--detail {
+  cursor: pointer;
+}
+.spesimen--detail[aria-pressed="true"] {
+  background: var(--merah);
+  color: var(--kertas);
+}
+.spesimen--detail[aria-pressed="true"] .spesimen-nama,
+.spesimen--detail[aria-pressed="true"] .spesimen-angka,
+.spesimen--detail[aria-pressed="true"] .spesimen-keterangan,
+.spesimen--detail[aria-pressed="true"] .spesimen-glif svg {
+  color: var(--kertas);
+}
+.spesimen-glif {
+  flex: 0 0 auto;
+  width: 96px;
+  height: 96px;
+  display: grid;
+  place-items: center;
+  background: var(--kertas);
+  border: 3px solid var(--tinta);
+}
+.spesimen-glif svg {
+  width: 64px;
+  height: auto;
+  display: block;
+}
+.spesimen-isi {
+  flex: 1 1 auto;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.spesimen-nama {
+  font-family: "Archivo Black", "Archivo", sans-serif;
+  font-size: clamp(17px, 5.2vw, 21px);
+  line-height: 1.15;
+  letter-spacing: 0.01em;
+  color: var(--tinta);
+}
+.spesimen-angka {
+  font-family: "Archivo Black", "Archivo", sans-serif;
+  font-size: clamp(17px, 5.4vw, 22px);
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+  color: var(--tinta);
+}
+.spesimen-keterangan {
+  font-weight: 600;
+  font-size: 11.5px;
+  line-height: 1.45;
+  max-width: 52ch;
+  color: var(--tinta);
+}
+.spesimen--nol .spesimen-angka,
+.spesimen--nol .spesimen-glif svg {
+  color: var(--nol);
+}
+.spesimen-switch {
+  margin-top: 10px;
+  border: 2px dashed var(--tinta);
+  padding: 10px 12px;
+  background: var(--kertas);
+}
+.spesimen-switch button {
+  width: 100%;
+  text-align: left;
+  border: 0;
+  background: none;
+  padding: 0;
+  font: inherit;
+  color: var(--tinta);
+  font-weight: 700;
+  font-size: 11.5px;
+  line-height: 1.45;
+  min-height: 44px;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.spesimen-switch button:hover {
+  color: var(--merah);
+  border-color: var(--merah);
+}

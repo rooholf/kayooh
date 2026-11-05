@@ -84,7 +84,11 @@ export default async function RenterHomePage() {
       </section>
 
       {/* ---- waktu & jenis + the boxed-ink action ---- */}
-      <PosterPicker dayMonth={dayMonth} />
+      <PosterPicker
+        dayMonth={dayMonth}
+        outlets={data === null ? null : outlets}
+        loadFailed={data === null}
+      />
 
       {/* ---- real outlet names, ruled ---- */}
       {outlets.length > 0 && (
