@@ -2,8 +2,9 @@ import type { Metadata } from "next";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "Jambi Bike Rental Network",
-  description: "Station-based, multi-owner bike rental platform for Jambi.",
+  title: "Kayooh — Sepeda siap, outlet nyata",
+  description:
+    "Sewa sepeda di Jambi di outlet nyata: cek ketersediaan langsung, pilih waktu dan jenis, ambil di konter dengan QR.",
 };
 
 export default function RootLayout({

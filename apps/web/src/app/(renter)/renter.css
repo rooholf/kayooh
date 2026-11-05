@@ -1,0 +1,761 @@
+/* Kayooh — Poster Solidaritas (renter surface)
+   Flat silkscreen fields on paper cream. No gradients, no soft shadows:
+   depth comes from 3 px ink keylines and flat colour. */
+
+@font-face {
+  font-family: "Archivo";
+  font-style: normal;
+  font-weight: 100 900;
+  font-stretch: 100%;
+  font-display: swap;
+  src: url(/fonts/archivo-variable-latin.woff2) format("woff2");
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA,
+    U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193,
+    U+2212, U+2215, U+FEFF, U+FFFD;
+}
+@font-face {
+  font-family: "Archivo";
+  font-style: normal;
+  font-weight: 100 900;
+  font-stretch: 100%;
+  font-display: swap;
+  src: url(/fonts/archivo-variable-latin-ext.woff2) format("woff2");
+  unicode-range: U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF,
+    U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020,
+    U+20A0-20AB, U+20AD-20C4, U+2113, U+2C60-2C7F, U+A720-A7FF;
+}
+@font-face {
+  font-family: "Archivo Black";
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url(/fonts/archivo-black-latin.woff2) format("woff2");
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA,
+    U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193,
+    U+2212, U+2215, U+FEFF, U+FFFD;
+}
+@font-face {
+  font-family: "Archivo Black";
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url(/fonts/archivo-black-latin-ext.woff2) format("woff2");
+  unicode-range: U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF,
+    U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020,
+    U+20A0-20AB, U+20AD-20C4, U+2113, U+2C60-2C7F, U+A720-A7FF;
+}
+
+.renter-desk {
+  --kertas: #f0e3c4;
+  --kertas-deep: #e6d6ae;
+  --merah: #b81b0d; /* deepened one ink pass from the comped #dc2110 so small text on it clears WCAG AA 4.5:1; the hot pass stays for decorative glyphs */
+  --kuning: #f2b300;
+  --tinta: #171009;
+  --biru: #12408c;
+
+  min-height: 100dvh;
+  background: var(--tinta);
+  color: var(--tinta);
+  font-family: "Archivo", system-ui, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  display: flex;
+  justify-content: center;
+}
+
+.renter-desk ::selection {
+  background: var(--kuning);
+  color: var(--tinta);
+}
+
+.renter-desk :focus-visible {
+  outline: 2px solid var(--kertas);
+  outline-offset: 2px;
+  box-shadow: 0 0 0 5px var(--tinta);
+}
+
+/* ---- the sheet ---- */
+.renter-sheet {
+  position: relative;
+  width: 100%;
+  max-width: 480px;
+  min-width: 360px;
+  background: var(--kertas);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  min-height: 100dvh;
+}
+@media (min-width: 1024px) {
+  .renter-sheet {
+    max-width: 520px;
+    border-left: 3px solid var(--kuning);
+    border-right: 3px solid var(--kuning);
+  }
+}
+
+/* vertical desk slogans — only when there is desk to show them on */
+.renter-desk-word {
+  display: none;
+}
+@media (min-width: 1280px) {
+  .renter-desk {
+    align-items: stretch;
+    gap: clamp(2rem, 6vw, 6rem);
+    padding: 0 clamp(1.5rem, 4vw, 4rem);
+  }
+  .renter-desk-word {
+    display: flex;
+    align-items: center;
+    writing-mode: vertical-rl;
+    font-family: "Archivo Black", "Archivo", sans-serif;
+    font-size: clamp(1rem, 1.6vw, 1.5rem);
+    letter-spacing: 0.35em;
+    text-transform: uppercase;
+    color: transparent;
+    -webkit-text-stroke: 1px rgb(240 227 196 / 0.32);
+    user-select: none;
+    white-space: nowrap;
+  }
+}
+
+/* ---- slogan border (the one authored motion moment) ---- */
+.slogan {
+  position: relative;
+  overflow: hidden;
+  white-space: nowrap;
+  padding: 7px 0 6px;
+  font-weight: 700;
+  font-size: 10px;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+}
+.slogan-track {
+  display: inline-flex;
+  gap: 0;
+  width: max-content;
+  animation: slogan-drift 36s linear infinite;
+}
+.slogan span {
+  padding-right: 0.5em;
+}
+.slogan i {
+  font-style: normal;
+  color: var(--kuning);
+  padding: 0 0.55em;
+}
+.slogan--red {
+  background: var(--merah);
+  color: var(--kertas);
+}
+.slogan--yellow {
+  background: var(--kuning);
+  color: var(--tinta);
+  font-size: 8.5px;
+  letter-spacing: 0.3em;
+  padding-top: 4px;
+  padding-bottom: 5px;
+}
+.slogan--yellow i {
+  color: var(--merah);
+}
+@keyframes slogan-drift {
+  from {
+    transform: translateX(0);
+  }
+  to {
+    transform: translateX(-50%);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .slogan-track {
+    animation: none;
+  }
+}
+
+/* ---- emblem plate ---- */
+.plate {
+  margin: clamp(14px, 4.5vw, 22px) clamp(14px, 4.5vw, 24px) 0;
+  background: var(--merah);
+  padding: clamp(16px, 5vw, 22px) clamp(14px, 4.5vw, 20px)
+    clamp(13px, 4vw, 17px);
+  box-shadow: 0 0 0 3px var(--tinta);
+  position: relative;
+}
+.plate-top {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+.masthead {
+  font-family: "Archivo Black", "Archivo", sans-serif;
+  font-size: clamp(30px, 9.5vw, 42px);
+  line-height: 0.95;
+  color: var(--kertas);
+  letter-spacing: 0.01em;
+}
+.masthead small {
+  display: block;
+  font-family: "Archivo", sans-serif;
+  font-weight: 600;
+  font-size: 9px;
+  letter-spacing: 0.34em;
+  color: var(--kertas);
+  margin-top: 8px;
+}
+.tanggal {
+  background: var(--kuning);
+  color: var(--tinta);
+  padding: 6px 9px 8px;
+  text-align: center;
+  font-family: "Archivo Black", "Archivo", sans-serif;
+  flex: 0 0 auto;
+}
+.tanggal b {
+  display: block;
+  font-size: 9px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+}
+.tanggal i {
+  display: block;
+  font-style: normal;
+  font-size: clamp(17px, 5.4vw, 23px);
+  margin-top: 2px;
+  font-variant-numeric: tabular-nums;
+}
+.sepeda {
+  display: block;
+  width: 100%;
+  height: clamp(96px, 30vw, 132px);
+  margin-top: 6px;
+}
+
+/* the yellow siap stamp */
+.siap {
+  margin-top: 10px;
+  background: var(--kuning);
+  color: var(--tinta);
+  display: flex;
+  align-items: baseline;
+  gap: clamp(10px, 3.4vw, 16px);
+  padding: 8px 14px 9px;
+  transform: rotate(-1.2deg);
+  box-shadow: 0 0 0 3px var(--tinta);
+  max-width: max-content;
+}
+.siap b {
+  font-family: "Archivo Black", "Archivo", sans-serif;
+  font-size: clamp(34px, 11vw, 48px);
+  line-height: 0.95;
+  font-variant-numeric: tabular-nums;
+}
+.siap span {
+  font-weight: 700;
+  font-size: 9.5px;
+  letter-spacing: 0.08em;
+  line-height: 1.35;
+  text-transform: uppercase;
+  max-width: 22ch;
+}
+.plate-foot {
+  margin-top: 13px;
+  color: var(--kertas);
+  font-weight: 600;
+  font-size: 11.5px;
+  line-height: 1.45;
+  max-width: 46ch;
+}
+.plate-foot b {
+  color: var(--kertas);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  text-decoration-thickness: 2px;
+}
+
+/* plate failure state — honest, in the same vocabulary */
+.plate-note {
+  margin-top: 12px;
+  border: 2px dashed var(--kertas);
+  padding: 10px 12px;
+  color: var(--kertas);
+  font-weight: 600;
+  font-size: 12px;
+  line-height: 1.5;
+}
+.plate-note a {
+  color: var(--kuning);
+  font-weight: 700;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+/* ---- search: waktu & jenis ---- */
+.cari {
+  margin: clamp(16px, 5vw, 22px) clamp(14px, 4.5vw, 24px) 0;
+}
+.label {
+  font-family: "Archivo Black", "Archivo", sans-serif;
+  font-size: 9px;
+  letter-spacing: 0.24em;
+  color: var(--merah);
+  text-transform: uppercase;
+}
+.baris {
+  display: flex;
+  margin-top: 9px;
+  border: 3px solid var(--tinta);
+  background: var(--kertas);
+}
+.baris > button {
+  flex: 1 1 0;
+  min-height: 48px;
+  padding: 10px 4px 9px;
+  text-align: center;
+  border: 0;
+  border-right: 3px solid var(--tinta);
+  background: transparent;
+  font-family: "Archivo", sans-serif;
+  font-weight: 700;
+  font-size: 10px;
+  letter-spacing: 0.1em;
+  color: var(--tinta);
+  cursor: pointer;
+  transition: background 120ms ease, color 120ms ease;
+}
+.baris > button:last-child {
+  border-right: 0;
+}
+.baris > button:hover {
+  background: var(--kertas-deep);
+}
+.baris > button[aria-pressed="true"] {
+  background: var(--merah);
+  color: var(--kertas);
+}
+.baris--waktu > button {
+  font-size: 9px;
+  letter-spacing: 0.14em;
+  min-height: 44px;
+  padding-top: 9px;
+  padding-bottom: 8px;
+}
+.baris--waktu > button[aria-pressed="true"] {
+  background: var(--biru);
+  color: var(--kuning);
+  box-shadow: inset 0 0 0 3px var(--kuning);
+}
+
+/* ---- CTA: the boxed ink action ---- */
+.aksi {
+  margin: clamp(18px, 5.5vw, 26px) clamp(14px, 4.5vw, 24px) 0;
+  background: var(--tinta);
+  color: var(--kertas);
+  min-height: 72px;
+  display: flex;
+  align-items: center;
+  padding: 12px 18px;
+  gap: 14px;
+  box-shadow: 0 0 0 3px var(--kuning);
+  text-decoration: none;
+  transition: transform 120ms ease;
+}
+.aksi:hover {
+  transform: translateY(-2px);
+}
+.aksi:active {
+  transform: translateY(0);
+}
+.aksi-teks {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+.aksi-teks small {
+  display: block;
+  font-weight: 600;
+  font-size: 8.5px;
+  letter-spacing: 0.22em;
+  color: var(--kuning);
+  text-transform: uppercase;
+  font-variant-numeric: tabular-nums;
+}
+.aksi-teks b {
+  display: block;
+  font-family: "Archivo Black", "Archivo", sans-serif;
+  font-size: clamp(18px, 5.6vw, 22px);
+  margin-top: 5px;
+  letter-spacing: 0.01em;
+  color: var(--kertas);
+}
+.aksi-panah {
+  flex: 0 0 auto;
+  color: var(--kuning);
+}
+
+/* ---- outlet name strip ---- */
+.nama-strip {
+  margin: 14px clamp(14px, 4.5vw, 24px) 0;
+  border-top: 2px solid var(--tinta);
+  border-bottom: 2px solid var(--tinta);
+  padding: 8px 2px;
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  row-gap: 4px;
+  column-gap: 12px;
+  font-weight: 700;
+  font-size: 8px;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+}
+
+/* ---- live catalog on the sheet ---- */
+.katalog {
+  margin: clamp(20px, 6vw, 30px) 0 0;
+  border-top: 3px solid var(--tinta);
+  padding: clamp(16px, 5vw, 24px) clamp(14px, 4.5vw, 24px) 8px;
+}
+.katalog-band {
+  background: var(--merah);
+  color: var(--kertas);
+  padding: 7px 12px 8px;
+  font-family: "Archivo Black", "Archivo", sans-serif;
+  font-size: 13px;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  box-shadow: 0 0 0 3px var(--tinta);
+  max-width: max-content;
+}
+.katalog-sub {
+  margin-top: 12px;
+  font-weight: 600;
+  font-size: 11.5px;
+  line-height: 1.5;
+  max-width: 52ch;
+}
+.demo-tag {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  margin-top: 12px;
+  padding: 7px 10px;
+  border: 1px solid var(--tinta);
+  border-top-width: 3px;
+  font-size: 10px;
+  font-weight: 600;
+  line-height: 1.4;
+}
+.demo-tag span {
+  font-family: "Archivo Black", "Archivo", sans-serif;
+  font-size: 9px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+}
+
+.katalog-sub b {
+  color: var(--merah);
+}
+
+/* ruled rows, not soft cards */
+.kartupos {
+  list-style: none;
+  margin: 16px 0 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+}
+.kartupos > li + li {
+  border-top: 2px solid var(--tinta);
+}
+.kartupos > li:first-child {
+  border-top: 3px solid var(--tinta);
+}
+.kartupos > li:last-child {
+  border-bottom: 3px solid var(--tinta);
+}
+.pos {
+  display: block;
+  padding: 14px 4px 15px;
+}
+.pos-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+.pos-nama {
+  font-family: "Archivo Black", "Archivo", sans-serif;
+  font-size: clamp(17px, 5.2vw, 21px);
+  line-height: 1.15;
+  letter-spacing: 0.01em;
+}
+.pos-alamat {
+  margin-top: 4px;
+  font-weight: 500;
+  font-size: 11.5px;
+  line-height: 1.45;
+  color: var(--tinta);
+  max-width: 48ch;
+}
+.pos-jarak {
+  margin-top: 3px;
+  font-weight: 700;
+  font-size: 10px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  font-variant-numeric: tabular-nums;
+}
+.chip {
+  flex: 0 0 auto;
+  padding: 5px 10px 6px;
+  font-family: "Archivo Black", "Archivo", sans-serif;
+  font-size: 9px;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: var(--kertas);
+}
+.chip--buka {
+  background: var(--merah);
+}
+.chip--tutup {
+  background: var(--tinta);
+}
+
+/* the ruled count table */
+.hitung {
+  margin-top: 10px;
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  border: 2px solid var(--tinta);
+}
+.hitung > div {
+  padding: 7px 4px 8px;
+  text-align: center;
+  border-right: 2px solid var(--tinta);
+}
+.hitung > div:last-child {
+  border-right: 0;
+}
+.hitung dt {
+  font-weight: 700;
+  font-size: 8px;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+}
+.hitung dd {
+  margin: 3px 0 0;
+  font-family: "Archivo Black", "Archivo", sans-serif;
+  font-size: clamp(17px, 5.4vw, 22px);
+  font-variant-numeric: tabular-nums;
+}
+.hitung .nol {
+  color: #6e6350;
+}
+.hitung .dipilih {
+  background: var(--kuning);
+}
+
+/* notice boxes (error / empty) */
+.notice {
+  margin-top: 16px;
+  border: 2px dashed var(--tinta);
+  padding: 12px 14px;
+  font-weight: 600;
+  font-size: 12px;
+  line-height: 1.55;
+}
+.notice--spaced {
+  margin: 24px;
+}
+
+.notice--merah {
+  border: 2px solid var(--tinta);
+  background: var(--merah);
+  color: var(--kertas);
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 10px;
+}
+.notice-recovery {
+  min-height: 44px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 2px solid var(--kertas);
+  background: var(--tinta);
+  color: var(--kertas);
+  padding: 0 16px;
+  font-family: "Archivo", system-ui, sans-serif;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+}
+.notice-recovery:hover {
+  color: var(--kuning);
+  border-color: var(--kuning);
+}
+.notice-recovery:disabled {
+  opacity: 0.55;
+  cursor: wait;
+}
+.notice-link-action {
+  min-height: 44px;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 0 2px;
+}
+.text-action {
+  min-height: 44px;
+  display: inline-flex;
+  align-items: center;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  font-weight: 700;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  cursor: pointer;
+}
+.katalog--flush {
+  border-top: 0;
+  margin-top: 14px;
+}
+.katalog--list {
+  border-top: 0;
+  margin-top: 4px;
+  padding-top: 8px;
+}
+.notice--merah a,
+.notice a {
+  color: inherit;
+  font-weight: 700;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+/* ---- sheet foot ---- */
+.kaki {
+  margin-top: 18px;
+  background: var(--tinta);
+  color: var(--kertas);
+  padding: 14px clamp(14px, 4.5vw, 24px) 18px;
+  border-top: 3px solid var(--kuning);
+}
+.kaki-merek {
+  font-family: "Archivo Black", "Archivo", sans-serif;
+  font-size: 15px;
+  letter-spacing: 0.06em;
+  color: var(--kuning);
+}
+.kaki-baris {
+  margin-top: 6px;
+  font-weight: 500;
+  font-size: 10.5px;
+  letter-spacing: 0.04em;
+  line-height: 1.6;
+  color: rgb(240 227 196 / 0.82);
+  max-width: 56ch;
+}
+
+/* ---- /outlets page chrome ---- */
+.alat {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 12px clamp(14px, 4.5vw, 24px) 0;
+}
+.alat-merek {
+  font-family: "Archivo Black", "Archivo", sans-serif;
+  font-size: 13px;
+  letter-spacing: 0.08em;
+  color: var(--merah);
+}
+.muat-ulang {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 44px;
+  padding: 8px 14px;
+  background: var(--tinta);
+  color: var(--kuning);
+  border: 0;
+  font-family: "Archivo", sans-serif;
+  font-weight: 700;
+  font-size: 10px;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  cursor: pointer;
+  box-shadow: 0 0 0 2px var(--tinta);
+  white-space: nowrap;
+}
+.muat-ulang:disabled {
+  opacity: 0.55;
+  cursor: default;
+}
+.jendela {
+  margin: 12px clamp(14px, 4.5vw, 24px) 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  font-weight: 700;
+  font-size: 9px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+}
+.jendela span {
+  border: 2px solid var(--tinta);
+  padding: 5px 10px 6px;
+  background: var(--kertas);
+}
+.jendela b {
+  color: var(--merah);
+}
+.filter-baris {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0;
+  margin: 14px clamp(14px, 4.5vw, 24px) 0;
+  border: 3px solid var(--tinta);
+}
+.filter-baris > button {
+  flex: 1 1 auto;
+  min-height: 44px;
+  padding: 8px 10px;
+  border: 0;
+  border-right: 3px solid var(--tinta);
+  background: transparent;
+  font-family: "Archivo", sans-serif;
+  font-weight: 700;
+  font-size: 9px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--tinta);
+  cursor: pointer;
+}
+.filter-baris > button:last-child {
+  border-right: 0;
+}
+.filter-baris > button[aria-pressed="true"] {
+  background: var(--merah);
+  color: var(--kertas);
+}
+.kembali {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  margin: 18px clamp(14px, 4.5vw, 24px) 22px;
+  min-height: 44px;
+  font-weight: 700;
+  font-size: 10px;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--tinta);
+  text-decoration: none;
+  border-bottom: 3px solid var(--merah);
+  padding-bottom: 4px;
+}

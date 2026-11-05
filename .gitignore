@@ -15,3 +15,6 @@ drizzle/meta/
 
 # Playwright visual artifacts
 apps/web/e2e-artifacts/
+
+# Local review captures (not git)
+apps/web/.impeccable/review/

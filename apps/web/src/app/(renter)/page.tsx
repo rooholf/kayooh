@@ -1,12 +1,28 @@
 /**
- * Renter catalog home — FR-CAT-01 (outlet discovery).
+ * Renter home — Poster Solidaritas.
  *
  * Mobile-first (NFR-07): single column, 360 px minimum width, 44 px+ touch
  * targets, AA contrast. The list shows per-category availability COUNTS only
  * — the catalog never receives bike ids or asset tags (NEG-2), and any
  * renter coordinates used for sorting stay in the API request (NEG-4).
+ * The "siap" figure on the plate is computed from the live response; when
+ * the fetch fails the poster says so instead of inventing a number.
  */
+import type { Metadata } from "next";
+import Link from "next/link";
 import type { OutletListResponse } from "@repo/contracts";
+import { Slogan } from "./_components/Slogan";
+import { Bicycle } from "./_components/Bicycle";
+import { PosterPicker } from "./_components/PosterPicker";
+import { OutletList } from "./_components/OutletList";
+import { DemoTag } from "./_components/DemoTag";
+import { totalUnits, wibDateParts } from "./_components/shared";
+
+export const metadata: Metadata = {
+  title: "Kayooh — Sepeda siap, outlet nyata",
+  description:
+    "Sewa sepeda di Jambi di outlet nyata: cek ketersediaan langsung, pilih waktu dan jenis, ambil di konter dengan QR.",
+};
 
 const API_BASE = process.env.API_BASE_URL ?? "http://localhost:3001";
 
@@ -22,58 +38,95 @@ async function fetchOutlets(): Promise<OutletListResponse | null> {
 
 export default async function RenterHomePage() {
   const data = await fetchOutlets();
+  const outlets = data?.outlets ?? [];
+  const units = totalUnits(outlets);
+  const openCount = outlets.filter((o) => o.isOpenNow).length;
+  const { weekday, dayMonth } = wibDateParts();
 
   return (
-    <main className="flex flex-1 flex-col px-4 pb-8 pt-6">
-      <h1 className="text-2xl font-bold tracking-tight">Sewa Sepeda Jambi</h1>
-      <p className="mt-1 text-sm text-slate-600">
-        Pilih outlet untuk melihat ketersediaan sepeda.
-      </p>
+    <main>
+      <Slogan variant="red" text="SEPEDA SIAP ◆ DI OUTLET NYATA" />
+      <Slogan variant="yellow" text="A BIKE IS WAITING ◆ AT A REAL OUTLET" />
 
-      {data === null ? (
-        <p className="mt-8 rounded-lg border border-slate-200 bg-slate-50 p-4 text-sm text-slate-700">
-          Katalog sedang tidak tersedia. Coba lagi nanti.
+      {/* ---- the emblem plate ---- */}
+      <section className="plate" aria-label="Kayooh Jambi">
+        <div className="plate-top">
+          <h1 className="masthead">
+            KAYOOH<small>JAMBI</small>
+          </h1>
+          <p className="tanggal">
+            <b>{weekday}</b>
+            <i>{dayMonth}</i>
+          </p>
+        </div>
+
+        <Bicycle />
+
+        {data === null ? (
+          <div className="plate-note" role="alert">
+            Katalog sedang tidak tersedia — angka sepeda siap tidak bisa
+            dihitung sekarang. <a className="notice-link-action" href="/">Muat ulang</a>
+          </div>
+        ) : (
+          <div className="siap">
+            <b>{units}</b>
+            <span>
+              unit siap hari ini · {openCount} dari {outlets.length} outlet
+              buka
+            </span>
+          </div>
+        )}
+
+        <p className="plate-foot">
+          Angka ini datang dari <b>satu transaksi di server</b>, bukan dari
+          salinan di ponselmu.
         </p>
-      ) : data.outlets.length === 0 ? (
-        <p className="mt-8 rounded-lg border border-slate-200 bg-slate-50 p-4 text-sm text-slate-700">
-          Belum ada outlet terdaftar.
-        </p>
-      ) : (
-        <ul className="mt-6 flex flex-col gap-3">
-          {data.outlets.map((outlet) => (
-            <li key={outlet.id}>
-              <a
-                href={`/outlets/${outlet.id}`}
-                className="flex min-h-[72px] flex-col gap-1 rounded-lg border border-slate-300 p-4 transition-colors hover:border-slate-500 focus-visible:outline focus-visible:outline-2 focus-visible:outline-slate-900"
-              >
-                <span className="flex items-center justify-between gap-2">
-                  <span className="text-base font-semibold">{outlet.name}</span>
-                  <span
-                    className={`rounded-full px-2 py-0.5 text-xs font-semibold ${
-                      outlet.isOpenNow
-                        ? "bg-green-100 text-green-800"
-                        : "bg-slate-200 text-slate-700"
-                    }`}
-                  >
-                    {outlet.isOpenNow ? "Buka" : "Tutup"}
-                  </span>
-                </span>
-                <span className="text-sm text-slate-600">{outlet.address}</span>
-                <span className="text-sm text-slate-700">
-                  {Object.entries(outlet.availability)
-                    .map(([category, n]) => `${category}: ${n}`)
-                    .join(" · ")}
-                </span>
-                {outlet.distanceKm !== undefined && (
-                  <span className="text-xs text-slate-600">
-                    {outlet.distanceKm.toFixed(1)} km
-                  </span>
-                )}
-              </a>
-            </li>
+      </section>
+
+      {/* ---- waktu & jenis + the boxed-ink action ---- */}
+      <PosterPicker dayMonth={dayMonth} />
+
+      {/* ---- real outlet names, ruled ---- */}
+      {outlets.length > 0 && (
+        <p className="nama-strip">
+          {outlets.map((o) => (
+            <span key={o.id}>{o.name}</span>
           ))}
-        </ul>
+        </p>
       )}
+
+      {/* ---- live catalog ---- */}
+      <section className="katalog" aria-labelledby="katalog-judul">
+        <h2 className="katalog-band" id="katalog-judul">
+          Ketersediaan Langsung
+        </h2>
+        <p className="katalog-sub">
+          Dihitung oleh server saat kamu membuka halaman ini.{" "}
+          <b>Bukan dari salinan di perangkatmu.</b>
+        </p>
+        <DemoTag />
+
+        {data === null ? (
+          <p className="notice notice--merah" role="alert">
+            Katalog sedang tidak tersedia. Coba lagi nanti —{" "}
+            <Link href="/">muat ulang halaman</Link>.
+          </p>
+        ) : outlets.length === 0 ? (
+          <p className="notice">Belum ada outlet terdaftar.</p>
+        ) : (
+          <OutletList outlets={outlets} />
+        )}
+      </section>
+
+      {/* ---- sheet foot ---- */}
+      <footer className="kaki">
+        <p className="kaki-merek">KAYOOH — dari “kayuh”, mengayuh.</p>
+        <p className="kaki-baris">
+          Sepeda siap di outlet nyata. Ambil di konter dengan pindaian QR,
+          kembalikan di outlet milik owner yang sama. Ketersediaan selalu
+          dihitung oleh server.
+        </p>
+      </footer>
     </main>
   );
 }

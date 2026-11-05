@@ -1,18 +1,36 @@
 "use client";
 
 /**
- * Renter outlet discovery — FR-CAT-01.
+ * Renter outlet catalog — FR-CAT-01.
  *
  * Client component backed by TanStack Query so the catalog can be refetched
  * (stale-while-revalidate) without a full navigation. The server remains the
  * only source of availability (INV-1): we only render the counts it returns.
  * NEG-2: only per-category counts are rendered — never bike ids/asset tags.
  *
+ * The `kategori` query param pre-selects the filter (outlets with stock in
+ * that category); `waktu` is shown as the chosen pickup window — it is
+ * context, not a stock filter.
+ *
  * Mobile-first (NFR-07): 360 px minimum width, single column, 44 px+ touch
  * targets, WCAG 2.1 AA contrast.
  */
+import { Suspense, useMemo, useState } from "react";
+import Link from "next/link";
+import { useSearchParams } from "next/navigation";
 import { useQuery } from "@tanstack/react-query";
 import type { OutletListResponse } from "@repo/contracts";
+import { Slogan } from "../_components/Slogan";
+import { OutletList } from "../_components/OutletList";
+import { DemoTag } from "../_components/DemoTag";
+import {
+  CATEGORY_LABEL,
+  CATEGORY_ORDER,
+  WAKTU_LABEL,
+  isCategoryCode,
+  isWaktuCode,
+  type CategoryCode,
+} from "../_components/shared";
 
 const API_BASE =
   process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:3001";
@@ -27,91 +45,174 @@ async function fetchOutlets(): Promise<OutletListResponse> {
   return (await res.json()) as OutletListResponse;
 }
 
-function formatAvailability(availability: Record<string, number>): string {
-  const entries = Object.entries(availability);
-  if (entries.length === 0) return "Tidak ada sepeda tersedia";
-  return entries.map(([category, count]) => `${category}: ${count}`).join(" · ");
+/** Raw fetch failures are not user-facing copy; map them to one honest Indonesian line. */
+function catalogErrorMessage(error: Error): string {
+  if (error.message.startsWith("Gagal memuat katalog")) {
+    return error.message;
+  }
+  return "Katalog sedang tidak tersedia. Periksa koneksi lalu coba lagi.";
 }
 
-export default function OutletsPage() {
+function OutletsInner() {
+  const searchParams = useSearchParams();
+  const paramKategori = searchParams.get("kategori");
+  const paramWaktu = searchParams.get("waktu");
+  const initialFilter: CategoryCode | null = isCategoryCode(paramKategori)
+    ? paramKategori
+    : null;
+  const waktu = isWaktuCode(paramWaktu) ? WAKTU_LABEL[paramWaktu] : null;
+
+  const [filter, setFilter] = useState<CategoryCode | null>(initialFilter);
+
   const { data, isLoading, isError, error, refetch, isFetching } = useQuery({
     queryKey: ["outlets"],
     queryFn: fetchOutlets,
   });
 
-  const outlets = data?.outlets ?? [];
+  const outlets = useMemo(() => data?.outlets ?? [], [data]);
+  const visible = useMemo(() => {
+    if (filter === null) return outlets;
+    return outlets.filter(
+      (o) => (o.availability[filter] ?? 0) > 0,
+    );
+  }, [outlets, filter]);
 
   return (
-    <main className="flex flex-1 flex-col px-4 pb-8 pt-6">
-      <header className="flex items-start justify-between gap-3">
-        <div>
-          <h1 className="text-2xl font-bold tracking-tight">Sewa Sepeda Jambi</h1>
-          <p className="mt-1 text-sm text-slate-600">
-            Pilih outlet untuk melihat ketersediaan sepeda.
-          </p>
-        </div>
+    <main>
+      <Slogan variant="red" text="SEPEDA SIAP ◆ DI OUTLET NYATA" />
+      <Slogan variant="yellow" text="A BIKE IS WAITING ◆ AT A REAL OUTLET" />
+
+      <div className="alat">
+        <p className="alat-merek">KAYOOH — JAMBI</p>
         <button
           type="button"
           onClick={() => void refetch()}
           disabled={isFetching}
-          className="mt-1 inline-flex min-h-[44px] min-w-[44px] items-center justify-center rounded-lg border border-slate-300 px-3 text-sm font-medium text-slate-700 transition-colors hover:border-slate-500 focus-visible:outline focus-visible:outline-2 focus-visible:outline-slate-900 disabled:opacity-50"
+          className="muat-ulang"
           aria-label="Muat ulang katalog"
         >
+          <svg width="14" height="14" viewBox="0 0 14 14" aria-hidden="true">
+            <path
+              d="M12.5 7a5.5 5.5 0 1 1-1.61-3.89M12.5 1.5v3h-3"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="1.8"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            />
+          </svg>
           {isFetching ? "Memuat…" : "Muat ulang"}
         </button>
-      </header>
+      </div>
 
-      {isLoading ? (
-        <p className="mt-8 rounded-lg border border-slate-200 bg-slate-50 p-4 text-sm text-slate-700">
-          Memuat katalog…
+      <section className="katalog katalog--flush" aria-labelledby="katalog-judul">
+        <h1 className="katalog-band" id="katalog-judul">
+          Ketersediaan Outlet
+        </h1>
+        <p className="katalog-sub">
+          Dihitung oleh server saat halaman dibuka.{" "}
+          <b>Bukan dari salinan di perangkatmu.</b>
         </p>
-      ) : isError ? (
-        <p
-          role="alert"
-          className="mt-8 rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-800"
-        >
-          {error instanceof Error
-            ? error.message
-            : "Katalog sedang tidak tersedia. Coba lagi nanti."}
+        <DemoTag />
+      </section>
+
+      {(waktu !== null || filter !== null) && (
+        <p className="jendela">
+          {waktu && (
+            <span>
+              Jendela ambil: <b>{waktu}</b>
+            </span>
+          )}
+          {filter !== null && (
+            <span>
+              Pilihan: <b>{CATEGORY_LABEL[filter]}</b>
+            </span>
+          )}
         </p>
-      ) : outlets.length === 0 ? (
-        <p className="mt-8 rounded-lg border border-slate-200 bg-slate-50 p-4 text-sm text-slate-700">
-          Belum ada outlet terdaftar.
-        </p>
-      ) : (
-        <ul className="mt-6 flex flex-col gap-3">
-          {outlets.map((outlet) => (
-            <li key={outlet.id}>
-              <a
-                href={`/outlets/${outlet.id}`}
-                className="flex min-h-[72px] flex-col gap-1 rounded-lg border border-slate-300 p-4 transition-colors hover:border-slate-500 focus-visible:outline focus-visible:outline-2 focus-visible:outline-slate-900"
-              >
-                <span className="flex items-center justify-between gap-2">
-                  <span className="text-base font-semibold">{outlet.name}</span>
-                  <span
-                    className={`rounded-full px-2 py-0.5 text-xs font-semibold ${
-                      outlet.isOpenNow
-                        ? "bg-green-100 text-green-800"
-                        : "bg-slate-200 text-slate-700"
-                    }`}
-                  >
-                    {outlet.isOpenNow ? "Buka" : "Tutup"}
-                  </span>
-                </span>
-                <span className="text-sm text-slate-600">{outlet.address}</span>
-                <span className="text-sm text-slate-700">
-                  {formatAvailability(outlet.availability)}
-                </span>
-                {outlet.distanceKm !== undefined && (
-                  <span className="text-xs text-slate-600">
-                    {outlet.distanceKm.toFixed(1)} km
-                  </span>
-                )}
-              </a>
-            </li>
-          ))}
-        </ul>
       )}
+
+      <div
+        className="filter-baris"
+        role="group"
+        aria-label="Saring per jenis sepeda"
+      >
+        <button
+          type="button"
+          aria-pressed={filter === null}
+          onClick={() => setFilter(null)}
+        >
+          Semua
+        </button>
+        {CATEGORY_ORDER.map((c) => (
+          <button
+            key={c}
+            type="button"
+            aria-pressed={filter === c}
+            onClick={() => setFilter(filter === c ? null : c)}
+          >
+            {CATEGORY_LABEL[c]}
+          </button>
+        ))}
+      </div>
+
+      <section className="katalog katalog--list" aria-label="Daftar outlet">
+        {isLoading ? (
+          <p className="notice" role="status">Memuat katalog…</p>
+        ) : isError ? (
+          <div className="notice notice--merah" role="alert">
+            <p>
+              {error instanceof Error
+                ? catalogErrorMessage(error)
+                : "Katalog sedang tidak tersedia. Periksa koneksi lalu coba lagi."}
+            </p>
+            <button
+              type="button"
+              onClick={() => void refetch()}
+              className="notice-recovery"
+            >
+              Coba lagi
+            </button>
+          </div>
+        ) : outlets.length === 0 ? (
+          <p className="notice" role="status">Belum ada outlet terdaftar.</p>
+        ) : visible.length === 0 ? (
+          <div className="notice" role="status">
+            Tidak ada outlet dengan{" "}
+            <b>{filter ? CATEGORY_LABEL[filter] : ""}</b> siap saat ini.{" "}
+            <button
+              type="button"
+              onClick={() => setFilter(null)}
+              className="text-action"
+            >
+              Tampilkan semua outlet
+            </button>
+          </div>
+        ) : (
+          <OutletList outlets={visible} selectedCategory={filter ?? undefined} headingLevel="h2" />
+        )}
+      </section>
+
+      <Link className="kembali" href="/">
+        <svg width="16" height="16" viewBox="0 0 16 16" aria-hidden="true">
+          <path
+            d="M10 3 L4 8 L10 13"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2.4"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          />
+        </svg>
+        Kembali ke poster
+      </Link>
     </main>
+  );
+}
+
+export default function OutletsPage() {
+  return (
+    <Suspense fallback={<p className="notice notice--spaced" role="status">Memuat katalog…</p>}>
+      <OutletsInner />
+    </Suspense>
   );
 }
