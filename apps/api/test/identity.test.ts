@@ -136,7 +136,8 @@ describe("FR-ID-01: renter phone OTP sign-in", () => {
       .from(renters)
       .where(eq(renters.userId, user.id));
     expect(renter).toBeDefined();
-    expect(renter.verificationStatus).toBe("not_started");
+    // A-17: the phone is the booking identity, stored on the renter row.
+    expect(renter.phone).toBe(PHONE_CANONICAL);
 
     // The OTP row is consumed after success.
     const leftover = await db
@@ -154,7 +155,6 @@ describe("FR-ID-01: renter phone OTP sign-in", () => {
     expect(me.statusCode).toBe(200);
     expect(me.json()).toMatchObject({
       phone: PHONE_CANONICAL,
-      verificationStatus: "not_started",
     });
   });
 

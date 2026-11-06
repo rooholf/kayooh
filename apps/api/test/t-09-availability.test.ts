@@ -99,7 +99,7 @@ async function seedFixture(opts: { bikeCount: number; buffer?: number }): Promis
     .returning({ id: users.id });
   const [renter] = await db
     .insert(renters)
-    .values({ userId: user.id, verificationStatus: "verified" })
+    .values({ userId: user.id })
     .returning({ id: renters.id });
 
   return { ownerId: owner.id, outletId: outlet.id, renterId: renter.id, bikeIds: bikeRows.map((b) => b.id) };

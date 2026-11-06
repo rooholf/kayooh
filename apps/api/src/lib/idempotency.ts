@@ -17,6 +17,7 @@ import type { FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
 import { and, eq } from "@repo/db";
 import { db } from "@repo/db";
 import { idempotencyKeys } from "@repo/db";
+import { normalizePhone } from "@repo/contracts";
 import { AppError } from "./errors.js";
 import type { Principal } from "../modules/identity/guards.js";
 
@@ -40,11 +41,25 @@ interface Row {
   createdAt: Date;
 }
 
-async function findRow(key: string, userId: string): Promise<Row | undefined> {
+/**
+ * Idempotency scope (SRS 3.2, revision 1.2): an authenticated caller is keyed
+ * by `user_id`; a guest booking is keyed by the normalized `contactPhone`
+ * (`guest_phone`). Exactly one is set, matching the table's
+ * `CHECK ((user_id IS NULL) <> (guest_phone IS NULL))`.
+ */
+type IdempotencyScope = { userId: string } | { guestPhone: string };
+
+function scopeWhere(key: string, scope: IdempotencyScope) {
+  return "userId" in scope
+    ? and(eq(idempotencyKeys.key, key), eq(idempotencyKeys.userId, scope.userId))
+    : and(eq(idempotencyKeys.key, key), eq(idempotencyKeys.guestPhone, scope.guestPhone));
+}
+
+async function findRow(key: string, scope: IdempotencyScope): Promise<Row | undefined> {
   const rows = await db
     .select()
     .from(idempotencyKeys)
-    .where(and(eq(idempotencyKeys.key, key), eq(idempotencyKeys.userId, userId)))
+    .where(scopeWhere(key, scope))
     .limit(1);
   const row = rows[0];
   if (!row) return undefined;
@@ -58,7 +73,7 @@ async function findRow(key: string, userId: string): Promise<Row | undefined> {
 
 interface IdempotencyMarker {
   key: string;
-  userId: string;
+  scope: IdempotencyScope;
 }
 
 declare module "fastify" {
@@ -72,6 +87,28 @@ export interface IdempotencyPluginOptions {
   routes: Array<{ method: string; url: string }>;
   /** Resolve the authenticated principal (runs after session resolution). */
   getPrincipal(request: FastifyRequest): Principal | null;
+}
+
+/**
+ * SRS 3.2 (revision 1.2): an authenticated caller scopes the key to its
+ * session; an unauthenticated guest scopes it to `contactPhone`. A guest
+ * request without a usable `contactPhone` cannot be scoped and fails 400 here
+ * — the same failure the route's `.strict()` schema would raise.
+ */
+function resolveScope(
+  request: FastifyRequest,
+  getPrincipal: IdempotencyPluginOptions["getPrincipal"],
+): IdempotencyScope {
+  const principal = getPrincipal(request);
+  if (principal) return { userId: principal.userId };
+  const body = request.body as { contactPhone?: unknown } | undefined;
+  const raw = body?.contactPhone;
+  if (typeof raw !== "string" || raw.trim().length === 0) {
+    throw new AppError("VALIDATION_ERROR", "contactPhone is required for a guest reservation", [
+      { path: "contactPhone", issue: "required" },
+    ]);
+  }
+  return { guestPhone: normalizePhone(raw) };
 }
 
 export function registerIdempotency(app: FastifyInstance, options: IdempotencyPluginOptions): void {
@@ -91,12 +128,11 @@ export function registerIdempotency(app: FastifyInstance, options: IdempotencyPl
       throw new AppError("VALIDATION_ERROR", "Idempotency-Key must be a lowercase UUID");
     }
 
-    const principal = options.getPrincipal(request);
-    if (!principal) throw new AppError("UNAUTHENTICATED");
+    const scope = resolveScope(request, options.getPrincipal);
 
     const requestHash = hashRequest({ method: request.method, url: routeUrl, body: request.body });
 
-    const existing = await findRow(header, principal.userId);
+    const existing = await findRow(header, scope);
     if (existing) {
       const age = Date.now() - existing.createdAt.getTime();
       if (existing.requestHash !== requestHash) {
@@ -114,15 +150,19 @@ export function registerIdempotency(app: FastifyInstance, options: IdempotencyPl
       await db
         .update(idempotencyKeys)
         .set({ requestHash, response: null, statusCode: null, createdAt: new Date() })
-        .where(and(eq(idempotencyKeys.key, header), eq(idempotencyKeys.userId, principal.userId)));
+        .where(scopeWhere(header, scope));
     } else {
       await db
         .insert(idempotencyKeys)
-        .values({ key: header, userId: principal.userId, requestHash })
+        .values(
+          "userId" in scope
+            ? { key: header, userId: scope.userId, requestHash }
+            : { key: header, guestPhone: scope.guestPhone, requestHash },
+        )
         .onConflictDoNothing();
     }
 
-    request.idempotencyMarker = { key: header, userId: principal.userId };
+    request.idempotencyMarker = { key: header, scope };
   });
 
   // Single registration-time hook: persists the final response for replay.
@@ -143,11 +183,11 @@ export function registerIdempotency(app: FastifyInstance, options: IdempotencyPl
         await db
           .update(idempotencyKeys)
           .set({ response: stored ?? null, statusCode: reply.statusCode, createdAt: new Date() })
-          .where(and(eq(idempotencyKeys.key, marker.key), eq(idempotencyKeys.userId, marker.userId)));
+          .where(scopeWhere(marker.key, marker.scope));
       } else {
         await db
           .delete(idempotencyKeys)
-          .where(and(eq(idempotencyKeys.key, marker.key), eq(idempotencyKeys.userId, marker.userId)));
+          .where(scopeWhere(marker.key, marker.scope));
       }
     } catch {
       // Never fail the live response because replay bookkeeping failed.

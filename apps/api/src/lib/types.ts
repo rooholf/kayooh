@@ -26,10 +26,13 @@ export type NotificationChannel = "whatsapp" | "email";
  * Template catalog per SRS v1.2 FR-NOT-01.1: P1 set + the four P2
  * statement/payout/dispute templates (Phase 2). NOTE: the former
  * `verification_result` template was REMOVED with FR-ID-04 in revision 1.2.
+ * `guest_reservation_access` carries the A-18 reservation-scoped guestToken to
+ * a guest booking's contact phone.
  */
 export type NotificationTemplateName =
   | "otp"
   | "reservation_confirmed"
+  | "guest_reservation_access"
   | "no_show"
   | "refund_issued"
   | "reallocation_offer"

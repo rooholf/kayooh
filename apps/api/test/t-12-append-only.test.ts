@@ -4,7 +4,7 @@
  */
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import { sql } from "@repo/db";
-import { db, pool, bikes, outlets, owners, users, renters, verificationRequests, categories } from "@repo/db";
+import { db, bikes, categories } from "@repo/db";
 import { buildTestApp, seedOwner, seedOutlet, truncateAll, type TestApp } from "./helpers.js";
 
 let t: TestApp;
@@ -102,47 +102,4 @@ describe("T-12 (INV-6): append-only tables reject UPDATE and DELETE", () => {
       await db.execute(sql`DELETE FROM payment_webhook_events;`);
     });
   });
-
-  it("id_document_views", async () => {
-    const owner = await seedOwner("owner-t12b@kayooh.test");
-    const outlet = await seedOutletAs(owner.ownerId, "JMB-123");
-    void outlet;
-    const renter = await seedRenterRow(owner.ownerId);
-    const vr = await db.execute(sql`
-      INSERT INTO verification_requests (renter_id, provider, document_type) VALUES (${renter}, 'manual_review', 'ktp') RETURNING id
-    `);
-    const vrId = (vr.rows as Array<{ id: string }>)[0].id;
-    await db.execute(sql`
-      INSERT INTO id_document_views (verification_request_id) VALUES (${vrId})
-    `);
-    await expectViolation(async () => {
-      await db.execute(sql`UPDATE id_document_views SET viewed_at = now();`);
-    });
-    await expectViolation(async () => {
-      await db.execute(sql`DELETE FROM id_document_views;`);
-    });
-  });
 });
-
-async function seedOutletAs(ownerId: string, code: string): Promise<string> {
-  const [outlet] = await db
-    .insert(outlets)
-    .values({
-      ownerId,
-      code,
-      name: `Outlet ${code}`,
-      address: "Jl. Test",
-      lat: "-1.610000",
-      lng: "103.613000",
-      hours: { open: "08:00", close: "21:00" },
-    })
-    .returning({ id: outlets.id });
-  return outlet.id;
-}
-
-async function seedRenterRow(_ownerId: string): Promise<string> {
-  const email = `renter-t12-${Math.random()}@kayooh.test`;
-  const [user] = await db.insert(users).values({ email, emailVerified: true, name: "renter", role: "renter" }).returning({ id: users.id });
-  const [renter] = await db.insert(renters).values({ userId: user.id }).returning({ id: renters.id });
-  return renter.id;
-}

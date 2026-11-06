@@ -20,9 +20,8 @@ import {
   reservations,
   users,
 } from "@repo/db";
-import { createReservationHold } from "../src/modules/inventory/index.js";
+import { createReservationHold, type ReservationActor } from "../src/modules/inventory/index.js";
 import { signVoucher } from "../src/lib/voucher.js";
-import type { Principal } from "../src/modules/identity/guards.js";
 import type { CreateReservationBody } from "@repo/contracts";
 import { sessionCookie, type TestApp } from "./helpers.js";
 
@@ -115,9 +114,7 @@ export interface SeededRenter {
   renterId: string;
 }
 
-export async function seedRenter(opts?: {
-  verificationStatus?: string;
-}): Promise<SeededRenter> {
+export async function seedRenter(): Promise<SeededRenter> {
   const email = `renter.${Date.now()}.${Math.floor(Math.random() * 1e6)}@renters.kayooh.test`;
   const phone = `+62812${String(Math.floor(Math.random() * 1e8)).padStart(8, "0")}`;
   const [user] = await db
@@ -126,10 +123,7 @@ export async function seedRenter(opts?: {
     .returning({ id: users.id });
   const [renter] = await db
     .insert(renters)
-    .values({
-      userId: user.id,
-      verificationStatus: opts?.verificationStatus ?? "verified",
-    })
+    .values({ userId: user.id })
     .returning({ id: renters.id });
   return { userId: user.id, renterId: renter.id };
 }
@@ -180,15 +174,8 @@ export function nextWindow(hhmmOffsetMinutes = 24 * 60): { startsAt: string; end
   return { startsAt: startsAt.toISOString(), endsAt: endsAt.toISOString() };
 }
 
-export function principalFor(userId: string): Principal {
-  return {
-    userId,
-    role: "renter",
-    ownerId: null,
-    outletId: null,
-    sessionId: "staff-test",
-    sessionCreatedAt: new Date(),
-  };
+export function actorFor(userId: string): ReservationActor {
+  return { kind: "renter", userId };
 }
 
 export interface ConfirmedReservation {
@@ -216,7 +203,7 @@ export async function seedConfirmedReservation(opts: {
     startsAt: opts.window.startsAt,
     endsAt: opts.window.endsAt,
   };
-  const held = await createReservationHold(db, body, principalFor(opts.userId));
+  const held = await createReservationHold(db, body, actorFor(opts.userId));
   await db.execute(sql`
     UPDATE reservations
     SET status = 'confirmed', confirmed_at = now()

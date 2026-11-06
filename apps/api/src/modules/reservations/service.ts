@@ -6,13 +6,12 @@
  */
 import type { Database } from "@repo/db";
 import type { CreateReservationBody, CreateReservationResponse } from "@repo/contracts";
-import { createReservationHold } from "../inventory/index.js";
-import type { Principal } from "../identity/guards.js";
+import { createReservationHold, type ReservationActor } from "../inventory/index.js";
 
 export async function hold(
   db: Database,
   body: CreateReservationBody,
-  renter: Principal,
+  actor: ReservationActor,
 ): Promise<CreateReservationResponse> {
-  return createReservationHold(db, body, renter);
+  return createReservationHold(db, body, actor);
 }

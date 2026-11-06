@@ -37,6 +37,9 @@ export const configSchemas = {
   "booking.max_advance_days": nonNegativeInt,
   "booking.min_lead_minutes": nonNegativeInt,
   "booking.max_quantity": positiveInt,
+  // A-19 (revision 1.2): guest anti-spam backstop — max held/confirmed
+  // reservations one phone may hold; excess returns 409 DUPLICATE_RESOURCE.
+  "booking.max_active_reservations_per_phone": positiveInt,
   "booking.dp_rate_bps": int.min(0).max(10000),
   "checkout.early_minutes": nonNegativeInt,
   "late.grace_minutes": nonNegativeInt,
@@ -135,6 +138,7 @@ export const CONFIG_DEFAULTS: Record<ConfigKey, unknown> = {
   "booking.max_advance_days": 7,
   "booking.min_lead_minutes": 0,
   "booking.max_quantity": 5,
+  "booking.max_active_reservations_per_phone": 3,
   "booking.dp_rate_bps": 5000,
   "checkout.early_minutes": 0,
   "late.grace_minutes": 15,

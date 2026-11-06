@@ -16,6 +16,7 @@ export const DEFAULT_CHANNEL_BY_TEMPLATE: Record<NotificationTemplateName, Notif
   // Renter messages (whatsapp):
   otp: "whatsapp",
   reservation_confirmed: "whatsapp",
+  guest_reservation_access: "whatsapp",
   no_show: "whatsapp",
   refund_issued: "whatsapp",
   reallocation_offer: "whatsapp",
