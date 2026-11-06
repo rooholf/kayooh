@@ -21,16 +21,26 @@ export interface RateLimiter {
 }
 
 export type NotificationChannel = "whatsapp" | "email";
+
+/**
+ * Template catalog per SRS v1.2 FR-NOT-01.1: P1 set + the four P2
+ * statement/payout/dispute templates (Phase 2). NOTE: the former
+ * `verification_result` template was REMOVED with FR-ID-04 in revision 1.2.
+ */
 export type NotificationTemplateName =
   | "otp"
   | "reservation_confirmed"
   | "no_show"
   | "refund_issued"
   | "reallocation_offer"
-  | "verification_result"
   | "late_reminder"
   | "owner_late_flag"
-  | "drift_alert";
+  | "drift_alert"
+  // P2 (FR-LED-* , Phase 2):
+  | "statement_ready"
+  | "payout_paid"
+  | "payout_failed"
+  | "dispute_update";
 
 export interface SendInput {
   channel: NotificationChannel;

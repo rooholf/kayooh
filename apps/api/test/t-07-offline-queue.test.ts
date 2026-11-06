@@ -70,14 +70,16 @@ async function setupThreeReservations(): Promise<Setup> {
   return { partner, reservations: rigged };
 }
 
-function batchFor(setup: Setup, order: number[]): Array<ReturnType<typeof checkoutEvent>> {
+async function batchFor(setup: Setup, order: number[]): Promise<Array<Awaited<ReturnType<typeof checkoutEvent>>>> {
   // order[i] declares which event (by setup index) is sent at batch position i.
-  return order.map((idx) =>
-    checkoutEvent({
-      reservationId: setup.reservations[idx].reservationId,
-      bikeAssetTag: setup.reservations[idx].bikeTag,
-      occurredAt: setup.reservations[idx].occurredAt,
-    }),
+  return Promise.all(
+    order.map((idx) =>
+      checkoutEvent({
+        reservationId: setup.reservations[idx].reservationId,
+        bikeAssetTags: [setup.reservations[idx].bikeTag],
+        occurredAt: setup.reservations[idx].occurredAt,
+      }),
+    ),
   );
 }
 
@@ -92,7 +94,7 @@ describe("T-07 (FR-OFF-01): staff events batch + idempotent replay", () => {
       method: "POST",
       url: "/api/v1/staff/events/batch",
       headers: { cookie: staffCookie },
-      payload: { events: batchFor(setup, shuffledSentOrder) },
+      payload: { events: await batchFor(setup, shuffledSentOrder) },
     });
     expect(res.statusCode).toBe(200);
     const body = res.json() as { results: Array<{ clientEventId: string; status: string; reason?: string }> };
@@ -123,9 +125,9 @@ describe("T-07 (FR-OFF-01): staff events batch + idempotent replay", () => {
 
     // One checkout event, three attempts (replay after network split).
     const first = setup.reservations[0];
-    const event = checkoutEvent({
+    const event = await checkoutEvent({
       reservationId: first.reservationId,
-      bikeAssetTag: first.bikeTag,
+      bikeAssetTags: [first.bikeTag],
       occurredAt: first.occurredAt,
     });
     const responses: Array<{ clientEventId: string; status: string; reason?: string }> = [];
@@ -172,12 +174,14 @@ describe("T-07 (FR-OFF-01): staff events batch + idempotent replay", () => {
     const staff = await seedStaff(STAFF_EMAIL, STAFF_PASSWORD, setup.partner.outletId);
     staffCookie = await staffSessionCookie(t, staff);
 
-    const many = Array.from({ length: 51 }, (_, i) =>
-      checkoutEvent({
-        reservationId: setup.reservations[0].reservationId,
-        bikeAssetTag: setup.reservations[0].bikeTag,
-        occurredAt: new Date(Date.now() + i * 1_000).toISOString(),
-      }),
+    const many = await Promise.all(
+      Array.from({ length: 51 }, (_, i) =>
+        checkoutEvent({
+          reservationId: setup.reservations[0].reservationId,
+          bikeAssetTags: [setup.reservations[0].bikeTag],
+          occurredAt: new Date(Date.now() + i * 1_000).toISOString(),
+        }),
+      ),
     );
     const oversized = await t.app.inject({
       method: "POST",
@@ -213,7 +217,7 @@ describe("T-07 (FR-OFF-01): staff events batch + idempotent replay", () => {
       method: "POST",
       url: "/api/v1/staff/events/batch",
       headers: { cookie: staffCookie },
-      payload: { events: batchFor(setup, [0, 1, 2]) },
+      payload: { events: await batchFor(setup, [0, 1, 2]) },
     });
     expect(res.statusCode).toBe(200);
     const after = (await db.select().from(paymentIntents)).length;

@@ -575,6 +575,9 @@ export const rentals = pgTable(
     mechanicalFailure: boolean("mechanical_failure").notNull().default(false),
     escalationStage: smallint("escalation_stage").notNull().default(0),
     checkoutChecklist: jsonb("checkout_checklist").notNull(),
+    collateral: jsonb("collateral"),
+    balanceCollectedIdr: bigint("balance_collected_idr", { mode: "bigint" }),
+    balanceMethod: text("balance_method"),
     checkinChecklist: jsonb("checkin_checklist"),
     completedAt: timestamp("completed_at", { withTimezone: true }),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
@@ -711,6 +714,8 @@ export const notifications = pgTable(
     vars: jsonb("vars").notNull().default({}),
     status: text("status").notNull().default("queued"),
     attempts: integer("attempts").notNull().default(0),
+    /** FR-NOT-01.2 backoff: earliest time the next attempt may be made. */
+    nextAttemptAt: timestamp("next_attempt_at", { withTimezone: true }),
     lastError: text("last_error"),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   },

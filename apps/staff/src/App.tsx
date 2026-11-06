@@ -37,12 +37,15 @@ export function App() {
 
   async function handleSubmit(draft: ScanDraft) {
     const payload: ScanEventPayload = {
-      bikeAssetTag: draft.assetTag,
+      bikeAssetTags: draft.assetTags,
+      bikeAssetTag: draft.assetTags[0],
       ...(draft.voucherToken ? { voucherToken: draft.voucherToken } : {}),
       ...(draft.note ? { note: draft.note } : {}),
       ...(draft.toState ? { toState: draft.toState } : {}),
       ...(draft.checklist ? { checklist: draft.checklist } : {}),
       ...(draft.photoKeys ? { photoKeys: draft.photoKeys } : {}),
+      ...(draft.collateral ? { collateral: draft.collateral } : {}),
+      ...(draft.balanceCollection ? { balanceCollection: draft.balanceCollection } : {}),
     };
     await enqueueEvent({ type: draft.type, payload });
     syncEngine.kick();

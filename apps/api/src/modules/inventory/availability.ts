@@ -77,6 +77,22 @@ export async function countCommittedRentals(exec: QueryExecutor, input: Availabi
   return Number(res.rows[0]?.n ?? 0);
 }
 
+/**
+ * availableNow (FR-REP-02 producer helper, SSE `availability` events).
+ * The half-open overlap predicate against a zero-length window [now, now)
+ * is exactly "committed at this instant": `starts_at < now AND ends_at >
+ * now` holds only for reservations containing now, and countCommittedRentals'
+ * catch-all (`expected_end_at > startsAt OR expected_end_at <= now()`)
+ * counts every open rental for an instant window.
+ */
+export async function availableNow(
+  exec: QueryExecutor,
+  scope: { outletId: string; category: string },
+): Promise<number> {
+  const now = new Date();
+  return computeAvailability(exec, { ...scope, startsAt: now, endsAt: now });
+}
+
 export async function computeAvailability(
   exec: QueryExecutor,
   input: AvailabilityInput,

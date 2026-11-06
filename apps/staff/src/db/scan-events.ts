@@ -24,6 +24,7 @@ export type BikeState =
   | "charging";
 
 export interface ScanEventPayload {
+  bikeAssetTags?: string[];
   bikeAssetTag?: string;
   voucherToken?: string;
   renterPhoneMasked?: string;
@@ -31,6 +32,8 @@ export interface ScanEventPayload {
   toState?: BikeState;
   checklist?: Record<string, ChecklistStatus>;
   photoKeys?: string[];
+  collateral?: { type: "ktp" | "sim" | "vehicle"; reference: string };
+  balanceCollection?: { amountIdr: number; method: "cash" | "qris" };
 }
 
 /**

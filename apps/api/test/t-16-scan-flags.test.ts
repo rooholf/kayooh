@@ -64,13 +64,17 @@ async function setupCase(mutate?: (ctx: Case) => Promise<void>): Promise<Case> {
 }
 
 async function postCheckout(ctx: Case, overrides?: { occurredAt?: string; voucherToken?: string }) {
+  const resRows = await db.select().from(reservations).where(eq(reservations.id, ctx.confirmed.reservationId));
+  const r = resRows[0];
+  const expectedBalance = Number((r?.finalIdr ?? 0n) - (r?.dpIdr ?? 0n));
   // Default: 5 minutes AFTER the reservation window opens (a normal scan).
   const startsAtMs = new Date(ctx.confirmed.window.startsAt).getTime();
-  const event = checkoutEvent({
+  const event = await checkoutEvent({
     reservationId: ctx.confirmed.reservationId,
-    bikeAssetTag: ctx.bikeTag,
+    bikeAssetTags: [ctx.bikeTag],
     occurredAt: overrides?.occurredAt ?? new Date(startsAtMs + 5 * 60_000).toISOString(),
     voucherToken: overrides?.voucherToken,
+    balanceCollection: { amountIdr: expectedBalance, method: "cash" },
   });
   const res = await t.app.inject({
     method: "POST",
@@ -230,15 +234,16 @@ describe("T-16 (RNT-01.3): flagged scans leave state unchanged", () => {
     const staffA = await seedStaff(STAFF_EMAIL, STAFF_PASSWORD, partner.outletId);
     const staffACookie = await staffSessionCookie(t, staffA);
 
+    const checkoutEventPayload = await checkoutEvent({
+      reservationId: confirmed.reservationId,
+      bikeAssetTags: [partner.bikeTags[0]],
+      occurredAt: new Date(new Date(confirmed.window.startsAt).getTime() + 5 * 60_000).toISOString(),
+    });
     const checkoutRes = await t.app.inject({
       method: "POST",
       url: "/api/v1/staff/events",
       headers: { cookie: staffACookie },
-      payload: checkoutEvent({
-        reservationId: confirmed.reservationId,
-        bikeAssetTag: partner.bikeTags[0],
-        occurredAt: new Date(new Date(confirmed.window.startsAt).getTime() + 5 * 60_000).toISOString(),
-      }),
+      payload: checkoutEventPayload,
     });
     expect(checkoutRes.statusCode).toBe(200);
 
@@ -273,9 +278,9 @@ describe("T-16 (RNT-01.3): flagged scans leave state unchanged", () => {
 
   it("rejects a checkout with too few photos (VALIDATION_ERROR) — nothing applied", async () => {
     const ctx = await setupCase();
-    const event = checkoutEvent({
+    const event = await checkoutEvent({
       reservationId: ctx.confirmed.reservationId,
-      bikeAssetTag: ctx.bikeTag,
+      bikeAssetTags: [ctx.bikeTag],
       occurredAt: new Date(new Date(ctx.confirmed.window.startsAt).getTime() + 5 * 60_000).toISOString(),
     });
     event.payload.photoKeys = [];

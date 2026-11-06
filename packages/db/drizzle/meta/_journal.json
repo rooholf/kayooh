@@ -36,6 +36,20 @@
       "when": 1793922088278,
       "tag": "0004_polite_blur",
       "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1793968997466,
+      "tag": "0005_curly_catseye",
+      "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1793971525279,
+      "tag": "0006_low_human_robot",
+      "breakpoints": true
     }
   ]
 }
