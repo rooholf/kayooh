@@ -35,6 +35,8 @@ import {
 import {
   vAssetTag,
   vChecklist,
+  vCollateral,
+  vIdr,
   vClientEventId,
   vPhotoKey,
   vTextL,
@@ -110,10 +112,17 @@ const staffEventBaseSchema = z
 
 const checkoutPayloadSchema = z
   .object({
-    voucherToken: z.string().min(8).max(512),
-    bikeAssetTag: vAssetTag,
+    voucherToken: z.string().min(8).max(2048),
+    bikeAssetTags: z.array(vAssetTag).min(1).max(64),
     checklist: vChecklist,
     photoKeys: z.array(vPhotoKey).max(64),
+    collateral: vCollateral.optional(),
+    balanceCollection: z
+      .object({
+        amountIdr: vIdr,
+        method: z.enum(["cash", "qris"]),
+      })
+      .optional(),
   })
   .strict();
 
@@ -297,79 +306,117 @@ async function applyCheckout(tx: TxOrDb, event: StaffEventInput, ctx: StaffConte
   const [minPhotos, maxPhotos] = await Promise.all([getConfig("condition.min_photos"), getConfig("condition.max_photos")]);
   if (photoCount < minPhotos || photoCount > maxPhotos) return rejected("VALIDATION_ERROR");
 
-  // Step 2: reservation + bike rows FOR UPDATE, bike first (FR-RNT-01.2).
-  const bike = (
-    await tx.select().from(bikes).where(eq(bikes.assetTag, payload.data.bikeAssetTag)).limit(1).for("update")
-  )[0];
+  // Collateral is physically collected and logged (masked reference).
+  if (!payload.data.collateral) return rejected("COLLATERAL_REQUIRED");
+
+  const occurredAt = isoDate(event.occurredAt);
+
+  // Step 2: reservation + bike rows FOR UPDATE, bike first by id order (FR-RNT-01.2).
+  const tags = payload.data.bikeAssetTags;
+  if (new Set(tags).size !== tags.length) return rejected("QUANTITY_MISMATCH");
+
+  const bikesByTag = await tx
+    .select()
+    .from(bikes)
+    .where(sql`${bikes.assetTag} IN (${sql.join(tags.map((t) => sql`${t}`), sql`, `)})`)
+    .for("update");
+  const bikeByTag = new Map(bikesByTag.map((b) => [b.assetTag, b]));
+  const missing = tags.find((t) => !bikeByTag.has(t));
+  if (missing) return rejected("NOT_FOUND");
+
   const reservation = (
     await tx.select().from(reservations).where(eq(reservations.id, voucher.reservationId)).limit(1).for("update")
   )[0];
+  if (!reservation) return rejected("NOT_FOUND");
 
-  if (!bike || !reservation) return rejected("NOT_FOUND");
+  const orderedBikes = tags.map((t) => bikeByTag.get(t)!).sort((a, b) => String(a.id).localeCompare(String(b.id)));
+
+  // Quantity check (FR-RNT-01 step 2).
+  if (tags.length !== reservation.quantity) return rejected("QUANTITY_MISMATCH");
+
+  // Balance check (offline 50% balance).
+  const balance = payload.data.balanceCollection;
+  if (!balance) return rejected("BALANCE_MISMATCH");
+  const expectedBalance = reservation.finalIdr - reservation.dpIdr;
+  if (BigInt(balance.amountIdr as number) !== expectedBalance) return rejected("BALANCE_MISMATCH");
 
   // Step 3: flag ladder — first failure wins (FR-RNT-01.3).
   if (reservation.status !== "confirmed") {
     return flagged("RESERVATION_NOT_CONFIRMED");
   }
-  if (reservation.outletId !== ctx.staffOutletId || bike.currentOutletId !== ctx.staffOutletId) {
+  if (reservation.outletId !== ctx.staffOutletId || orderedBikes.some((b) => b.currentOutletId !== ctx.staffOutletId)) {
     return flagged("WRONG_OUTLET");
   }
-  if (bike.category !== reservation.category) return flagged("CATEGORY_MISMATCH");
-  if (bike.state !== "available") return flagged("BIKE_NOT_AVAILABLE");
+  if (orderedBikes.some((b) => b.category !== reservation.category)) return flagged("CATEGORY_MISMATCH");
+  if (orderedBikes.some((b) => b.state !== "available")) return flagged("BIKE_NOT_AVAILABLE");
 
   const earlyMinutes = await getConfig("checkout.early_minutes");
-  if (isoDate(event.occurredAt).getTime() < isoDate(reservation.startsAt).getTime() - earlyMinutes * 60_000) {
+  if (occurredAt.getTime() < isoDate(reservation.startsAt).getTime() - earlyMinutes * 60_000) {
     return flagged("TOO_EARLY");
   }
 
-  // Step 4: apply (FR-RNT-01.4).
-  const occurredAt = isoDate(event.occurredAt);
+  // Step 4: apply (FR-RNT-01.4) — one rental per bike tag.
   await tx.update(reservations).set({ status: "fulfilled" }).where(eq(reservations.id, reservation.id));
-  await tx.update(bikes).set({ state: "in_rental" }).where(eq(bikes.id, bike.id));
+  await tx
+    .update(bikes)
+    .set({ state: "in_rental" })
+    .where(sql`${bikes.id} IN (${sql.join(orderedBikes.map((b) => sql`${b.id}::uuid`), sql`, `)})`);
 
-  const rental = (await tx
-    .insert(rentals)
-    .values({
-      reservationId: reservation.id,
-      renterId: reservation.renterId,
+  const collateral = payload.data.collateral;
+  const bikeEffects: Array<{ assetTag: string; state: string }> = [];
+  const rentalEffects: Array<{ rentalId: string; state: string }> = [];
+
+  for (const bike of orderedBikes) {
+    const rental = (await tx
+      .insert(rentals)
+      .values({
+        reservationId: reservation.id,
+        renterId: reservation.renterId,
+        bikeId: bike.id,
+        ownerId: bike.ownerId,
+        checkoutOutletId: ctx.staffOutletId,
+        checkedOutAt: occurredAt,
+        expectedEndAt: reservation.endsAt,
+        status: "open",
+        checkoutChecklist: payload.data.checklist,
+        collateral: collateral as unknown,
+        balanceCollectedIdr: BigInt(balance.amountIdr as number),
+        balanceMethod: balance.method,
+      })
+      .returning({ id: rentals.id }))[0];
+    if (!rental) throw new Error("rental insert returned no row");
+
+    await tx.insert(bikeEvents).values({
       bikeId: bike.id,
       ownerId: bike.ownerId,
-      checkoutOutletId: ctx.staffOutletId,
-      checkedOutAt: occurredAt,
-      expectedEndAt: reservation.endsAt,
-      status: "open",
-      checkoutChecklist: payload.data.checklist,
-    })
-    .returning({ id: rentals.id }))[0];
-  if (!rental) throw new Error("rental insert returned no row");
+      type: "checked_out",
+      fromState: bike.state,
+      toState: "in_rental",
+      outletId: ctx.staffOutletId,
+      staffId: ctx.staffUserId,
+      rentalId: rental.id,
+      clientEventId: event.clientEventId,
+      photoKeys: payload.data.photoKeys,
+      payload: { checklist: payload.data.checklist, collateral, balanceCollection: balance },
+      occurredAt,
+    });
 
-  await tx.insert(bikeEvents).values({
-    bikeId: bike.id,
-    ownerId: bike.ownerId,
-    type: "checked_out",
-    fromState: bike.state,
-    toState: "in_rental",
-    outletId: ctx.staffOutletId,
-    staffId: ctx.staffUserId,
-    rentalId: rental.id,
-    clientEventId: event.clientEventId,
-    photoKeys: payload.data.photoKeys,
-    payload: { checklist: payload.data.checklist },
-    occurredAt,
-  });
+    await tx.insert(outboxEvents).values({
+      type: "rental.checked_out",
+      payload: { rentalId: rental.id, reservationId: reservation.id, bikeId: bike.id },
+    });
 
-  await tx.insert(outboxEvents).values({
-    type: "rental.checked_out",
-    payload: { rentalId: rental.id, reservationId: reservation.id, bikeId: bike.id },
-  });
+    bikeEffects.push({ assetTag: bike.assetTag, state: "in_rental" });
+    rentalEffects.push({ rentalId: rental.id, state: "open" });
+  }
 
   return {
     status: "applied",
     effects: {
-      ownerId: bike.ownerId,
-      category: bike.category,
-      bikes: [{ assetTag: bike.assetTag, state: "in_rental" }],
-      rentals: [{ rentalId: rental.id, state: "open" }],
+      ownerId: orderedBikes[0]!.ownerId,
+      category: orderedBikes[0]!.category,
+      bikes: bikeEffects,
+      rentals: rentalEffects,
     },
   };
 }

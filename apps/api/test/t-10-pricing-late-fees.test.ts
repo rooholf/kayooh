@@ -127,15 +127,16 @@ async function checkoutOpenRental(): Promise<{
   const staffCookie = await staffSessionCookie(t, staff);
 
   const startsMs = new Date(window.startsAt).getTime();
+  const event = await checkoutEvent({
+    reservationId: confirmed.reservationId,
+    bikeAssetTags: [partner.bikeTags[0]],
+    occurredAt: new Date(startsMs + 5 * 60_000).toISOString(),
+  });
   const res = await t.app.inject({
     method: "POST",
     url: "/api/v1/staff/events",
     headers: { cookie: staffCookie },
-    payload: checkoutEvent({
-      reservationId: confirmed.reservationId,
-      bikeAssetTag: partner.bikeTags[0],
-      occurredAt: new Date(startsMs + 5 * 60_000).toISOString(),
-    }),
+    payload: event,
   });
   expect(res.statusCode).toBe(200);
   return { partner, staffCookie, expectedEndAtMs: new Date(window.endsAt).getTime() };

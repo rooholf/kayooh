@@ -88,6 +88,14 @@ export const vLng = z.number().min(-180).max(180);
 /* V-ASSET-TAG: ^JMB-[0-9]{3}-[A-Z]{3}-[0-9]{3}$ */
 export const vAssetTag = z.string().regex(/^JMB-[0-9]{3}-[A-Z]{3}-[0-9]{3}$/, "V-ASSET-TAG");
 
+/* V-COLLATERAL: physical collateral collected at check-out (masked reference). */
+export const vCollateral = z
+  .object({
+    type: z.enum(["ktp", "sim", "vehicle"]),
+    reference: vTextS,
+  })
+  .strict();
+
 /* V-HOURS: object keys mon..sun, each an array of 0-2 intervals {open,close}
    "HH:MM" (24 h, minutes multiples of 15), open < close, no overlaps. */
 const vInterval = z

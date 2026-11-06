@@ -7,12 +7,14 @@ export type ScanMode = "checkout" | "checkin" | "incident" | "bike_status_change
 
 export interface ScanDraft {
   type: EventType;
-  assetTag: string;
+  assetTags: string[];
   voucherToken?: string;
   note?: string;
   toState?: BikeState;
   checklist?: Record<string, ChecklistStatus>;
   photoKeys?: string[];
+  collateral?: { type: "ktp" | "sim" | "vehicle"; reference: string };
+  balanceCollection?: { amountIdr: number; method: "cash" | "qris" };
 }
 
 const MODES: Array<{ id: ScanMode; label: string }> = [
@@ -48,6 +50,11 @@ interface ScanSheetProps {
 export function ScanSheet({ mode, focus = "voucher", blocked, onClose, onSubmit }: ScanSheetProps) {
   const [current, setCurrent] = useState<ScanMode>(mode);
   const [assetTag, setAssetTag] = useState("");
+  const [assetTags, setAssetTags] = useState<string[]>([""]);
+  const [collateralType, setCollateralType] = useState<"ktp" | "sim" | "vehicle">("ktp");
+  const [collateralRef, setCollateralRef] = useState("");
+  const [balanceAmount, setBalanceAmount] = useState("");
+  const [balanceMethod, setBalanceMethod] = useState<"cash" | "qris">("cash");
   const [voucher, setVoucher] = useState("");
   const [note, setNote] = useState("");
   const [toState, setToState] = useState<BikeState>("maintenance");
@@ -64,11 +71,21 @@ export function ScanSheet({ mode, focus = "voucher", blocked, onClose, onSubmit 
     return () => window.removeEventListener("keydown", onKey);
   }, [onClose]);
 
-  const tagOk = vAssetTag.safeParse(assetTag.trim()).success;
+  const cleanedAssetTags = assetTags.map((t) => t.trim().toUpperCase()).filter((t) => t.length > 0);
+  const tagOk =
+    current === "checkout"
+      ? cleanedAssetTags.length >= 1 && cleanedAssetTags.every((t) => vAssetTag.safeParse(t).success)
+      : vAssetTag.safeParse(assetTag.trim()).success;
   const noteOk = current !== "incident" || note.trim().length >= 4;
   const voucherOk =
     current !== "checkout" ||
     (voucher.trim().length >= 4 && voucher.trim().length <= staffConfig.voucherTokenMaxLength);
+  const collateralOk =
+    current !== "checkout" ||
+    (collateralRef.trim().length >= 1 && collateralRef.trim().length <= 200);
+  const balanceOk =
+    current !== "checkout" ||
+    /^\d+$/.test(balanceAmount.trim()) && Number(balanceAmount.trim()) >= 0;
   const checklistOk =
     current !== "checkout" ||
     staffConfig.checklistItems.every((item) => {
@@ -82,12 +99,21 @@ export function ScanSheet({ mode, focus = "voucher", blocked, onClose, onSubmit 
       cleanedPhotoKeys.length <= staffConfig.maxPhotos &&
       cleanedPhotoKeys.every((k) => vPhotoKey.safeParse(k).success));
   const canSubmit =
-    tagOk && noteOk && voucherOk && checklistOk && photoKeysOk && !blocked;
+    tagOk &&
+    noteOk &&
+    voucherOk &&
+    collateralOk &&
+    balanceOk &&
+    checklistOk &&
+    photoKeysOk &&
+    !blocked;
 
   const reason = useMemo(() => {
     if (blocked) return "Antrean penuh — pindaian baru diblokir.";
     if (assetTag.trim().length > 0 && !tagOk) return "Kode sepeda harus berformat JMB-000-XXX-000.";
     if (current === "checkout" && !voucherOk) return "Isi token voucher renter.";
+    if (current === "checkout" && !collateralOk) return "Isi referensi jaminan (KTP/SIM/kendaraan).";
+    if (current === "checkout" && !balanceOk) return "Isi nominal saldo yang dikumpulkan.";
     if (current === "checkout" && !checklistOk) return "Lengkapi semua 6 item pemeriksaan.";
     if (current === "checkout" && !photoKeysOk) {
       if (cleanedPhotoKeys.length < staffConfig.minPhotos) return `Minimal ${staffConfig.minPhotos} foto.`;
@@ -102,6 +128,8 @@ export function ScanSheet({ mode, focus = "voucher", blocked, onClose, onSubmit 
     tagOk,
     current,
     voucherOk,
+    collateralOk,
+    balanceOk,
     checklistOk,
     photoKeysOk,
     cleanedPhotoKeys.length,
@@ -112,7 +140,12 @@ export function ScanSheet({ mode, focus = "voucher", blocked, onClose, onSubmit 
     if (!canSubmit) return;
     onSubmit({
       type: current,
-      assetTag: assetTag.trim(),
+      assetTags:
+        current === "checkout"
+          ? cleanedAssetTags
+          : assetTag.trim()
+            ? [assetTag.trim().toUpperCase()]
+            : [],
       ...(current === "checkout"
         ? {
             voucherToken: voucher.trim(),
@@ -124,6 +157,8 @@ export function ScanSheet({ mode, focus = "voucher", blocked, onClose, onSubmit 
               {},
             ),
             photoKeys: cleanedPhotoKeys,
+            collateral: { type: collateralType, reference: collateralRef.trim() },
+            balanceCollection: { amountIdr: Number(balanceAmount.trim()), method: balanceMethod },
           }
         : {}),
       ...(current === "incident" ? { note: note.trim() } : {}),
@@ -213,19 +248,65 @@ export function ScanSheet({ mode, focus = "voucher", blocked, onClose, onSubmit 
             </Labelled>
           )}
 
-          <Labelled label="Kode sepeda" hint="Pindai tag atau ketik kodenya">
-            <input
-              name="bikeAssetTag"
-              value={assetTag}
-              onChange={(e) => setAssetTag(e.target.value.toUpperCase())}
-              autoFocus={focus === "tag"}
-              autoComplete="off"
-              spellCheck={false}
-              inputMode="text"
-              placeholder="JMB-021-CMT-118"
-              className="w-full border-b-2 border-line bg-transparent py-[10px] font-mono text-[14px] uppercase outline-none focus:border-rule"
-            />
-          </Labelled>
+          {current === "checkout" ? (
+            <fieldset className="mt-4">
+              <legend className="mb-2 font-mono text-[9px] font-medium uppercase tracking-[0.12em] text-rule">
+                Kode sepeda · {cleanedAssetTags.length} tag
+              </legend>
+              {assetTags.map((tag, index) => (
+                <div key={index} className="flex items-center gap-2 border-b border-line py-[6px]">
+                  <input
+                    name="bikeAssetTags"
+                    value={tag}
+                    onChange={(e) => {
+                      const next = [...assetTags];
+                      next[index] = e.target.value.toUpperCase();
+                      setAssetTags(next);
+                    }}
+                    autoFocus={index === 0 && focus === "tag"}
+                    autoComplete="off"
+                    spellCheck={false}
+                    inputMode="text"
+                    placeholder="JMB-021-CMT-118"
+                    className="min-h-[44px] flex-1 border-b-2 border-line bg-transparent py-[6px] font-mono text-[12px] uppercase outline-none focus:border-rule"
+                  />
+                  <button
+                    type="button"
+                    onClick={() =>
+                      setAssetTags((prev) =>
+                        prev.length <= 1 ? [""] : prev.filter((_, i) => i !== index),
+                      )
+                    }
+                    className="min-h-[44px] px-2 font-sans text-[12px] font-semibold text-rule"
+                    aria-label="Hapus tag"
+                  >
+                    Hapus
+                  </button>
+                </div>
+              ))}
+              <button
+                type="button"
+                onClick={() => setAssetTags((prev) => [...prev, ""])}
+                className="mt-2 min-h-[44px] w-full border-2 border-ink font-sans text-[12px] font-semibold text-ink"
+              >
+                Tambah sepeda
+              </button>
+            </fieldset>
+          ) : (
+            <Labelled label="Kode sepeda" hint="Pindai tag atau ketik kodenya">
+              <input
+                name="bikeAssetTag"
+                value={assetTag}
+                onChange={(e) => setAssetTag(e.target.value.toUpperCase())}
+                autoFocus={focus === "tag"}
+                autoComplete="off"
+                spellCheck={false}
+                inputMode="text"
+                placeholder="JMB-021-CMT-118"
+                className="w-full border-b-2 border-line bg-transparent py-[10px] font-mono text-[14px] uppercase outline-none focus:border-rule"
+              />
+            </Labelled>
+          )}
 
           {current === "bike_status_change" && (
             <Labelled label="Status baru" hint="Staf tidak dapat mengubah ke Siap tanpa pemeriksaan">
@@ -257,6 +338,64 @@ export function ScanSheet({ mode, focus = "voucher", blocked, onClose, onSubmit 
 
           {current === "checkout" && (
             <>
+              <fieldset className="mt-4">
+                <legend className="mb-2 font-mono text-[9px] font-medium uppercase tracking-[0.12em] text-rule">
+                  Jaminan fisik
+                </legend>
+                <Labelled label="Tipe jaminan" hint="KTP / SIM / kendaraan">
+                  <select
+                    name="collateralType"
+                    value={collateralType}
+                    onChange={(e) => setCollateralType(e.target.value as "ktp" | "sim" | "vehicle")}
+                    className="w-full border-b-2 border-line bg-transparent py-[10px] font-sans text-[14px] outline-none focus:border-rule"
+                  >
+                    <option value="ktp">KTP</option>
+                    <option value="sim">SIM</option>
+                    <option value="vehicle">Kendaraan</option>
+                  </select>
+                </Labelled>
+                <Labelled label="Referensi (disamarkan)" hint="Nomor disamarkan, bukan lengkap">
+                  <input
+                    name="collateralReference"
+                    value={collateralRef}
+                    onChange={(e) => setCollateralRef(e.target.value)}
+                    autoComplete="off"
+                    spellCheck={false}
+                    placeholder="KTP ••••1234"
+                    className="w-full border-b-2 border-line bg-transparent py-[10px] font-mono text-[14px] outline-none focus:border-rule"
+                  />
+                </Labelled>
+              </fieldset>
+
+              <fieldset className="mt-4">
+                <legend className="mb-2 font-mono text-[9px] font-medium uppercase tracking-[0.12em] text-rule">
+                  Saldo offline
+                </legend>
+                <Labelled label="Nominal (IDR)" hint="Sisa 50% yang dibayar di kasir">
+                  <input
+                    name="balanceAmountIdr"
+                    value={balanceAmount}
+                    onChange={(e) => setBalanceAmount(e.target.value.replace(/[^0-9]/g, ""))}
+                    inputMode="numeric"
+                    autoComplete="off"
+                    spellCheck={false}
+                    placeholder="0"
+                    className="w-full border-b-2 border-line bg-transparent py-[10px] font-mono text-[14px] outline-none focus:border-rule"
+                  />
+                </Labelled>
+                <Labelled label="Metode" hint="cash atau qris">
+                  <select
+                    name="balanceMethod"
+                    value={balanceMethod}
+                    onChange={(e) => setBalanceMethod(e.target.value as "cash" | "qris")}
+                    className="w-full border-b-2 border-line bg-transparent py-[10px] font-sans text-[14px] outline-none focus:border-rule"
+                  >
+                    <option value="cash">Tunai</option>
+                    <option value="qris">QRIS</option>
+                  </select>
+                </Labelled>
+              </fieldset>
+
               <fieldset className="mt-4">
                 <legend className="mb-2 font-mono text-[9px] font-medium uppercase tracking-[0.12em] text-rule">
                   Pemeriksaan kondisi · 6 item

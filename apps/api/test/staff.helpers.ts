@@ -250,16 +250,25 @@ export function photoKeys(count = 2): string[] {
 }
 
 /** A checkout event for the given reservation + bike (valid voucher by default). */
-export function checkoutEvent(opts: {
+export async function checkoutEvent(opts: {
   reservationId: string;
   voucherToken?: string;
-  bikeAssetTag: string;
+  bikeAssetTag?: string;
+  bikeAssetTags?: string[];
   occurredAt: string;
-}): { clientEventId: string; occurredAt: string; type: "checkout"; payload: Record<string, unknown> } {
+  collateral?: { type: "ktp" | "sim" | "vehicle"; reference: string };
+  balanceCollection?: { amountIdr: number; method: "cash" | "qris" };
+}): Promise<{ clientEventId: string; occurredAt: string; type: "checkout"; payload: Record<string, unknown> }> {
   // Vouchers are issued at scan time and expire 15 minutes later (SRS
   // FR-RNT-01: a visible-for-minutes QR). Signed relative to occurredAt so
   // future `occurredAt` values (offline events replayed later) stay valid.
   const occurredAtMs = new Date(opts.occurredAt).getTime();
+  const tags = opts.bikeAssetTags ?? (opts.bikeAssetTag ? [opts.bikeAssetTag] : []);
+  let balance = opts.balanceCollection;
+  if (!balance) {
+    const [r] = await db.select().from(reservations).where(eq(reservations.id, opts.reservationId));
+    balance = { amountIdr: Number((r?.finalIdr ?? 0n) - (r?.dpIdr ?? 0n)), method: "cash" };
+  }
   return {
     clientEventId: randomUUID(),
     occurredAt: opts.occurredAt,
@@ -268,9 +277,11 @@ export function checkoutEvent(opts: {
       voucherToken:
         opts.voucherToken ??
         signVoucher({ reservationId: opts.reservationId, expiresAt: new Date(occurredAtMs + 15 * 60_000) }),
-      bikeAssetTag: opts.bikeAssetTag,
+      bikeAssetTags: tags,
       checklist: { ...CHECKLIST },
       photoKeys: photoKeys(),
+      collateral: opts.collateral ?? { type: "ktp", reference: "KTP-••••1234" },
+      balanceCollection: balance,
     },
   };
 }

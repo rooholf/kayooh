@@ -165,9 +165,9 @@ describe("FR-REP-02 Server-Sent Events", () => {
     await Promise.all([outletsStream.ready, ownerAStream.ready, ownerBStream.ready]);
 
     try {
-      const event = checkoutEvent({
+      const event = await checkoutEvent({
         reservationId: confirmed.reservationId,
-        bikeAssetTag: partner.bikeTags[0]!,
+        bikeAssetTags: [partner.bikeTags[0]!],
         occurredAt: new Date(new Date(window.startsAt).getTime() + 60_000).toISOString(),
       });
       const res = await t.app.inject({
