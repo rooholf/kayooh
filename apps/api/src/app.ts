@@ -29,7 +29,7 @@ import { registerReservationRoutes } from "./modules/reservations/create-reserva
 import { registerReallocationRoutes } from "./modules/reservations/reallocation-routes.js";
 import { registerStaffRoutes } from "./modules/staff/routes.js";
 import { registerCatalogRoutes } from "./modules/catalog/index.js";
-import { registerSweeperSchedule } from "./modules/jobs/index.js";
+import { registerOutboxSchedule, registerSweeperSchedule } from "./modules/jobs/index.js";
 import { registerVerificationRoutes } from "./modules/verification/index.js";
 import { registerSseRoutes, initSseBus, closeSseBus } from "./modules/sse/index.js";
 import { registerWebhookRoutes } from "./modules/payments/webhook-routes.js";
@@ -281,6 +281,10 @@ export async function buildApp(options: BuildAppOptions = {}): Promise<{
   // SRS FR-INV-03: register the minute sweeper as a repeatable job (best-effort;
   // Redis-less deployments rely on an external cron hitting runSweeper()).
   void registerSweeperSchedule(env.redisUrl).catch(() => undefined);
+  // SRS §8: register the 5 s outbox-dispatch repeatable (same floor pattern —
+  // Redis-less deployments rely on an external driver hitting
+  // runOutboxDispatch()).
+  void registerOutboxSchedule(env.redisUrl).catch(() => undefined);
 
   return {
     app,

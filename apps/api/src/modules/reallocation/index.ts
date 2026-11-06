@@ -10,7 +10,6 @@
  */
 import { and, eq, sql } from "@repo/db";
 import {
-  notifications,
   outletCategories,
   outlets,
   paymentIntents,
@@ -22,6 +21,8 @@ import {
 } from "@repo/db";
 import type { CreateReservationResponse } from "@repo/contracts";
 import { AppError } from "../../lib/errors.js";
+import { enqueueNotification } from "../notifications/index.js";
+import { DEFAULT_CHANNEL_BY_TEMPLATE } from "../../lib/notifications.js";
 import { getConfig } from "../app-config/index.js";
 import { publishAvailability } from "../sse/index.js";
 import {
@@ -112,12 +113,11 @@ export async function flagReallocationCandidates(
     `)) as unknown as { rows: Array<{ user_id: string } | undefined> };
     const userId = renterRows.rows[0]?.user_id;
     if (userId) {
-      await db.insert(notifications).values({
+      await enqueueNotification(db, {
         userId,
-        channel: "whatsapp",
+        channel: DEFAULT_CHANNEL_BY_TEMPLATE.reallocation_offer,
         template: "reallocation_offer",
         vars: { reservationId: cand.id },
-        status: "queued",
       });
     }
     marked.push(cand.id);

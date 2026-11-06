@@ -1,5 +1,5 @@
 import "./lib/dotenv.js";
-import { startWorker, registerSweeperSchedule } from "./modules/jobs/index.js";
+import { startWorker, registerSweeperSchedule, registerOutboxSchedule } from "./modules/jobs/index.js";
 import { loadEnv } from "./lib/env.js";
 
 const env = loadEnv();
@@ -8,6 +8,7 @@ if (!env.redisUrl) {
   process.exit(1);
 }
 await registerSweeperSchedule(env.redisUrl);
+await registerOutboxSchedule(env.redisUrl);
 const worker = await startWorker(env.redisUrl);
 console.info(JSON.stringify({ event: "worker.started", redis: true }));
 

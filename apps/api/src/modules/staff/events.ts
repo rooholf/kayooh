@@ -22,7 +22,6 @@ import { and, eq, sql } from "@repo/db";
 import {
   bikeEvents,
   bikes,
-  notifications,
   outboxEvents,
   paymentIntents,
   refunds,
@@ -42,6 +41,8 @@ import {
   vTs,
   vUuid,
 } from "@repo/contracts";
+import { enqueueNotification } from "../notifications/index.js";
+import { DEFAULT_CHANNEL_BY_TEMPLATE } from "../../lib/notifications.js";
 import { verifyVoucher } from "../../lib/voucher.js";
 import { AppError } from "../../lib/errors.js";
 import { getConfig } from "../app-config/index.js";
@@ -623,17 +624,19 @@ async function applyIncident(tx: TxOrDb, event: StaffEventInput, ctx: StaffConte
         status: "pending",
       });
     }
-    await tx.insert(notifications).values({
-      userId: (await tx
-        .select({ userId: renters.userId })
-        .from(renters)
-        .where(eq(renters.id, openRental.renterId))
-        .limit(1))[0]?.userId ?? null,
-      channel: "whatsapp",
-      template: "refund_issued",
-      vars: { reason: "mechanical_failure", amountIdr: Number(intent?.amountIdr ?? 0) },
-      status: "queued",
-    });
+    const renterUserId = (await tx
+      .select({ userId: renters.userId })
+      .from(renters)
+      .where(eq(renters.id, openRental.renterId))
+      .limit(1))[0]?.userId;
+    if (renterUserId) {
+      await enqueueNotification(tx, {
+        userId: renterUserId,
+        channel: DEFAULT_CHANNEL_BY_TEMPLATE.refund_issued,
+        template: "refund_issued",
+        vars: { reason: "mechanical_failure", amountIdr: Number(intent?.amountIdr ?? 0) },
+      });
+    }
     await tx.insert(bikeEvents).values({
       bikeId: bike.id,
       ownerId: bike.ownerId,

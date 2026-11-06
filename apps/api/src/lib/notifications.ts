@@ -8,6 +8,29 @@ import type { NotificationChannel, NotificationProvider, NotificationTemplateNam
 export type { NotificationChannel, NotificationProvider, NotificationTemplateName, SendInput };
 
 /**
+ * FR-NOT-01.3 channel routing: WhatsApp carries renter messages; email
+ * carries owner and admin messages. Every enqueuer picks the channel from
+ * this ONE table instead of hardcoding "whatsapp"/"email" per call site.
+ */
+export const DEFAULT_CHANNEL_BY_TEMPLATE: Record<NotificationTemplateName, NotificationChannel> = {
+  // Renter messages (whatsapp):
+  otp: "whatsapp",
+  reservation_confirmed: "whatsapp",
+  no_show: "whatsapp",
+  refund_issued: "whatsapp",
+  reallocation_offer: "whatsapp",
+  late_reminder: "whatsapp",
+  // Owner/admin messages (email):
+  owner_late_flag: "email",
+  drift_alert: "email",
+  // P2 owner messages (email, FR-LED-*):
+  statement_ready: "email",
+  payout_paid: "email",
+  payout_failed: "email",
+  dispute_update: "email",
+};
+
+/**
  * Logs the send instead of transmitting. NEVER in production (env guard).
  * OTP `code` var values are logged only with DEV_LOG_OTP (dev convenience for
  * local manual testing); they are still never written by business modules.

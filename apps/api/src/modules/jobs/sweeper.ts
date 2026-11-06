@@ -7,7 +7,6 @@
 import { and, eq, sql } from "@repo/db";
 import {
   db,
-  notifications,
   outboxEvents,
   paymentIntents,
   refunds,
@@ -15,6 +14,8 @@ import {
 } from "@repo/db";
 import { getConfig } from "../app-config/index.js";
 import { publishAvailability } from "../sse/index.js";
+import { enqueueNotification } from "../notifications/index.js";
+import { DEFAULT_CHANNEL_BY_TEMPLATE } from "../../lib/notifications.js";
 
 export interface SweeperSummary {
   expiredHolds: number;
@@ -82,12 +83,13 @@ export async function runSweeper(): Promise<SweeperSummary> {
       .limit(1);
     const userId = renterUser[0]?.userId;
     if (userId) {
-      await db.insert(notifications).values({
-        userId,
-        channel: "whatsapp",
-        template: "no_show",
-        vars: { reservationId: ns.id },
-        status: "queued",
+      await db.transaction(async (tx) => {
+        await enqueueNotification(tx, {
+          userId,
+          channel: DEFAULT_CHANNEL_BY_TEMPLATE.no_show,
+          template: "no_show",
+          vars: { reservationId: ns.id },
+        });
       });
     }
 
@@ -163,21 +165,23 @@ export async function runSweeper(): Promise<SweeperSummary> {
     summary.escalated += 1;
 
     if (target >= 1 && r.escalation_stage < 1) {
-      await db.insert(notifications).values({
-        userId: r.renter_user_id,
-        channel: "whatsapp",
-        template: "late_reminder",
-        vars: { rentalId: r.id, escalationStage: target },
-        status: "queued",
+      await db.transaction(async (tx) => {
+        await enqueueNotification(tx, {
+          userId: r.renter_user_id,
+          channel: DEFAULT_CHANNEL_BY_TEMPLATE.late_reminder,
+          template: "late_reminder",
+          vars: { rentalId: r.id, escalationStage: target },
+        });
       });
     }
     if (target >= 3 && r.escalation_stage < 3 && r.owner_user_id) {
-      await db.insert(notifications).values({
-        userId: r.owner_user_id,
-        channel: "whatsapp",
-        template: "owner_late_flag",
-        vars: { rentalId: r.id, escalationStage: target },
-        status: "queued",
+      await db.transaction(async (tx) => {
+        await enqueueNotification(tx, {
+          userId: r.owner_user_id!,
+          channel: DEFAULT_CHANNEL_BY_TEMPLATE.owner_late_flag,
+          template: "owner_late_flag",
+          vars: { rentalId: r.id, escalationStage: target },
+        });
       });
     }
   }
