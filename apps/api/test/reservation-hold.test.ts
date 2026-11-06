@@ -233,14 +233,6 @@ describe("FR-INV-02 create reservation (build_transactional_inventory_lock)", ()
   it("maps pre-transaction contract failures to the SRS 422 codes", async () => {
     const partner = await seedOffering(1);
 
-    await expect(
-      createReservationHold(
-        db,
-        bodyFor(partner, window()),
-        principalFor(await seedRenter({ verificationStatus: "pending" })),
-      ),
-    ).rejects.toMatchObject({ code: "VERIFICATION_REQUIRED" });
-
     // Unbookable window: less than min duration.
     const w = window();
     await expect(

@@ -295,20 +295,16 @@ export async function createReservationHold(
   const startsAt = new Date(body.startsAt);
   const endsAt = new Date(body.endsAt);
 
-  /* -------- Step 1: renter verification (pre-check 1) ---------------------- */
+  /* -------- Step 1: renter resolution (pre-check 1) -----------------------
+   * SRS rev 1.2: no digital ID verification. The renter profile must exist;
+   * verification_status is no longer a gate (removed in rev 1.2). */
   const renterRows = await pooledDb
-    .select({
-      id: renters.id,
-      verificationStatus: renters.verificationStatus,
-    })
+    .select({ id: renters.id })
     .from(renters)
     .where(eq(renters.userId, renter.userId))
     .limit(1);
   const renterRow = renterRows[0];
   if (!renterRow) throw new AppError("STATE_CONFLICT", "Renter profile does not exist for this user.");
-  if (renterRow.verificationStatus !== "verified") {
-    throw new AppError("VERIFICATION_REQUIRED", "Identity verification is not complete.");
-  }
 
   /* -------- Step 2: duration and window (pre-check 2) ---------------------- */
   const [slotMinutes, minDuration, maxDuration, maxAdvanceDays, minLeadMinutes] = await Promise.all([
