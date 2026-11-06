@@ -28,6 +28,7 @@ import {
 import { registerReservationRoutes } from "./modules/reservations/create-reservation.js";
 import { registerReallocationRoutes } from "./modules/reservations/reallocation-routes.js";
 import { registerStaffRoutes } from "./modules/staff/routes.js";
+import { registerAdminRoutes } from "./modules/admin/index.js";
 import { registerCatalogRoutes } from "./modules/catalog/index.js";
 import { registerOutboxSchedule, registerSweeperSchedule } from "./modules/jobs/index.js";
 import { registerVerificationRoutes } from "./modules/verification/index.js";
@@ -193,6 +194,7 @@ export async function buildApp(options: BuildAppOptions = {}): Promise<{
   registerReallocationRoutes(app);
   registerStaffRoutes(app);
   registerCatalogRoutes(app);
+  registerAdminRoutes(app);
   registerVerificationRoutes(app);
   registerSseRoutes(app);
   // FR-PAY-02: the gateway webhook is public and lives OUTSIDE /api/v1.
