@@ -1,3 +1,4 @@
+import "./lib/dotenv.js";
 import { buildApp } from "./app.js";
 
 const { app, close } = await buildApp();

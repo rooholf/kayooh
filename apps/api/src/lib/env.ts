@@ -8,6 +8,8 @@ export interface Env {
   redisUrl?: string;
   authSecret: string;
   logLevel: string;
+  /** Callback token compared by the gateway webhook check (FR-PAY-02.1). */
+  paymentWebhookSecret: string;
   /** Dev convenience ONLY: never set in production (OTP codes must not be logged). */
   devLogOtp: boolean;
 }
@@ -24,12 +26,14 @@ export function loadEnv(overrides: Partial<Record<string, string | undefined>> =
     redisUrl: get("REDIS_URL"),
     authSecret: authSecret ?? "",
     logLevel: get("LOG_LEVEL") ?? "info",
+    paymentWebhookSecret: get("PAYMENT_WEBHOOK_SECRET") ?? "dev-fake-webhook-secret",
     devLogOtp: get("DEV_LOG_OTP") === "true",
   };
   if (nodeEnv === "production") {
     const missing: string[] = [];
     if (!env.databaseUrl) missing.push("DATABASE_URL");
     if (!env.authSecret) missing.push("BETTER_AUTH_SECRET");
+    if (env.paymentWebhookSecret === "dev-fake-webhook-secret") missing.push("PAYMENT_WEBHOOK_SECRET");
     if (missing.length > 0) {
       throw new Error(`Missing required environment variables: ${missing.join(", ")}`);
     }

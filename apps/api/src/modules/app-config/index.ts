@@ -40,7 +40,7 @@ export const configSchemas = {
   "booking.dp_rate_bps": int.min(0).max(10000),
   "checkout.early_minutes": nonNegativeInt,
   "late.grace_minutes": nonNegativeInt,
-  "late.fee_per_started_hour_idr": nonNegativeInt,
+  "late.fee_per_30min_idr": nonNegativeInt,
   "late.collection_method": z.enum(["payment_intent", "offline_cash"]),
   "late.escalation_minutes": z.object({
     reminder: nonNegativeInt,
@@ -138,7 +138,7 @@ export const CONFIG_DEFAULTS: Record<ConfigKey, unknown> = {
   "booking.dp_rate_bps": 5000,
   "checkout.early_minutes": 0,
   "late.grace_minutes": 15,
-  "late.fee_per_started_hour_idr": 10000,
+  "late.fee_per_30min_idr": 20000,
   "late.collection_method": "payment_intent",
   "late.escalation_minutes": { reminder: 0, staff_call: 30, owner_flag: 60, claim_eligible: 240 },
   "claims.owner_share_bps": 10000,

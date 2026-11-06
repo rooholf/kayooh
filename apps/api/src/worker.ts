@@ -1,3 +1,4 @@
+import "./lib/dotenv.js";
 import { startWorker, registerSweeperSchedule } from "./modules/jobs/index.js";
 import { loadEnv } from "./lib/env.js";
 

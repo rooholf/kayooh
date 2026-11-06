@@ -362,8 +362,10 @@ async function applyCheckin(tx: TxOrDb, event: StaffEventInput, ctx: StaffContex
   if (lateMinutes > 0 && !rental.mechanicalFailure) {
     const grace = await getConfig("late.grace_minutes");
     if (lateMinutes > grace) {
-      const feePerHour = await getConfig("late.fee_per_started_hour_idr");
-      lateFeeIdr = BigInt(Math.ceil(lateMinutes / 60) * feePerHour);
+      // FR-RNT-02.4: "per started 30 min after grace" — block count is the
+      // lateMinutes BEYOND the grace window (AC: 12:16 -> 1 block, 13:01 -> 2).
+      const feePer30Min = await getConfig("late.fee_per_30min_idr");
+      lateFeeIdr = BigInt(Math.ceil((lateMinutes - grace) / 30) * feePer30Min);
     }
   }
 
