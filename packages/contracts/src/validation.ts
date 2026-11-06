@@ -88,6 +88,24 @@ export const vLng = z.number().min(-180).max(180);
 /* V-ASSET-TAG: ^JMB-[0-9]{3}-[A-Z]{3}-[0-9]{3}$ */
 export const vAssetTag = z.string().regex(/^JMB-[0-9]{3}-[A-Z]{3}-[0-9]{3}$/, "V-ASSET-TAG");
 
+/* V-HOURS: object keys mon..sun, each an array of 0-2 intervals {open,close}
+   "HH:MM" (24 h, minutes multiples of 15), open < close, no overlaps. */
+const vInterval = z
+  .object({ open: z.string().regex(/^([01]\d|2[0-3]):[03]0$/, "V-HOURS"), close: z.string().regex(/^([01]\d|2[0-3]):[03]0$/, "V-HOURS") })
+  .strict()
+  .refine((v) => v.open < v.close, { message: "V-HOURS" });
+export const vHours = z
+  .object({
+    mon: z.array(vInterval).max(2).optional().default([]),
+    tue: z.array(vInterval).max(2).optional().default([]),
+    wed: z.array(vInterval).max(2).optional().default([]),
+    thu: z.array(vInterval).max(2).optional().default([]),
+    fri: z.array(vInterval).max(2).optional().default([]),
+    sat: z.array(vInterval).max(2).optional().default([]),
+    sun: z.array(vInterval).max(2).optional().default([]),
+  })
+  .strict();
+
 /* V-OUTLET-CODE: ^JMB-[0-9]{3}$ */
 export const vOutletCode = z.string().regex(/^JMB-[0-9]{3}$/, "V-OUTLET-CODE");
 

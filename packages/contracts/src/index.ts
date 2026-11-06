@@ -17,6 +17,7 @@ export {
   vCursor,
   vEmail,
   vIdempotencyKey,
+  vHours,
   vIdr,
   vLat,
   vLng,
