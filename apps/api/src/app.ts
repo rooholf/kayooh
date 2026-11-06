@@ -32,6 +32,7 @@ import { registerCatalogRoutes } from "./modules/catalog/index.js";
 import { registerSweeperSchedule } from "./modules/jobs/index.js";
 import { registerVerificationRoutes } from "./modules/verification/index.js";
 import { registerSseRoutes } from "./modules/sse/index.js";
+import { registerWebhookRoutes } from "./modules/payments/webhook-routes.js";
 
 declare module "fastify" {
   interface FastifyRequest {
@@ -187,6 +188,8 @@ export async function buildApp(options: BuildAppOptions = {}): Promise<{
   registerCatalogRoutes(app);
   registerVerificationRoutes(app);
   registerSseRoutes(app);
+  // FR-PAY-02: the gateway webhook is public and lives OUTSIDE /api/v1.
+  registerWebhookRoutes(app, { nodeEnv: env.nodeEnv, webhookSecret: env.paymentWebhookSecret });
 
   /* Better Auth scoped mount (raw body preserved for the BA handler). */
   await app.register(async (scope) => {
