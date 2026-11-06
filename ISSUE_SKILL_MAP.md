@@ -69,7 +69,7 @@ Implementation order is SRS §12; Phase 1 is steps 1–7.
 | Issue | Feature | Persona | Required skill / workflow | Depends on |
 |---|---|---|---|---|
 | **#20** | FR-ID-01 sign-in (phone OTP) UI | Web Frontend Developer | **`impeccable`** — `shape` → build → `polish`/`harden` | Step 2 API (done) |
-| **#21** | FR-INV-02 multi-bike reservation & 50% DP checkout UI | Web Frontend Developer | **`impeccable`** (brief **exists**: `apps-web-src-app-renter-reservasi.md`) | #20, **#29**, **#31** (quote) — #16/#27 closed |
+| **#21** | FR-INV-02 multi-bike reservation & 50% DP checkout UI | Web Frontend Developer | **`impeccable`** (brief **exists**: `apps-web-src-app-renter-reservasi.md`) | **#29**, **#31** (quote), **#16**, **#27** — all closed. **#20 optional** (guest checkout needs no session; sign-in only unlocks promos) |
 | **#22** | FR-RNT-01 reservations + voucher QR (surface `quantity` / `dpIdr`) | Web Frontend Developer | **`impeccable`** (same brief) | #21, **#31** (list + voucher) |
 | ~~#23~~ | ~~FR-ID-04 verification upload UI~~ | — | **CLOSED — FR-ID-04 removed in revision 1.2 (guest checkout pivot). Any verification UI scaffold in `apps/web` is deleted, not mapped** | — |
 | **#25** | FR-INV-04 at-risk reallocation UI | Web Frontend Developer | **`impeccable`** (reuses reservation detail) | #22 |
@@ -112,7 +112,7 @@ Every UI issue above executes through the same strict path — no direct hand-ed
 ## 5. Execution rules
 
 - One skill invocation per issue; a PR may not mix a backend skill and a frontend skill without both being listed here.
-- A frontend issue whose backend dependency is unmerged (#21 on #16/NEW-A, #26 on #7) builds against a contract-first mock only; it does not mark the backend issue done.
+- A frontend issue whose backend dependency is unmerged builds against a contract-first mock only; it does not mark the backend issue done. (As of Revision 4 every Step 1–6 backend dependency is merged, so no Step-6 frontend issue is backend-blocked.)
 - Every PR passes the NFR-09 gates (lint, `tsc --noEmit`, Vitest against real Postgres, T-01, coverage ≥ 90% on inventory/ledger/pricing). T-13 (`run_playwright_e2e`) gates Step 6.
 - **Revision 1.2:** `POST /reservations` is public — a guest books with `contactPhone` + the 50% DP; **promos require an authenticated session** (401 `UNAUTHENTICATED` without one). No PR may reintroduce a `verification_status` check, a `verification_requests`/`id_document_views` table, a `VerificationProvider` system, or the 422 `VERIFICATION_REQUIRED` error. Physical collateral stays offline at staff check-out (FR-RNT-01) — never digital.
 - **Revision 1.1:** money is integer rupiah (`bigint`) everywhere (INV-5); the DP must be computed with `calculate_integer_money`/`roundHalfUp`, never floats. No PR may reintroduce a security deposit, a `deposits`/`deposit_claims` table, or `DEPOSIT_REQUIRED`.
