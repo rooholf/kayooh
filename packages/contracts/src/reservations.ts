@@ -14,7 +14,7 @@
  * shared {@link ErrorEnvelope} shape (SRS 3.2).
  */
 import { z } from "zod";
-import { vCategoryCode, vIdr, vPhone, vPromo, vQty, vTs, vUuid } from "./validation";
+import { vCategoryCode, vCursor, vIdr, vLimit, vPhone, vPromo, vQty, vTs, vUuid } from "./validation";
 
 export const createReservationBodySchema = z
   .object({
@@ -98,3 +98,75 @@ export type ReservationStatus = z.infer<typeof reservationStatusSchema>;
 export type ReservationResource = z.infer<typeof reservationResourceSchema>;
 export type CreateReservationPrice = z.infer<typeof createReservationPriceSchema>;
 export type CreateReservationResponse = z.infer<typeof createReservationResponseSchema>;
+
+/* ------------------------------------------------------------------ */
+/* POST /pricing/quote (FR-PRC-01, endpoint table) — public preview    */
+/* ------------------------------------------------------------------ */
+
+/**
+ * Public price preview. Same inputs as the pricing leg of FR-INV-02 but with
+ * no `quantity` (the quote is per bike, FR-PRC-01.2). `promoCode` needs a
+ * session: an unauthenticated request supplying one is 401 `UNAUTHENTICATED`
+ * (incentivized auth, revision 1.2); otherwise P1 rejects it 422 `PROMO_INVALID`.
+ */
+export const quoteBodySchema = z
+  .object({
+    outletId: vUuid,
+    category: vCategoryCode,
+    startsAt: vTs,
+    endsAt: vTs,
+    promoCode: vPromo.optional(),
+  })
+  .strict();
+
+/** 200 `{priceIdr, discountIdr, finalIdr, dpIdr, units}` (endpoint table). */
+export const quoteResponseSchema = z
+  .object({
+    priceIdr: vIdr,
+    discountIdr: vIdr,
+    finalIdr: vIdr,
+    /** Online 50% down payment (FR-INV-02.4, INV-5 integer rupiah). */
+    dpIdr: vIdr,
+    /** `ceil(durationMinutes / pricing.billing_unit_minutes)` (FR-PRC-01.2). */
+    units: z.number().int().min(1),
+  })
+  .strict();
+
+export type QuoteBody = z.infer<typeof quoteBodySchema>;
+export type QuoteResponse = z.infer<typeof quoteResponseSchema>;
+
+/* ------------------------------------------------------------------ */
+/* GET /reservations (renter list, SRS 3.2 pagination)                 */
+/* ------------------------------------------------------------------ */
+
+export const listReservationsQuerySchema = z
+  .object({
+    status: reservationStatusSchema.optional(),
+    limit: vLimit,
+    cursor: vCursor,
+  })
+  .strict();
+
+/** List convention (SRS 3.2): `{data: [...], nextCursor: string|null}`. */
+export const reservationListResponseSchema = z
+  .object({
+    data: z.array(reservationResourceSchema),
+    nextCursor: z.string().nullable(),
+  })
+  .strict();
+
+export type ListReservationsQuery = z.infer<typeof listReservationsQuerySchema>;
+export type ReservationListResponse = z.infer<typeof reservationListResponseSchema>;
+
+/* ------------------------------------------------------------------ */
+/* GET /reservations/{id}/voucher (FR-SEC-01.1)                        */
+/* ------------------------------------------------------------------ */
+
+export const voucherResponseSchema = z
+  .object({
+    token: z.string().min(1),
+    expiresAt: vTs,
+  })
+  .strict();
+
+export type VoucherResponse = z.infer<typeof voucherResponseSchema>;
