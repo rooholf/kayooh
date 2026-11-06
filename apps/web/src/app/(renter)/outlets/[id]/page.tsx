@@ -214,7 +214,7 @@ function OutletDetailInner() {
 
           <Link
             className="kembali"
-            href={`/booking?outlet=${outlet.id}&category=${selected}`}
+            href={`/reservasi/baru?outlet=${outlet.id}&jenis=${selected}`}
           >
             Pesan {selected.toUpperCase()} di outlet ini →
           </Link>

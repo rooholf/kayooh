@@ -9,6 +9,7 @@
 import { test, expect, type Page } from "@playwright/test";
 import { mkdir } from "node:fs/promises";
 import path from "node:path";
+import { expectNoBikeIds, guardNoCoordinates } from "./guards";
 
 const OUT_DIR = path.join(__dirname, "..", "e2e-artifacts");
 
@@ -23,13 +24,7 @@ async function shot(page: Page, name: string) {
 }
 
 test.beforeEach(async ({ page }) => {
-  // NEG-4: the renter site never sends coordinates. Fail if it does.
-  page.on("request", (req) => {
-    const url = req.url();
-    if (/[?&](lat|lng|latitude|longitude)=/.test(url)) {
-      throw new Error(`NEG-4 violation: coordinate in request ${url}`);
-    }
-  });
+  guardNoCoordinates(page);
 });
 
 for (const [profile, viewport] of Object.entries(VIEWPORTS)) {
@@ -61,9 +56,7 @@ for (const [profile, viewport] of Object.entries(VIEWPORTS)) {
       /aria-pressed="true"/
     );
 
-    // NEG-2: no individual bike ids/asset tags may appear anywhere in the UI.
-    const body = await page.locator("body").innerText();
-    expect(body).not.toMatch(/assetTag|bikeId|asset_tag/i);
+    await expectNoBikeIds(page);
 
     await shot(page, `home-${profile}.png`);
   });
@@ -80,9 +73,7 @@ for (const [profile, viewport] of Object.entries(VIEWPORTS)) {
       page.getByRole("link", { name: /Jambi City Center/ }).first()
     ).toBeVisible({ timeout: 10_000 });
 
-    // NEG-2: no individual bike ids/asset tags may appear anywhere in the UI.
-    const body = await page.locator("body").innerText();
-    expect(body).not.toMatch(/assetTag|bikeId|asset_tag/i); // NEG-2
+    await expectNoBikeIds(page);
 
     await shot(page, `outlets-${profile}.png`);
   });
@@ -118,8 +109,7 @@ test("outlet detail link opens /outlets/:id and shows specimen rows", async ({
   });
 
   // NEG-2 still holds on the detail page.
-  const body = await page.locator("body").innerText();
-  expect(body).not.toMatch(/assetTag|bikeId|asset_tag/i);
+  await expectNoBikeIds(page);
 
   await shot(page, "outlet-detail.png");
 });

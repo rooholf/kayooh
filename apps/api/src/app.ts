@@ -105,7 +105,10 @@ export async function buildApp(options: BuildAppOptions = {}): Promise<{
     }
     if (request.method === "OPTIONS") {
       void reply.header("Access-Control-Allow-Methods", "GET,POST,PUT,PATCH,DELETE,OPTIONS");
-      void reply.header("Access-Control-Allow-Headers", "content-type,authorization,x-requested-with");
+      void reply.header(
+        "Access-Control-Allow-Headers",
+        "content-type,authorization,x-requested-with,idempotency-key",
+      );
       void reply.code(204);
       void reply.send();
     }

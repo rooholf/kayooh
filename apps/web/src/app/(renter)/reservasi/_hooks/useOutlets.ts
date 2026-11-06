@@ -1,10 +1,15 @@
 "use client";
 
+/**
+ * Shared outlet catalog query for the reservation sheet.
+ *
+ * Reuses the ["outlets"] cache the poster and the list already hold — the
+ * reservation never issues a second catalog call. Availability is counts only
+ * (INV-1/NEG-2); no coordinates ride this response (NEG-4).
+ */
 import { useQuery } from "@tanstack/react-query";
 import type { OutletListResponse } from "@repo/contracts";
-
-const API_BASE =
-  process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:3001";
+import { API_BASE } from "../_lib/api";
 
 async function fetchOutlets(): Promise<OutletListResponse> {
   const res = await fetch(`${API_BASE}/api/v1/outlets`, {
@@ -16,7 +21,6 @@ async function fetchOutlets(): Promise<OutletListResponse> {
   return (await res.json()) as OutletListResponse;
 }
 
-/** Shared outlet catalog query — reuses the ["outlets"] cache held by the poster. */
 export function useOutlets() {
   return useQuery({ queryKey: ["outlets"], queryFn: fetchOutlets });
 }
