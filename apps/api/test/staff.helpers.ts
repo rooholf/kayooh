@@ -11,7 +11,6 @@ import {
   bikes,
   categories,
   db,
-  deposits,
   outletCategories,
   outlets,
   owners,
@@ -113,7 +112,6 @@ export interface SeededRenter {
 
 export async function seedRenter(opts?: {
   verificationStatus?: string;
-  depositStatus?: string;
 }): Promise<SeededRenter> {
   const email = `renter.${Date.now()}.${Math.floor(Math.random() * 1e6)}@renters.kayooh.test`;
   const phone = `+62812${String(Math.floor(Math.random() * 1e8)).padStart(8, "0")}`;
@@ -126,10 +124,8 @@ export async function seedRenter(opts?: {
     .values({
       userId: user.id,
       verificationStatus: opts?.verificationStatus ?? "verified",
-      depositStatus: opts?.depositStatus ?? "held",
     })
     .returning({ id: renters.id });
-  await db.insert(deposits).values({ renterId: renter.id, balanceIdr: 200_000n, status: "held" });
   return { userId: user.id, renterId: renter.id };
 }
 

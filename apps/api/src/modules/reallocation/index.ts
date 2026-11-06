@@ -174,6 +174,7 @@ async function reservationResource(row: typeof reservations.$inferSelect) {
     id: row.id,
     outletId: row.outletId,
     category: row.category,
+    quantity: row.quantity,
     startsAt: iso(row.startsAt),
     endsAt: iso(row.endsAt),
     status: row.status as "held" | "confirmed" | "fulfilled" | "cancelled",
@@ -181,6 +182,7 @@ async function reservationResource(row: typeof reservations.$inferSelect) {
     priceIdr: idr(row.priceIdr),
     discountIdr: idr(row.discountIdr),
     finalIdr: idr(row.finalIdr),
+    dpIdr: idr(row.dpIdr),
     atRisk: row.atRisk,
   };
 }
@@ -246,10 +248,10 @@ export async function acceptReallocation(
       startsAt: original.startsAt,
       endsAt: original.endsAt,
     });
-    if (available < 1) throw new AppError("SOLD_OUT", "No bikes available for this window at the target outlet.");
+    if (available < original.quantity) throw new AppError("SOLD_OUT", "No bikes available for this window at the target outlet.");
 
-    // The new reservation: prices + rate_snapshot copied; status confirmed
-    // directly (A-06: no new payment is created for a reallocation).
+    // The new reservation: prices + rate_snapshot + quantity/DP copied; status
+    // confirmed directly (A-06: no new payment is created for a reallocation).
     const inserted = await tx
       .insert(reservations)
       .values({
@@ -257,6 +259,7 @@ export async function acceptReallocation(
         outletId: targetOutletId,
         ownerId: targetOutlet.ownerId,
         category: original.category,
+        quantity: original.quantity,
         startsAt: original.startsAt,
         endsAt: original.endsAt,
         status: "confirmed",
@@ -265,6 +268,7 @@ export async function acceptReallocation(
         priceIdr: original.priceIdr,
         discountIdr: original.discountIdr,
         finalIdr: original.finalIdr,
+        dpIdr: original.dpIdr,
         promoId: null,
         ownerPromoBps: 0,
         rateSnapshot: original.rateSnapshot,
@@ -285,6 +289,7 @@ export async function acceptReallocation(
         priceIdr: resource.priceIdr,
         discountIdr: resource.discountIdr,
         finalIdr: resource.finalIdr,
+        dpIdr: resource.dpIdr,
       },
     };
   });

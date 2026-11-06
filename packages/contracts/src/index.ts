@@ -26,6 +26,7 @@ export {
   vPhone,
   vPhotoKey,
   vPromo,
+  vQty,
   vTextL,
   vTextS,
   vTs,

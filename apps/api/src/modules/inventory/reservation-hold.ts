@@ -7,25 +7,26 @@
  * Order of operations (SRS FR-INV-02 — first failure returns):
  *   Pre-transaction validation (uncharged reads, outside the lock):
  *     1. schema (done by route) -> renter verified (422 VERIFICATION_REQUIRED)
- *        and deposit held (422 DEPOSIT_REQUIRED)
  *     2. duration / slot / lead-time checks (422 DURATION/WINDOW_OUT_OF_RANGE)
  *     3. startsAt and endsAt inside the outlet's WIB hours (422 OUTSIDE_OPENING_HOURS)
  *     4. outlet active and (outletId, category) active (422 CATEGORY_NOT_OFFERED)
  *   Single READ COMMITTED transaction (NFR-02: SET LOCAL lock_timeout = '3s'):
  *     1. SELECT ... FOR UPDATE on outlet_categories      <- THE LOCK (INV-2)
- *     2. computeAvailability; available < 1 -> 409 SOLD_OUT
+ *     2. computeAvailability; available < quantity -> 409 SOLD_OUT
  *     3. quote() (FR-PRC-01)
- *     4. insert reservation (held; directly confirmed when finalIdr = 0)
- *     5. insert payment_intents (skipped when finalIdr = 0)
- *     6. insert outbox reservation.held (skipped when finalIdr = 0)
+ *     4. dpIdr = roundHalfUp(finalIdr * booking.dp_rate_bps / 10000)  (INV-5)
+ *     5. insert reservation (held; directly confirmed when dpIdr = 0)
+ *     6. insert payment_intents (skipped when dpIdr = 0)
+ *     7. insert outbox reservation.held (skipped when dpIdr = 0)
  *     COMMIT
- *   After commit (never inside the lock): invoice via the PaymentGateway seam
- *   with an 8 s timeout; success stores gateway_ref/payment_url on the intent
- *   and answers 201 {reservation, price, paymentUrl}; failure cancels the
- *   reservation (cancel_reason = gateway_error), fails the intent and answers
- *   502 GATEWAY_UNAVAILABLE. The BullMQ release-hold enqueue arrives with
- *   FR-INV-03; until then correctness is covered by the sweeper design rule
- *   ("Redis loss never loses a booking", FR-INV-03).
+ *   After commit (never inside the lock): invoice the ONLINE DP via the
+ *   PaymentGateway seam with an 8 s timeout; success stores gateway_ref/
+ *   payment_url on the intent and answers 201 {reservation, price, paymentUrl};
+ *   failure cancels the reservation (cancel_reason = gateway_error), fails the
+ *   intent and answers 502 GATEWAY_UNAVAILABLE. The remainder of the charge is
+ *   collected offline by staff at check-out (FR-RNT-01). The BullMQ release-hold
+ *   enqueue arrives with FR-INV-03; until then correctness is covered by the
+ *   sweeper design rule ("Redis loss never loses a booking", FR-INV-03).
  */
 import { and, eq, sql } from "@repo/db";
 import {
@@ -48,10 +49,16 @@ import { computeAvailability, type QueryExecutor } from "./availability.js";
 import { isSlotAligned, isOpenAt } from "./opening-hours.js";
 import { enqueueReleaseHold } from "../jobs/index.js";
 
+/** INV-5: half-up division on non-negative bigints (no floating point). */
+function roundHalfUp(numerator: bigint, denominator: bigint): bigint {
+  return (numerator + denominator / 2n) / denominator;
+}
+
 interface HoldTransactionResult {
   reservationId: string;
   intentId: string | null;
-  finalIdr: number;
+  /** FR-INV-02.4: the amount to invoice online — the 50% DP, not the total. */
+  chargeIdr: number;
   expiresAt: Date | null;
 }
 
@@ -66,6 +73,8 @@ async function holdReservation(
   },
 ): Promise<HoldTransactionResult> {
   const { body, renterId, ownerId, startsAt, endsAt } = args;
+  // FR-INV-02 (V-QTY): one reservation locks `quantity` bikes; default 1.
+  const quantity = body.quantity ?? 1;
 
   return pooledDb.transaction(
     async (tx) => {
@@ -90,7 +99,7 @@ async function holdReservation(
         startsAt,
         endsAt,
       });
-      if (available < 1) {
+      if (available < quantity) {
         throw new AppError("SOLD_OUT", "No bikes available for this window.");
       }
 
@@ -104,7 +113,10 @@ async function holdReservation(
       });
 
       const holdSeconds = (await getConfig("hold.checkout_minutes")) * 60;
-      const directConfirm = q.finalIdr === 0;
+      // FR-INV-02.4 / INV-5: 50% down payment, integer bigint only.
+      const dpRateBps = BigInt(await getConfig("booking.dp_rate_bps"));
+      const dpIdr = roundHalfUp(BigInt(q.finalIdr) * dpRateBps, 10_000n);
+      const directConfirm = dpIdr === 0n;
 
       // ---- 4. the reservation row --------------------------------------------
       const inserted = await tx
@@ -114,6 +126,7 @@ async function holdReservation(
           outletId: body.outletId,
           ownerId,
           category: body.category,
+          quantity,
           startsAt,
           endsAt,
           status: directConfirm ? "confirmed" : "held",
@@ -123,9 +136,10 @@ async function holdReservation(
           priceIdr: BigInt(q.priceIdr),
           discountIdr: BigInt(q.discountIdr),
           finalIdr: BigInt(q.finalIdr),
+          dpIdr,
           promoId: null,
           ownerPromoBps: 0,
-          rateSnapshot: { rateIdr: q.rateIdr, unitMinutes: q.unitMinutes },
+          rateSnapshot: { rateIdr: q.rateIdr, unitMinutes: q.unitMinutes, dayType: q.dayType },
         })
         .returning({
           id: reservations.id,
@@ -149,7 +163,7 @@ async function holdReservation(
             purpose: "booking",
             renterId,
             reservationId: reservation.id,
-            amountIdr: BigInt(q.finalIdr),
+            amountIdr: dpIdr,
             status: "created",
             expiresAt: reservation.expiresAt,
           })
@@ -177,7 +191,7 @@ async function holdReservation(
       return {
         reservationId: reservation.id,
         intentId,
-        finalIdr: Number(reservation.finalIdr),
+        chargeIdr: Number(dpIdr),
         expiresAt: reservation.expiresAt,
       };
     },
@@ -196,6 +210,7 @@ async function loadReservationForResponse(
   id: string;
   outletId: string;
   category: string;
+  quantity: number;
   startsAt: Date;
   endsAt: Date;
   status: string;
@@ -204,6 +219,7 @@ async function loadReservationForResponse(
   priceIdr: bigint;
   discountIdr: bigint;
   finalIdr: bigint;
+  dpIdr: bigint;
   atRisk: boolean;
 } | undefined> {
   const rows = await pooledDb
@@ -211,6 +227,7 @@ async function loadReservationForResponse(
       id: reservations.id,
       outletId: reservations.outletId,
       category: reservations.category,
+      quantity: reservations.quantity,
       startsAt: reservations.startsAt,
       endsAt: reservations.endsAt,
       status: reservations.status,
@@ -219,6 +236,7 @@ async function loadReservationForResponse(
       priceIdr: reservations.priceIdr,
       discountIdr: reservations.discountIdr,
       finalIdr: reservations.finalIdr,
+      dpIdr: reservations.dpIdr,
       atRisk: reservations.atRisk,
     })
     .from(reservations)
@@ -235,6 +253,7 @@ function toResource(row: NonNullable<Awaited<ReturnType<typeof loadReservationFo
     id: row.id,
     outletId: row.outletId,
     category: row.category,
+    quantity: row.quantity,
     startsAt: iso(row.startsAt),
     endsAt: iso(row.endsAt),
     status: row.status as "held" | "confirmed",
@@ -242,6 +261,7 @@ function toResource(row: NonNullable<Awaited<ReturnType<typeof loadReservationFo
     priceIdr: idr(row.priceIdr),
     discountIdr: idr(row.discountIdr),
     finalIdr: idr(row.finalIdr),
+    dpIdr: idr(row.dpIdr),
     atRisk: row.atRisk,
   };
 }
@@ -274,12 +294,11 @@ export async function createReservationHold(
   const startsAt = new Date(body.startsAt);
   const endsAt = new Date(body.endsAt);
 
-  /* -------- Step 1: renter verification + deposit (pre-check 1) ----------- */
+  /* -------- Step 1: renter verification (pre-check 1) ---------------------- */
   const renterRows = await pooledDb
     .select({
       id: renters.id,
       verificationStatus: renters.verificationStatus,
-      depositStatus: renters.depositStatus,
     })
     .from(renters)
     .where(eq(renters.userId, renter.userId))
@@ -288,9 +307,6 @@ export async function createReservationHold(
   if (!renterRow) throw new AppError("STATE_CONFLICT", "Renter profile does not exist for this user.");
   if (renterRow.verificationStatus !== "verified") {
     throw new AppError("VERIFICATION_REQUIRED", "Identity verification is not complete.");
-  }
-  if (renterRow.depositStatus !== "held") {
-    throw new AppError("DEPOSIT_REQUIRED", "Security deposit is not held.");
   }
 
   /* -------- Step 2: duration and window (pre-check 2) ---------------------- */
@@ -398,7 +414,7 @@ export async function createReservationHold(
       const invoice = await withGatewayTimeout(
         gateway.createInvoice({
           externalId: result.intentId,
-          amount: result.finalIdr,
+          amount: result.chargeIdr,
           durationSeconds: (await getConfig("hold.checkout_minutes")) * 60,
         }),
         GATEWAY_TIMEOUT_MS,
@@ -429,6 +445,7 @@ export async function createReservationHold(
       priceIdr: resource.priceIdr,
       discountIdr: resource.discountIdr,
       finalIdr: resource.finalIdr,
+      dpIdr: resource.dpIdr,
     },
   };
   if (result.intentId !== null && resource.status === "held") {

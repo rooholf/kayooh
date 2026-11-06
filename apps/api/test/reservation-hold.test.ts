@@ -13,7 +13,6 @@ import {
   bikes,
   categories,
   db,
-  deposits,
   outletCategories,
   outboxEvents,
   outlets,
@@ -36,22 +35,20 @@ import { truncateAll } from "./helpers.js";
 /* Seeds                                                                */
 /* ------------------------------------------------------------------ */
 
-async function seedRenter(opts?: { verificationStatus?: string; depositStatus?: string }): Promise<string> {
+async function seedRenter(opts?: { verificationStatus?: string }): Promise<string> {
   const email = `renter.${Date.now()}.${Math.floor(Math.random()*1e6)}@renters.kayooh.test`;
   const phone = `+62812${String(Math.floor(Math.random()*1e8)).padStart(8, "0")}`;
   const [user] = await db
     .insert(users)
     .values({ email, emailVerified: false, name: "renter", role: "renter", phone })
     .returning({ id: users.id });
-  const [renter] = await db
+  await db
     .insert(renters)
     .values({
       userId: user.id,
       verificationStatus: opts?.verificationStatus ?? "verified",
-      depositStatus: opts?.depositStatus ?? "held",
     })
     .returning({ id: renters.id });
-  await db.insert(deposits).values({ renterId: renter.id, balanceIdr: 200_000n, status: "held" });
   return user.id;
 }
 
@@ -171,9 +168,12 @@ describe("FR-INV-02 create reservation (build_transactional_inventory_lock)", ()
     // The route validates service output against the same contract — do the same here.
     const checked = createReservationResponseSchema.parse(response);
     expect(checked.reservation.status).toBe("held");
+    expect(checked.reservation.quantity).toBe(1);
     expect(checked.reservation.finalIdr).toBe(10_000);
+    // FR-INV-02.4: 50% DP invoiced online (booking.dp_rate_bps = 5000).
+    expect(checked.reservation.dpIdr).toBe(5_000);
     expect(checked.reservation.expiresAt).not.toBeNull();
-    expect(checked.price).toEqual({ priceIdr: 10_000, discountIdr: 0, finalIdr: 10_000 });
+    expect(checked.price).toEqual({ priceIdr: 10_000, discountIdr: 0, finalIdr: 10_000, dpIdr: 5_000 });
     expect(checked.paymentUrl).toMatch(/^https:\/\/pay\.fixtures\.jambi\.test\//);
 
     const [row] = await db
@@ -190,7 +190,8 @@ describe("FR-INV-02 create reservation (build_transactional_inventory_lock)", ()
       .where(eq(paymentIntents.reservationId, checked.reservation.id));
     expect(intent).toBeDefined();
     expect(intent.status).toBe("pending"); // fixture invoice stored
-    expect(intent.amountIdr).toBe(10_000n);
+    // The online charge is the 50% DP, not the full rental.
+    expect(intent.amountIdr).toBe(5_000n);
     expect(intent.gatewayRef).toMatch(/^fixture-/);
 
     const [outbox] = await db
@@ -240,14 +241,6 @@ describe("FR-INV-02 create reservation (build_transactional_inventory_lock)", ()
       ),
     ).rejects.toMatchObject({ code: "VERIFICATION_REQUIRED" });
 
-    await expect(
-      createReservationHold(
-        db,
-        bodyFor(partner, window()),
-        principalFor(await seedRenter({ depositStatus: "none" })),
-      ),
-    ).rejects.toMatchObject({ code: "DEPOSIT_REQUIRED" });
-
     // Unbookable window: less than min duration.
     const w = window();
     await expect(
@@ -258,8 +251,10 @@ describe("FR-INV-02 create reservation (build_transactional_inventory_lock)", ()
       ),
     ).rejects.toMatchObject({ code: "DURATION_OUT_OF_RANGE" });
 
-    // Slot mis-alignment (27000000 = 7.5h -> seconds zero but minutes 30 fine; use :37).
-    const notSlot = new Date(Math.floor((Date.now() + 24 * 3_600_000) / 60_000) * 60_000 + 37 * 60_000);
+    // Slot mis-alignment: minute :07 is never a quarter-hour boundary.
+    const notSlot = new Date(Date.now() + 24 * 3_600_000);
+    notSlot.setUTCSeconds(0, 0);
+    notSlot.setUTCMinutes(7);
     await expect(
       createReservationHold(
         db,

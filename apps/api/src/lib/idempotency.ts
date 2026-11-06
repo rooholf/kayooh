@@ -2,7 +2,7 @@
  * Idempotency middleware (SRS 3.2 / `idempotency_keys` table).
  *
  * Contract on the REQUIRED-header routes (POST /reservations, POST
- * /renters/me/deposit, POST /reservations/{id}/reallocate):
+ * /reservations/{id}/reallocate):
  *  - same key + same body within 24 h -> stored response, header
  *    `Idempotent-Replay: true`
  *  - same key + different body -> 422 IDEMPOTENCY_KEY_REUSED

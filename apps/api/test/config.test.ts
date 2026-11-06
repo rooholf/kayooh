@@ -40,14 +40,14 @@ describe("app_config store (SRS section 4)", () => {
   });
 
   it("writes an audit row for every change (FR-SEC-02)", async () => {
-    const before = await getConfig("deposit.amount_idr"); // 200000
-    await setConfig({ key: "deposit.amount_idr", value: 250000, actorId: adminId, before });
+    const before = await getConfig("booking.max_quantity"); // 5
+    await setConfig({ key: "booking.max_quantity", value: 8, actorId: adminId, before });
     const audits = await db.select().from(auditLog);
     const entry = audits.find((a) => a.action === "config.change");
     expect(entry).toBeDefined();
     expect(entry.actorId).toBe(adminId);
-    expect(entry.before).toEqual({ key: "deposit.amount_idr", value: before });
-    expect(entry.after).toEqual({ key: "deposit.amount_idr", value: 250000 });
+    expect(entry.before).toEqual({ key: "booking.max_quantity", value: before });
+    expect(entry.after).toEqual({ key: "booking.max_quantity", value: 8 });
   });
 
   it("rejects unknown keys and schema-violating values", async () => {

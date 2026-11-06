@@ -15,7 +15,6 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import { and, eq, sql } from "@repo/db";
 import {
-  deposits,
   paymentIntents,
   refunds,
   rentals,
@@ -79,9 +78,8 @@ async function renterViaOtp(): Promise<{ userId: string; renterId: string; cooki
   const [renter] = await db.select().from(renters).where(eq(renters.userId, user.id));
   await db
     .update(renters)
-    .set({ verificationStatus: "verified", depositStatus: "held" })
+    .set({ verificationStatus: "verified" })
     .where(eq(renters.userId, user.id));
-  await db.insert(deposits).values({ renterId: renter.id, balanceIdr: 200_000n, status: "held" });
   return { userId: user.id, renterId: renter.id, cookie, phone: phoneRaw };
 }
 

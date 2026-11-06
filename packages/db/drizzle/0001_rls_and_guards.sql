@@ -66,8 +66,7 @@ DECLARE
     'bikes',
     'bike_events',
     'reservations',
-    'rentals',
-    'deposit_claims'
+    'rentals'
   ];
 BEGIN
   FOREACH t IN ARRAY owner_scoped LOOP

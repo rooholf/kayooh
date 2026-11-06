@@ -9,14 +9,13 @@
  * end: the renter signs in via phone OTP (FR-ID-01) and the session cookie
  * is carried on every reservation request.
  */
-import { describe, expect, it, beforeEach, afterEach } from "vitest";
+import { describe, expect, it, beforeAll, beforeEach, afterAll } from "vitest";
 import { eq } from "@repo/db";
 import { randomUUID } from "node:crypto";
 import {
   bikes,
   categories,
   db,
-  deposits,
   outletCategories,
   outlets,
   owners,
@@ -107,7 +106,51 @@ function windowFor(): { startsAt: string; endsAt: string } {
 }
 
 const PHONE = "081234567890";
-const PHONE_CANONICAL = "+6281234567890";
+
+/** Unique local phone per test (8-digit subscriber) to dodge the OTP rate limiter. */
+function newPhone(): string {
+  return `0812${Math.floor(Math.random() * 1e8).toString().padStart(8, "0")}`;
+}
+
+/** "+62" + local digits without the leading 0. */
+function canonicalPhone(phone: string): string {
+  return `+62${phone.slice(1)}`;
+}
+
+/** FR-ID-01: sign the renter in end-to-end, then promote the profile to
+ *  `verified` (starts `not_started`). Returns the session cookie. */
+async function signInVerifiedRenter(t: TestApp, phone = PHONE): Promise<string> {
+  const canonical = canonicalPhone(phone);
+  const send = await t.app.inject({
+    method: "POST",
+    url: "/api/auth/phone-number/send-otp",
+    payload: { phoneNumber: phone },
+  });
+  expect(send.statusCode).toBe(200);
+  const code = t.notifications.lastOtp(canonical);
+  const verify = await t.app.inject({
+    method: "POST",
+    url: "/api/auth/phone-number/verify",
+    payload: { phoneNumber: phone, code },
+  });
+  expect(verify.statusCode).toBe(200);
+  const cookie = sessionCookie(verify.headers["set-cookie"]);
+
+  const [user] = await db.select().from(users).where(eq(users.phoneNumber, canonical));
+  expect(user).toBeDefined();
+  await db.update(renters).set({ verificationStatus: "verified" }).where(eq(renters.userId, user.id));
+  return cookie;
+}
+
+function reservationBody(partner: SeedPartner, w: { startsAt: string; endsAt: string }, quantity?: number) {
+  return {
+    outletId: partner.outletId,
+    category: "commuter",
+    startsAt: w.startsAt,
+    endsAt: w.endsAt,
+    ...(quantity === undefined ? {} : { quantity }),
+  };
+}
 
 /* ------------------------------------------------------------------ */
 /* Test                                                                */
@@ -115,52 +158,25 @@ const PHONE_CANONICAL = "+6281234567890";
 
 let t: TestApp;
 
-beforeEach(async () => {
-  await truncateAll();
+beforeAll(async () => {
   t = await buildTestApp();
 });
 
-afterEach(async () => {
+beforeEach(async () => {
+  await truncateAll();
+});
+
+afterAll(async () => {
   await t.close();
 });
 
 describe("T-01 (NFR-02): 50 parallel reservations, 5 bikes", () => {
   it("yields exactly 5 x 201 and 45 x 409 SOLD_OUT; availability 0", async () => {
     const partner = await seedOffering(5);
-
-    // Sign the renter in end-to-end (FR-ID-01) so the session cookie is real.
-    const send = await t.app.inject({
-      method: "POST",
-      url: "/api/auth/phone-number/send-otp",
-      payload: { phoneNumber: PHONE },
-    });
-    expect(send.statusCode).toBe(200);
-    const code = t.notifications.lastOtp(PHONE_CANONICAL);
-    const verify = await t.app.inject({
-      method: "POST",
-      url: "/api/auth/phone-number/verify",
-      payload: { phoneNumber: PHONE, code },
-    });
-    expect(verify.statusCode).toBe(200);
-    const cookie = sessionCookie(verify.headers["set-cookie"]);
-
-    // Promote the renter to verified + held deposit (FR-ID-01.6 starts not_started/none).
-    const [user] = await db.select().from(users).where(eq(users.phoneNumber, PHONE_CANONICAL));
-    expect(user).toBeDefined();
-    const [renter] = await db.select().from(renters).where(eq(renters.userId, user.id));
-    await db
-      .update(renters)
-      .set({ verificationStatus: "verified", depositStatus: "held" })
-      .where(eq(renters.userId, user.id));
-    await db.insert(deposits).values({ renterId: renter.id, balanceIdr: 200_000n, status: "held" });
+    const cookie = await signInVerifiedRenter(t);
 
     const w = windowFor();
-    const body = {
-      outletId: partner.outletId,
-      category: "commuter",
-      startsAt: w.startsAt,
-      endsAt: w.endsAt,
-    };
+    const body = reservationBody(partner, w);
 
     const keys = Array.from({ length: 50 }, () => randomUUID());
 
@@ -195,5 +211,40 @@ describe("T-01 (NFR-02): 50 parallel reservations, 5 bikes", () => {
       endsAt: new Date(w.endsAt),
     });
     expect(avail).toBe(0);
+  }, 60_000);
+
+  it("commits `quantity` bikes: 5 bikes, q=3 then q=3 fails and q=2 succeeds", async () => {
+    const partner = await seedOffering(5);
+    const cookie = await signInVerifiedRenter(t, newPhone());
+    const w = windowFor();
+
+    const post = (quantity: number, key = randomUUID()) =>
+      t.app.inject({
+        method: "POST",
+        url: "/api/v1/reservations",
+        headers: { cookie, "idempotency-key": key },
+        payload: reservationBody(partner, w, quantity),
+      });
+
+    // FR-INV-01/02: one reservation commits `quantity` bikes, not one.
+    const first = await post(3);
+    expect(first.statusCode).toBe(201);
+    expect(first.json()?.reservation?.quantity).toBe(3);
+
+    const avail = await computeAvailability(db, {
+      outletId: partner.outletId,
+      category: "commuter",
+      startsAt: new Date(w.startsAt),
+      endsAt: new Date(w.endsAt),
+    });
+    expect(avail).toBe(2); // 5 bikes - 3 committed
+
+    const tooMany = await post(3);
+    expect(tooMany.statusCode).toBe(409);
+    expect(tooMany.json()?.error?.code).toBe("SOLD_OUT");
+
+    const exact = await post(2);
+    expect(exact.statusCode).toBe(201);
+    expect(exact.json()?.reservation?.quantity).toBe(2);
   }, 60_000);
 });

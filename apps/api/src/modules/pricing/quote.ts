@@ -30,12 +30,21 @@ export interface QuoteResult {
   /** Snapshot data for the reservation row. */
   rateIdr: number;
   unitMinutes: number;
+  /** FR-PRC-01.1: weekend when the WIB date of startsAt is Sat/Sun, else weekday. */
+  dayType: "weekday" | "weekend";
   promoId: null;
   ownerPromoBps: number;
 }
 
 export function computeUnits(durationMinutes: number, unitMinutes: number): number {
   return Math.ceil(durationMinutes / unitMinutes);
+}
+
+/** WIB (UTC+7) calendar day type for a UTC instant (FR-PRC-01.1). */
+export function wibDayType(startsAt: Date): "weekday" | "weekend" {
+  const wib = new Date(startsAt.getTime() + 7 * 3_600_000);
+  const day = wib.getUTCDay();
+  return day === 0 || day === 6 ? "weekend" : "weekday";
 }
 
 export async function quote(
@@ -53,14 +62,20 @@ export async function quote(
     getConfig("payments.min_charge_idr"),
   ]);
 
-  // Rate precedence (FR-PRC-01.1): outlet-specific latest <= now(), else
-  // the global (outlet_id IS NULL) latest <= now(); none -> CATEGORY_NOT_OFFERED.
+  const dayType = wibDayType(input.startsAt);
+
+  // Rate precedence (FR-PRC-01.1), latest effective_from <= now() at each tier:
+  //   (outlet, dayType) -> (NULL, dayType) -> (outlet, 'all') -> (NULL, 'all');
+  // none -> CATEGORY_NOT_OFFERED.
   const rateRes = (await exec.execute(sql`
     SELECT rate_idr FROM pricing_rules
     WHERE category = ${input.category}
       AND effective_from <= now()
+      AND day_type IN (${dayType}, 'all')
       AND (outlet_id = ${input.outletId} OR outlet_id IS NULL)
-    ORDER BY (outlet_id = ${input.outletId}) DESC, effective_from DESC
+    ORDER BY (day_type = ${dayType}) DESC,
+             (outlet_id = ${input.outletId}) DESC,
+             effective_from DESC
     LIMIT 1
   `)) as unknown as { rows: Array<{ rate_idr: string | number } | undefined> };
   const rateRow = rateRes.rows[0];
@@ -91,6 +106,7 @@ export async function quote(
     finalIdr,
     rateIdr,
     unitMinutes,
+    dayType,
     promoId: null,
     ownerPromoBps: 0,
   };

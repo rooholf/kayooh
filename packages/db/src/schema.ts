@@ -75,7 +75,7 @@ export const verificationStatus = pgEnum("verification_status", [
   "rejected",
 ]);
 
-export const paymentPurpose = pgEnum("payment_purpose", ["booking", "deposit", "late_fee"]);
+export const paymentPurpose = pgEnum("payment_purpose", ["booking", "late_fee"]);
 
 export const paymentStatus = pgEnum("payment_status", [
   "created",
@@ -92,18 +92,12 @@ export const refundReason = pgEnum("refund_reason", [
   "late_payment_sold_out",
   "no_show",
   "dispute",
-  "deposit_release",
 ]);
 
 export const refundStatus = pgEnum("refund_status", ["pending", "succeeded", "failed"]);
 
-export const depositStatus = pgEnum("deposit_status", [
-  "none",
-  "pending",
-  "held",
-  "insufficient",
-  "released",
-]);
+// FR-PRC-01: weekday/weekend tier on a pricing rule (`all` = any day).
+export const pricingDayType = pgEnum("pricing_day_type", ["all", "weekday", "weekend"]);
 
 /* ------------------------------------------------------------------ */
 /* Platform config (SRS section 4)                                     */
@@ -416,7 +410,7 @@ export const bikeEvents = pgTable(
 );
 
 /* ------------------------------------------------------------------ */
-/* Renters, verification, deposits                                     */
+/* Renters, verification                                               */
 /* ------------------------------------------------------------------ */
 
 export const renters = pgTable(
@@ -430,7 +424,6 @@ export const renters = pgTable(
     verificationStatus: verificationStatus("verification_status")
       .notNull()
       .default("not_started"),
-    depositStatus: depositStatus("deposit_status").notNull().default("none"),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   },
   (t) => [uniqueIndex("renters_user_id_uq").on(t.userId)],
@@ -472,25 +465,6 @@ export const idDocumentViews = pgTable("id_document_views", {
   viewedAt: timestamp("viewed_at", { withTimezone: true }).notNull().defaultNow(),
 });
 
-export const deposits = pgTable(
-  "deposits",
-  {
-    id: uuid("id").primaryKey().default(sql`gen_random_uuid()`),
-    renterId: uuid("renter_id")
-      .notNull()
-      .references(() => renters.id),
-    // INV-5: integer rupiah, bigint, never a float.
-    balanceIdr: bigint("balance_idr", { mode: "bigint" }).notNull(),
-    status: text("status").notNull(),
-    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
-  },
-  (t) => [
-    uniqueIndex("deposits_renter_id_uq").on(t.renterId),
-    check("deposits_balance_non_negative_check", sql`balance_idr >= 0`),
-    check("deposits_status_check", sql`status IN ('pending','held','released')`),
-  ],
-);
-
 /* ------------------------------------------------------------------ */
 /* Pricing                                                             */
 /* ------------------------------------------------------------------ */
@@ -503,6 +477,8 @@ export const pricingRules = pgTable(
     category: text("category")
       .notNull()
       .references(() => categories.code),
+    // FR-PRC-01: weekday/weekend tier; `all` matches any day type.
+    dayType: pricingDayType("day_type").notNull().default("all"),
     // INV-5: rate per billing unit, integer rupiah.
     rateIdr: bigint("rate_idr", { mode: "bigint" }).notNull(),
     effectiveFrom: timestamp("effective_from", { withTimezone: true }).notNull(),
@@ -510,7 +486,7 @@ export const pricingRules = pgTable(
   },
   (t) => [
     check("pricing_rules_rate_positive_check", sql`rate_idr > 0`),
-    index("pricing_rules_lookup_idx").on(t.outletId, t.category, t.effectiveFrom),
+    index("pricing_rules_lookup_idx").on(t.outletId, t.category, t.dayType, t.effectiveFrom),
   ],
 );
 
@@ -535,6 +511,8 @@ export const reservations = pgTable(
     category: text("category")
       .notNull()
       .references(() => categories.code),
+    // FR-INV-02: number of bikes one reservation locks (V-QTY, >= 1).
+    quantity: smallint("quantity").notNull().default(1),
     startsAt: timestamp("starts_at", { withTimezone: true }).notNull(),
     endsAt: timestamp("ends_at", { withTimezone: true }).notNull(),
     status: reservationStatus("status").notNull().default("held"),
@@ -543,6 +521,8 @@ export const reservations = pgTable(
     priceIdr: bigint("price_idr", { mode: "bigint" }).notNull(),
     discountIdr: bigint("discount_idr", { mode: "bigint" }).notNull().default(sql`0`),
     finalIdr: bigint("final_idr", { mode: "bigint" }).notNull(),
+    // FR-INV-02.4: online 50% down payment; balance collected offline.
+    dpIdr: bigint("dp_idr", { mode: "bigint" }).notNull().default(sql`0`),
     promoId: uuid("promo_id"), // promotions is P2; no FK in P1
     ownerPromoBps: integer("owner_promo_bps").notNull(),
     rateSnapshot: jsonb("rate_snapshot").notNull(),
@@ -553,6 +533,7 @@ export const reservations = pgTable(
   },
   (t) => [
     check("reservations_window_check", sql`ends_at > starts_at`),
+    check("reservations_quantity_check", sql`quantity >= 1`),
     // FR-INV-01/02 lookup path
     index("reservations_window_idx").on(
       t.outletId,
@@ -599,7 +580,8 @@ export const rentals = pgTable(
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   },
   (t) => [
-    uniqueIndex("rentals_reservation_uq").on(t.reservationId),
+    // Multi-bike (FR-INV-02): one reservation yields many rentals (one per bike).
+    index("rentals_reservation_idx").on(t.reservationId),
     // DB guard from SRS data model: one open rental per bike (raw SQL migration
     // may also declare it; keep it in the schema so drizzle-kit diffs stay true).
     uniqueIndex("rentals_one_open_per_bike_uq")
@@ -671,38 +653,6 @@ export const refunds = pgTable(
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   },
   () => [check("refunds_amount_positive_check", sql`amount_idr > 0`)],
-);
-
-/* ------------------------------------------------------------------ */
-/* Damage claims                                                       */
-/* ------------------------------------------------------------------ */
-
-export const depositClaims = pgTable(
-  "deposit_claims",
-  {
-    id: uuid("id").primaryKey().default(sql`gen_random_uuid()`),
-    rentalId: uuid("rental_id")
-      .notNull()
-      .references(() => rentals.id),
-    renterId: uuid("renter_id")
-      .notNull()
-      .references(() => renters.id),
-    ownerId: uuid("owner_id")
-      .notNull()
-      .references(() => owners.id),
-    amountIdr: bigint("amount_idr", { mode: "bigint" }).notNull(),
-    description: text("description").notNull(),
-    photoKeys: text("photo_keys").array().notNull().default(sql`'{}'::text[]`),
-    status: text("status").notNull().default("proposed"),
-    decidedBy: uuid("decided_by").references(() => users.id),
-    decidedAt: timestamp("decided_at", { withTimezone: true }),
-    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
-  },
-  (t) => [
-    check("deposit_claims_amount_positive_check", sql`amount_idr > 0`),
-    check("deposit_claims_status_check", sql`status IN ('proposed','approved','rejected')`),
-    index("deposit_claims_owner_status_idx").on(t.ownerId, t.status),
-  ],
 );
 
 /* ------------------------------------------------------------------ */

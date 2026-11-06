@@ -45,8 +45,9 @@ export async function countCommittedReservations(
   graceSeconds: number,
 ): Promise<number> {
   const excludeId = input.excludeReservationId ?? null;
+  // FR-INV-01.3: a reservation commits `quantity` bikes, not one — sum them.
   const res = (await exec.execute(sql`
-    SELECT count(*)::int AS n FROM reservations
+    SELECT COALESCE(sum(quantity), 0)::int AS n FROM reservations
     WHERE outlet_id = ${input.outletId}
       AND category = ${input.category}
       -- half-open [starts_at, ends_at) overlap rule (SRS 3.1)

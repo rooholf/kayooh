@@ -24,6 +24,12 @@ export const vTs = z
  */
 export const vIdr = z.number().int().min(0).max(1_000_000_000);
 
+/**
+ * V-QTY: integer, 1 to `booking.max_quantity` (default 5, SRS section 4).
+ * The number of bikes one reservation locks (FR-INV-02).
+ */
+export const vQty = z.number().int().min(1).max(5);
+
 /* V-CAT: exists in categories.code; regex ^[a-z0-9_]{2,16}$ (existence checked
  * against the DB in the module layer, never here). */
 export const vCategoryCode = z.string().regex(/^[a-z0-9_]{2,16}$/, "V-CAT");

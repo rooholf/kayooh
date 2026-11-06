@@ -155,7 +155,6 @@ describe("FR-ID-01: renter phone OTP sign-in", () => {
     expect(me.json()).toMatchObject({
       phone: PHONE_CANONICAL,
       verificationStatus: "not_started",
-      depositStatus: "none",
     });
   });
 

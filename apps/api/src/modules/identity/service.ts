@@ -7,7 +7,6 @@ import { hashPassword, verifyPassword } from "better-auth/crypto";
 import {
   accounts as accountsTable,
   db,
-  deposits,
   eq,
   outlets,
   owners,
@@ -96,8 +95,6 @@ export async function createAdminUser(input: CreateAdminUserInput): Promise<{ id
 export interface RenterProfile {
   phone: string | null;
   verificationStatus: string;
-  depositStatus: string;
-  depositBalanceIdr: bigint | null;
 }
 
 /** GET /renters/me backing query (own data only — section 1.3). */
@@ -106,12 +103,9 @@ export async function getRenterProfile(userId: string): Promise<RenterProfile | 
     .select({
       phone: users.phoneNumber,
       verificationStatus: renters.verificationStatus,
-      depositStatus: renters.depositStatus,
-      balanceIdr: deposits.balanceIdr,
     })
     .from(renters)
     .innerJoin(users, eq(users.id, renters.userId))
-    .leftJoin(deposits, eq(deposits.renterId, renters.id))
     .where(eq(renters.userId, userId))
     .limit(1);
   const row = rows[0];
@@ -119,8 +113,6 @@ export async function getRenterProfile(userId: string): Promise<RenterProfile | 
   return {
     phone: row.phone,
     verificationStatus: row.verificationStatus,
-    depositStatus: row.depositStatus,
-    depositBalanceIdr: row.balanceIdr ?? null,
   };
 }
 

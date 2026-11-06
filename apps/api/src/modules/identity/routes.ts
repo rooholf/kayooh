@@ -21,8 +21,6 @@ export function registerIdentityRoutes(app: FastifyInstance): void {
     return {
       phone: profile.phone,
       verificationStatus: profile.verificationStatus,
-      depositStatus: profile.depositStatus,
-      depositBalanceIdr: profile.depositBalanceIdr === null ? null : profile.depositBalanceIdr.toString(),
     };
   });
 

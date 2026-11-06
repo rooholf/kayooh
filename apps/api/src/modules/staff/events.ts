@@ -22,8 +22,6 @@ import { and, eq, sql } from "@repo/db";
 import {
   bikeEvents,
   bikes,
-  deposits,
-  depositClaims,
   notifications,
   outboxEvents,
   paymentIntents,
@@ -39,7 +37,6 @@ import {
   vAssetTag,
   vChecklist,
   vClientEventId,
-  vIdr,
   vPhotoKey,
   vTextL,
   vTs,
@@ -111,7 +108,6 @@ const inspectionPayloadSchema = z
     checklist: vChecklist,
     photoKeys: z.array(vPhotoKey).max(64),
     damageDescription: vTextL.optional(),
-    claimAmountIdr: vIdr.optional(),
   })
   .strict()
   .superRefine((val, ctx) => {
@@ -391,39 +387,18 @@ async function applyCheckin(tx: TxOrDb, event: StaffEventInput, ctx: StaffContex
     occurredAt,
   });
 
-  // Fee collection (FR-RNT-02.5): deposit deduction floors the balance at 0;
-  // any shortfall becomes a late_fee payment intent.
+  // Fee collection (FR-RNT-02.5, revision 1.1): there is no deposit to deduct
+  // from. `payment_intent` invoices the renter; `offline_cash` records that
+  // staff collected it at the counter (a late_fee intent stored as paid).
   if (lateFeeIdr > 0) {
     const collectionMethod = await getConfig("late.collection_method");
-    const depositRows = await tx
-      .select({ id: deposits.id, balanceIdr: deposits.balanceIdr })
-      .from(deposits)
-      .where(eq(deposits.renterId, rental.renterId))
-      .limit(1);
-    const deposit = depositRows[0];
-    if (collectionMethod === "deposit_deduction" && deposit) {
-      const balance = Number(deposit.balanceIdr);
-      const deduction = Math.min(balance, Number(lateFeeIdr));
-      const shortfall = Number(lateFeeIdr) - deduction;
-      await tx.update(deposits).set({ balanceIdr: BigInt(balance - deduction) }).where(eq(deposits.id, deposit.id));
-      if (shortfall > 0) {
-        await tx.insert(paymentIntents).values({
-          purpose: "late_fee",
-          renterId: rental.renterId,
-          rentalId: rental.id,
-          amountIdr: BigInt(shortfall),
-          status: "created",
-        });
-      }
-    } else {
-      await tx.insert(paymentIntents).values({
-        purpose: "late_fee",
-        renterId: rental.renterId,
-        rentalId: rental.id,
-        amountIdr: lateFeeIdr,
-        status: "created",
-      });
-    }
+    await tx.insert(paymentIntents).values({
+      purpose: "late_fee",
+      renterId: rental.renterId,
+      rentalId: rental.id,
+      amountIdr: lateFeeIdr,
+      status: collectionMethod === "offline_cash" ? "paid" : "created",
+    });
   }
 
   return applied;
@@ -477,17 +452,8 @@ async function applyInspection(tx: TxOrDb, event: StaffEventInput, ctx: StaffCon
     payload: { rentalId: rental.id, reservationId: rental.reservationId, result: payload.data.result },
   });
 
-  if (payload.data.result === "damage_found" && payload.data.claimAmountIdr !== undefined && payload.data.claimAmountIdr > 0) {
-    await tx.insert(depositClaims).values({
-      rentalId: rental.id,
-      ownerId: rental.ownerId,
-      renterId: rental.renterId,
-      amountIdr: BigInt(payload.data.claimAmountIdr),
-      description: payload.data.damageDescription ?? "",
-      photoKeys: payload.data.photoKeys,
-      status: "proposed",
-    });
-  }
+  // FR-RNT-03.4: damage is settled offline against the physical collateral
+  // logged at check-out; the platform keeps no in-system claim table.
 
   return applied;
 }

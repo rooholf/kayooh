@@ -14,12 +14,14 @@
  * shared {@link ErrorEnvelope} shape (SRS 3.2).
  */
 import { z } from "zod";
-import { vCategoryCode, vIdr, vPromo, vTs, vUuid } from "./validation";
+import { vCategoryCode, vIdr, vPromo, vQty, vTs, vUuid } from "./validation";
 
 export const createReservationBodySchema = z
   .object({
     outletId: vUuid,
     category: vCategoryCode,
+    /** V-QTY: bikes to lock; defaults to 1 (FR-INV-02). */
+    quantity: vQty.optional(),
     startsAt: vTs,
     endsAt: vTs,
     promoCode: vPromo.optional(),
@@ -46,6 +48,8 @@ export const reservationResourceSchema = z
     id: vUuid,
     outletId: vUuid,
     category: vCategoryCode,
+    /** V-QTY: bikes locked by this reservation (FR-INV-02). */
+    quantity: vQty,
     startsAt: vTs,
     endsAt: vTs,
     status: reservationStatusSchema,
@@ -54,6 +58,8 @@ export const reservationResourceSchema = z
     priceIdr: vIdr,
     discountIdr: vIdr,
     finalIdr: vIdr,
+    /** Online 50% down payment; the balance is collected offline (FR-INV-02.4). */
+    dpIdr: vIdr,
     atRisk: z.boolean(),
   })
   .strict();
@@ -64,6 +70,7 @@ export const createReservationPriceSchema = z
     priceIdr: vIdr,
     discountIdr: vIdr,
     finalIdr: vIdr,
+    dpIdr: vIdr,
   })
   .strict();
 

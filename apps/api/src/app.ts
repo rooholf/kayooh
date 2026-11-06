@@ -30,7 +30,6 @@ import { registerReallocationRoutes } from "./modules/reservations/reallocation-
 import { registerStaffRoutes } from "./modules/staff/routes.js";
 import { registerCatalogRoutes } from "./modules/catalog/index.js";
 import { registerSweeperSchedule } from "./modules/jobs/index.js";
-import { registerDepositRoutes } from "./modules/deposits/index.js";
 import { registerVerificationRoutes } from "./modules/verification/index.js";
 import { registerSseRoutes } from "./modules/sse/index.js";
 
@@ -55,7 +54,6 @@ export interface BuildAppOptions {
 
 const IDEMPOTENCY_ROUTES = [
   { method: "POST", url: "/api/v1/reservations" },
-  { method: "POST", url: "/api/v1/renters/me/deposit" },
   { method: "POST", url: "/api/v1/reservations/:id/reallocate" },
 ];
 
@@ -187,7 +185,6 @@ export async function buildApp(options: BuildAppOptions = {}): Promise<{
   registerReallocationRoutes(app);
   registerStaffRoutes(app);
   registerCatalogRoutes(app);
-  registerDepositRoutes(app);
   registerVerificationRoutes(app);
   registerSseRoutes(app);
 
