@@ -18,6 +18,7 @@ import { AppError, validationError } from "../../lib/errors.js";
 import type { Principal } from "../identity/guards.js";
 import { requireRole } from "../identity/guards.js";
 import { applyStaffEvent, applyStaffEvents, type ScanVerdict, type StaffContext, type StaffEventType } from "./events.js";
+import { runHealthSync } from "./health-sync.js";
 
 const STAFF_EVENT_TYPES: readonly StaffEventType[] = [
   "checkout",
@@ -39,6 +40,13 @@ const staffEventSchema = z
 const batchSchema = z
   .object({
     events: z.array(staffEventSchema).min(1).max(50),
+  })
+  .strict();
+
+const healthSyncSchema = z
+  .object({
+    sentAt: vTs,
+    physicalCounts: z.record(z.string(), z.number().int().min(0)).optional(),
   })
   .strict();
 
@@ -101,6 +109,19 @@ export function registerStaffRoutes(app: FastifyInstance): void {
     // Ascending occurredAt application happens INSIDE the service call.
     const results = await applyStaffEvents(db, parsed.data.events, ctx);
     return reply.code(200).send({ results });
+  });
+
+  app.post("/api/v1/staff/health-sync", { preHandler: requireRole("staff") }, async (request, reply) => {
+    const parsed = healthSyncSchema.safeParse(request.body);
+    if (!parsed.success) throw validationError(parsed.error);
+    const ctx = staffContext(request);
+    const result = await runHealthSync({
+      sentAt: parsed.data.sentAt,
+      physicalCounts: parsed.data.physicalCounts,
+      staffOutletId: ctx.staffOutletId,
+      staffUserId: ctx.staffUserId,
+    });
+    return reply.code(200).send(result);
   });
 }
 
