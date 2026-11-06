@@ -96,11 +96,13 @@ async function emitReservationConfirmed(
 /**
  * FR-INV-02 steps 1-2 re-run for a late DP (SRS FR-PAY-02.5). Holds the SAME
  * `outlet_categories` FOR UPDATE lock the reservation path uses, then counts
- * committed capacity. Returns false when the row vanished (treat as sold out).
+ * committed capacity. The reservation is confirmed only when the free count
+ * covers its FULL `quantity` (INV-2 — a partial fit is sold out). Returns
+ * false when the row vanished (treat as sold out).
  */
 async function hasCapacity(
   tx: TxOrDb,
-  reservation: { outletId: string; category: string; startsAt: Date; endsAt: Date },
+  reservation: { outletId: string; category: string; startsAt: Date; endsAt: Date; quantity: number },
 ): Promise<boolean> {
   await tx.execute(sql`SET LOCAL lock_timeout = '3s'`);
   const lockRes = (await tx.execute(sql`
@@ -115,7 +117,7 @@ async function hasCapacity(
     startsAt: reservation.startsAt,
     endsAt: reservation.endsAt,
   });
-  return available > 0;
+  return available >= reservation.quantity;
 }
 
 async function handleEvent(

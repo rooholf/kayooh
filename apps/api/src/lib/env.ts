@@ -33,6 +33,7 @@ export function loadEnv(overrides: Partial<Record<string, string | undefined>> =
     const missing: string[] = [];
     if (!env.databaseUrl) missing.push("DATABASE_URL");
     if (!env.authSecret) missing.push("BETTER_AUTH_SECRET");
+    if (env.paymentWebhookSecret === "dev-fake-webhook-secret") missing.push("PAYMENT_WEBHOOK_SECRET");
     if (missing.length > 0) {
       throw new Error(`Missing required environment variables: ${missing.join(", ")}`);
     }

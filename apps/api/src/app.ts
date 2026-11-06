@@ -141,9 +141,12 @@ export async function buildApp(options: BuildAppOptions = {}): Promise<{
   });
 
   /* Global rate limits (SRS 3.2): anonymous 120 req/min per IP. The
-   * authenticated 600 req/min per user lives in the /api/v1 preHandler. */
+   * authenticated 600 req/min per user lives in the /api/v1 preHandler.
+   * Gateway webhooks are exempt: they authenticate with their own callback
+   * token (FR-PAY-02.1) and the gateway MUST always get a fast 200 (2.8). */
   app.addHook("onRequest", async (request: FastifyRequest, reply) => {
     if (reply.sent) return;
+    if (request.url.startsWith("/webhooks/")) return;
     const result = await limiter.hit(`global:ip:${request.ip}`, { limit: 120, windowSec: 60 });
     if (!result.allowed) {
       void reply.header("Retry-After", String(result.retryAfterSec));

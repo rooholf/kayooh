@@ -215,6 +215,49 @@ describe("T-04 (FR-PAY-02): webhook is idempotent and reconciles the DP", () => 
     expect(intentAfter.status).toBe("refunded"); // fully refunded
   });
 
+  it("does NOT confirm a late DP when free capacity is below quantity (INV-2)", async () => {
+    // quantity = 2, but only 1 bike free at payment time: a partial fit is
+    // SOLD OUT — the DP must be refunded, never a partial confirmation.
+    const heldA = await heldBooking(2);
+    await db.execute(sql`UPDATE reservations SET status = 'expired' WHERE id = ${heldA.reservationId}::uuid`);
+    await db.execute(sql`UPDATE payment_intents SET status = 'expired' WHERE id = ${heldA.intentId}::uuid`);
+    // Fill exactly ONE of the two bikes with another confirmed reservation.
+    const renterB = await seedRenter();
+    await db.insert(reservations).values({
+      renterId: renterB.renterId,
+      outletId: heldA.outletId,
+      ownerId: heldA.ownerId,
+      category: "commuter",
+      quantity: 1,
+      startsAt: new Date(heldA.window.startsAt),
+      endsAt: new Date(heldA.window.endsAt),
+      status: "confirmed",
+      confirmedAt: new Date(),
+      priceIdr: 10_000n,
+      finalIdr: 10_000n,
+      dpIdr: 5_000n,
+      ownerPromoBps: 0,
+      rateSnapshot: { rateIdr: 10_000, unitMinutes: 60, dayType: "weekday" },
+    });
+
+    const res = await postWebhook({
+      event_id: "evt-late-qty",
+      external_id: heldA.intentId,
+      status: "PAID",
+      paid_amount: Number(heldA.intentAmountIdr),
+    });
+    expect(res.statusCode).toBe(200);
+    expect(res.json()).toMatchObject({ status: "refunded" });
+
+    // A stays expired — never confirmed with fewer bikes than it reserved.
+    const [rowA] = await db.select().from(reservations).where(eq(reservations.id, heldA.reservationId));
+    expect(rowA.status).toBe("expired");
+    const refundRows = await db.select().from(refunds);
+    expect(refundRows).toHaveLength(1);
+    expect(refundRows[0].reason).toBe("late_payment_sold_out");
+    expect(refundRows[0].amountIdr).toBe(heldA.intentAmountIdr);
+  });
+
   it("EXPIRED moves only the intent (the sweeper reclaims the hold)", async () => {
     const b = await heldBooking();
     const res = await postWebhook({
