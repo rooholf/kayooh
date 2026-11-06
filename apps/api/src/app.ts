@@ -31,6 +31,7 @@ import { registerReallocationRoutes } from "./modules/reservations/reallocation-
 import { registerStaffRoutes } from "./modules/staff/routes.js";
 import { registerAdminRoutes } from "./modules/admin/index.js";
 import { registerCatalogRoutes } from "./modules/catalog/index.js";
+import { registerPricingRoutes } from "./modules/pricing/index.js";
 import { registerOwnerRoutes } from "./modules/owner/index.js";
 import { registerOutboxSchedule, registerSweeperSchedule } from "./modules/jobs/index.js";
 import { registerSseRoutes, initSseBus, closeSseBus } from "./modules/sse/index.js";
@@ -196,6 +197,7 @@ export async function buildApp(options: BuildAppOptions = {}): Promise<{
   registerReallocationRoutes(app);
   registerStaffRoutes(app);
   registerCatalogRoutes(app);
+  registerPricingRoutes(app);
   registerOwnerRoutes(app);
   registerAdminRoutes(app);
   registerSseRoutes(app);
