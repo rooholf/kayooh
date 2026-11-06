@@ -46,6 +46,7 @@ import { verifyVoucher } from "../../lib/voucher.js";
 import { AppError } from "../../lib/errors.js";
 import { getConfig } from "../app-config/index.js";
 import { flagReallocationCandidates } from "../reallocation/index.js";
+import { publishAvailability, pushOwnerEvent } from "../sse/index.js";
 
 export type StaffEventType =
   | "checkout"
@@ -75,7 +76,23 @@ export interface StaffContext {
   staffUserId: string;
 }
 
-type ClassifyingVerdict = { status: Exclude<ScanStatus, "applied">; reason: string } | { status: "applied" };
+/**
+ * Post-commit SSE fan-out facts (FR-REP-02 producers). Each applied staff
+ * event reports what it physically changed so the SSE bus can push
+ * `bike_state`/`rental` to the owning OWNER's channel and one recomputed
+ * `availability` event to the public channel (bike state changes are count
+ * changes for FR-INV-01's "in service" term).
+ */
+interface StaffEffects {
+  ownerId: string;
+  category: string;
+  bikes?: Array<{ assetTag: string; state: string }>;
+  rentals?: Array<{ rentalId: string; state: string }>;
+}
+
+type ClassifyingVerdict =
+  | { status: Exclude<ScanStatus, "applied">; reason: string }
+  | { status: "applied"; effects?: StaffEffects };
 
 /* ------------------------------------------------------------------ */
 /* Wire schemas (strict, so unknown fields are rejected)               */
@@ -177,8 +194,9 @@ async function classifyAndApply(
   classifier: (tx: TxOrDb) => Promise<ClassifyingVerdict>,
 ): Promise<ScanVerdict> {
   const occurredAt = isoDate(event.occurredAt);
+  type ApplyResult = ScanVerdict & { effects?: StaffEffects };
   try {
-    return await db.transaction(async (tx) => {
+    const result = await db.transaction(async (tx): Promise<ApplyResult> => {
       const inserted = await tx
         .insert(scanEvents)
         .values({
@@ -214,8 +232,31 @@ async function classifyAndApply(
         .set({ status: verdict.status, flagReason: verdict.status === "applied" ? null : (verdict as { reason: string }).reason })
         .where(eq(scanEvents.id, scan.id));
 
-      return { clientEventId: event.clientEventId, status: verdict.status, ...((verdict as { reason?: string }).reason ? { reason: (verdict as { reason: string }).reason } : {}) };
+      return {
+        clientEventId: event.clientEventId,
+        status: verdict.status,
+        ...((verdict as { reason?: string }).reason ? { reason: (verdict as { reason: string }).reason } : {}),
+        ...(verdict.status === "applied" && verdict.effects ? { effects: verdict.effects } : {}),
+      };
     });
+    // FR-REP-02 producers run strictly AFTER the commit above (never inside
+    // the transaction): bike_state/rental events go to this bike's owner's
+    // channel, and one recomputed availability event goes to the public
+    // channel (bike state changes are FR-INV-01 count changes). Best-effort:
+    // publishAvailability/pushOwnerEvent never throw.
+    if (result.status === "applied" && result.effects) {
+      const { ownerId, category, bikes: movedBikes, rentals: movedRentals } = result.effects;
+      void publishAvailability(db, ctx.staffOutletId, category);
+      for (const bikeEvt of movedBikes ?? []) {
+        void pushOwnerEvent(ownerId, { type: "bike_state", outletId: ctx.staffOutletId, bikeAssetTag: bikeEvt.assetTag, state: bikeEvt.state });
+      }
+      for (const rentalEvt of movedRentals ?? []) {
+        void pushOwnerEvent(ownerId, { type: "rental", outletId: ctx.staffOutletId, rentalId: rentalEvt.rentalId, state: rentalEvt.state });
+      }
+    }
+    // The outward ScanVerdict carries no SSE bookkeeping.
+    const { effects: _effects, ...verdictRow } = result;
+    return verdictRow;
   } catch (e) {
     // Duplicate on the insert: the losing writer replays the stored verdict.
     const err = e as { code?: string; constraint?: string };
@@ -321,7 +362,15 @@ async function applyCheckout(tx: TxOrDb, event: StaffEventInput, ctx: StaffConte
     payload: { rentalId: rental.id, reservationId: reservation.id, bikeId: bike.id },
   });
 
-  return applied;
+  return {
+    status: "applied",
+    effects: {
+      ownerId: bike.ownerId,
+      category: bike.category,
+      bikes: [{ assetTag: bike.assetTag, state: "in_rental" }],
+      rentals: [{ rentalId: rental.id, state: "open" }],
+    },
+  };
 }
 
 /* ------------------------------------------------------------------ */
@@ -403,7 +452,15 @@ async function applyCheckin(tx: TxOrDb, event: StaffEventInput, ctx: StaffContex
     });
   }
 
-  return applied;
+  return {
+    status: "applied",
+    effects: {
+      ownerId: bike.ownerId,
+      category: bike.category,
+      bikes: [{ assetTag: bike.assetTag, state: "pending_inspection" }],
+      rentals: [{ rentalId: rental.id, state: "returned" }],
+    },
+  };
 }
 
 /* ------------------------------------------------------------------ */
@@ -457,7 +514,15 @@ async function applyInspection(tx: TxOrDb, event: StaffEventInput, ctx: StaffCon
   // FR-RNT-03.4: damage is settled offline against the physical collateral
   // logged at check-out; the platform keeps no in-system claim table.
 
-  return applied;
+  return {
+    status: "applied",
+    effects: {
+      ownerId: bike.ownerId,
+      category: bike.category,
+      bikes: [{ assetTag: bike.assetTag, state: toState }],
+      rentals: [{ rentalId: rental.id, state: "completed" }],
+    },
+  };
 }
 
 /* ------------------------------------------------------------------ */
@@ -505,7 +570,14 @@ async function applyBikeStatusChange(tx: TxOrDb, event: StaffEventInput, ctx: St
     await flagReallocationCandidates(tx as Database, bike.homeOutletId, bike.category, isoDate(event.occurredAt));
   }
 
-  return applied;
+  return {
+    status: "applied",
+    effects: {
+      ownerId: bike.ownerId,
+      category: bike.category,
+      bikes: [{ assetTag: bike.assetTag, state: payload.data.to }],
+    },
+  };
 }
 
 /* ------------------------------------------------------------------ */
@@ -602,7 +674,14 @@ async function applyIncident(tx: TxOrDb, event: StaffEventInput, ctx: StaffConte
   });
 
   await flagReallocationCandidates(tx as Database, bike.homeOutletId, bike.category, occurredAt);
-  return applied;
+  return {
+    status: "applied",
+    effects: {
+      ownerId: bike.ownerId,
+      category: bike.category,
+      bikes: [{ assetTag: bike.assetTag, state: toState }],
+    },
+  };
 }
 
 /* ------------------------------------------------------------------ */

@@ -31,7 +31,7 @@ import { registerStaffRoutes } from "./modules/staff/routes.js";
 import { registerCatalogRoutes } from "./modules/catalog/index.js";
 import { registerSweeperSchedule } from "./modules/jobs/index.js";
 import { registerVerificationRoutes } from "./modules/verification/index.js";
-import { registerSseRoutes } from "./modules/sse/index.js";
+import { registerSseRoutes, initSseBus, closeSseBus } from "./modules/sse/index.js";
 import { registerWebhookRoutes } from "./modules/payments/webhook-routes.js";
 
 declare module "fastify" {
@@ -83,6 +83,10 @@ export async function buildApp(options: BuildAppOptions = {}): Promise<{
     genReqId: () => randomUUID(),
     trustProxy: true,
   });
+
+  // FR-REP-02: wire the SSE pub/sub transport at boot (Redis pub/sub in
+  // production, in-process emitter when REDIS_URL is unset).
+  initSseBus(env.redisUrl);
 
   loggingPlugin(app);
   app.decorate("limiter", limiter);
@@ -282,6 +286,7 @@ export async function buildApp(options: BuildAppOptions = {}): Promise<{
     app,
     env,
     close: async () => {
+      await closeSseBus();
       await closeLimiter();
       await app.close();
       await dbHandle.close();

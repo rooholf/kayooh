@@ -14,6 +14,7 @@ import {
   renters,
 } from "@repo/db";
 import { getConfig } from "../app-config/index.js";
+import { publishAvailability } from "../sse/index.js";
 
 export interface SweeperSummary {
   expiredHolds: number;
@@ -51,6 +52,9 @@ export async function runSweeper(): Promise<SweeperSummary> {
         type: "reservation.released",
         payload: { reservationId: r.id, renterId: r.renter_id, outletId: r.outlet_id, category: r.category },
       });
+      // FR-REP-02: the expired hold stops counting on the next availability
+      // computation — push the restored count right now.
+      void publishAvailability(db, r.outlet_id, r.category);
     }
   }
 
@@ -61,12 +65,16 @@ export async function runSweeper(): Promise<SweeperSummary> {
     SET status = 'no_show'
     WHERE status = 'confirmed'
       AND starts_at + make_interval(mins => ${graceMinutes}) <= now()
-    RETURNING id, renter_id, final_idr
-  `)) as unknown as { rows: Array<{ id: string; renter_id: string; final_idr: string | number } | undefined> };
-  const noShows = noShowRes.rows.filter(Boolean) as Array<{ id: string; renter_id: string; final_idr: string | number }>;
+    RETURNING id, renter_id, final_idr, outlet_id, category
+  `)) as unknown as { rows: Array<{ id: string; renter_id: string; final_idr: string | number; outlet_id: string; category: string } | undefined> };
+  const noShows = noShowRes.rows.filter(Boolean) as Array<{ id: string; renter_id: string; final_idr: string | number; outlet_id: string; category: string }>;
   summary.noShows = noShows.length;
 
   for (const ns of noShows) {
+    // FR-REP-02: the no_show reservation no longer counts as committed, this
+    // restores availability. One event per affected offering.
+    void publishAvailability(db, ns.outlet_id, ns.category);
+
     const renterUser = await db
       .select({ userId: renters.userId })
       .from(renters)

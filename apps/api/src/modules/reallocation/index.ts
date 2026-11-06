@@ -23,6 +23,7 @@ import {
 import type { CreateReservationResponse } from "@repo/contracts";
 import { AppError } from "../../lib/errors.js";
 import { getConfig } from "../app-config/index.js";
+import { publishAvailability } from "../sse/index.js";
 import {
   computeAvailability,
   countCommittedRentals,
@@ -199,7 +200,7 @@ export async function acceptReallocation(
   targetOutletId: string,
 ): Promise<CreateReservationResponse> {
   const nowDate = new Date();
-  return db.transaction(async (tx) => {
+  const result = await db.transaction(async (tx) => {
     // Pre-checks (uncharged reads before the lock).
     const resRows = await tx.select().from(reservations).where(eq(reservations.id, reservationId)).limit(1);
     const original = resRows[0];
@@ -293,6 +294,18 @@ export async function acceptReallocation(
       },
     };
   });
+  // FR-REP-02 (post-commit): the accepted reallocation moved one CONFIRMED
+  // quantity from the original to the target offering — both stop/start
+  // counting; their counts are computed per (outlet, category).
+  void publishAvailability(db, targetOutletId, result.reservation.category);
+  const originalRows = await db
+    .select({ outletId: reservations.outletId, category: reservations.category })
+    .from(reservations)
+    .where(and(eq(reservations.id, reservationId), eq(reservations.status, "cancelled"), eq(reservations.cancelReason, "reallocated")));
+  if (originalRows[0]) {
+    void publishAvailability(db, originalRows[0].outletId, originalRows[0].category);
+  }
+  return result;
 }
 
 /* ------------------------------------------------------------------ */

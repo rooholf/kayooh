@@ -38,13 +38,18 @@ export interface Offering {
 
 /**
  * Seeds an owner, outlet (24 h opening, buffer 0), category, pricing
- * (10_000/h) and N bikes of `category`.
+ * (10_000/h) and N bikes of `category`. An existing owner row can be passed
+ * (SSE tests bind a session user to the offering's owner) — otherwise a new
+ * owner is created.
  */
 export async function seedOffering(
   bikeCount: number,
   category: "commuter" | "road" = "commuter",
+  existingOwner?: { ownerId: string },
 ): Promise<Offering> {
-  const [owner] = await db.insert(owners).values({ name: "owner-staff-test" }).returning({ id: owners.id });
+  const owner = existingOwner
+    ? { id: existingOwner.ownerId }
+    : (await db.insert(owners).values({ name: "owner-staff-test" }).returning({ id: owners.id }))[0];
   const outletCode = `JMB-${Math.floor(Math.random() * 900 + 100)}`;
   const [outlet] = await db
     .insert(outlets)

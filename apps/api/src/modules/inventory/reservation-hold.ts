@@ -48,6 +48,7 @@ import type { Principal } from "../identity/guards.js";
 import { computeAvailability, type QueryExecutor } from "./availability.js";
 import { isSlotAligned, isOpenAt } from "./opening-hours.js";
 import { enqueueReleaseHold } from "../jobs/index.js";
+import { publishAvailability } from "../sse/index.js";
 
 /** INV-5: half-up division on non-negative bigints (no floating point). */
 function roundHalfUp(numerator: bigint, denominator: bigint): bigint {
@@ -408,6 +409,10 @@ export async function createReservationHold(
     await enqueueReleaseHold(result.reservationId, result.expiresAt, process.env.REDIS_URL);
   }
 
+  // FR-REP-02: a committed hold consumes quantity — push one availability
+  // event for (outletId, category). Post-commit, so the count includes it.
+  void publishAvailability(pooledDb, body.outletId, body.category);
+
   if (result.intentId !== null) {
     try {
       const gateway = createPaymentGateway({ nodeEnv: process.env.NODE_ENV ?? "development" });
@@ -428,6 +433,8 @@ export async function createReservationHold(
       // + 502 GATEWAY_UNAVAILABLE (the idempotency marker is reclaimed by the
       // plugin's stall window, so the retry with the same key works).
       await compensateGatewayFailure(result.reservationId, result.intentId);
+      // FR-REP-02: the cancellation restored the held quantity.
+      void publishAvailability(pooledDb, body.outletId, body.category);
       throw new AppError(
         "GATEWAY_UNAVAILABLE",
         "The payment gateway did not accept the invoice; the hold was released.",
