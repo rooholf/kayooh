@@ -6,10 +6,14 @@
  *
  * Order of operations (SRS FR-INV-02 — first failure returns):
  *   Pre-transaction validation (uncharged reads, outside the lock):
- *     1. schema (done by route) -> renter verified (422 VERIFICATION_REQUIRED)
- *     2. duration / slot / lead-time checks (422 DURATION/WINDOW_OUT_OF_RANGE)
- *     3. startsAt and endsAt inside the outlet's WIB hours (422 OUTSIDE_OPENING_HOURS)
- *     4. outlet active and (outletId, category) active (422 CATEGORY_NOT_OFFERED)
+ *     1. schema (done by route) -> resolve the booking identity: an
+ *        authenticated session resolves to its renter row; an unauthenticated
+ *        request resolves or creates the guest `renters` row keyed by phone
+ *        (A-17, revision 1.2 guest checkout)
+ *     2. phone guard: A-19 active-reservation cap (409 DUPLICATE_RESOURCE)
+ *     3. duration / slot / lead-time checks (422 DURATION/WINDOW_OUT_OF_RANGE)
+ *     4. startsAt and endsAt inside the outlet's WIB hours (422 OUTSIDE_OPENING_HOURS)
+ *     5. outlet active and (outletId, category) active (422 CATEGORY_NOT_OFFERED)
  *   Single READ COMMITTED transaction (NFR-02: SET LOCAL lock_timeout = '3s'):
  *     1. SELECT ... FOR UPDATE on outlet_categories      <- THE LOCK (INV-2)
  *     2. computeAvailability; available < quantity -> 409 SOLD_OUT
@@ -28,7 +32,7 @@
  *   enqueue arrives with FR-INV-03; until then correctness is covered by the
  *   sweeper design rule ("Redis loss never loses a booking", FR-INV-03).
  */
-import { and, eq, sql } from "@repo/db";
+import { and, eq, inArray, sql } from "@repo/db";
 import {
   db,
   outboxEvents,
@@ -41,13 +45,14 @@ import {
 } from "@repo/db";
 import type { CreateReservationBody, CreateReservationResponse } from "@repo/contracts";
 import { AppError } from "../../lib/errors.js";
+import { signGuestToken, GUEST_TOKEN_TTL_MS } from "../../lib/guest-token.js";
 import { getConfig } from "../app-config/index.js";
 import { createPaymentGateway, withGatewayTimeout, GATEWAY_TIMEOUT_MS } from "../payments/index.js";
 import { quote } from "../pricing/index.js";
-import type { Principal } from "../identity/guards.js";
 import { computeAvailability, type QueryExecutor } from "./availability.js";
 import { isSlotAligned, isOpenAt } from "./opening-hours.js";
 import { enqueueReleaseHold } from "../jobs/index.js";
+import { enqueueNotification } from "../notifications/index.js";
 import { publishAvailability } from "../sse/index.js";
 
 /** INV-5: half-up division on non-negative bigints (no floating point). */
@@ -284,33 +289,88 @@ async function compensateGatewayFailure(reservationId: string, intentId: string 
 }
 
 /* ------------------------------------------------------------------ */
+/* Booking identity (FR-INV-02 steps 1-2, A-17 / A-19)                 */
+/* ------------------------------------------------------------------ */
+
+/**
+ * The resolved booking identity for a reservation (revision 1.2). An
+ * authenticated session is a renter; an unauthenticated checkout is a guest
+ * identified by `contactPhone`.
+ */
+export type ReservationActor =
+  | { kind: "renter"; userId: string }
+  | { kind: "guest"; phone: string };
+
+/**
+ * FR-INV-02 step 1 (A-17): an authenticated session resolves to the `renters`
+ * row keyed by its user; an unauthenticated request resolves or creates the
+ * guest row keyed by `contactPhone` with `user_id = NULL`. The phone is the
+ * booking identity, so a guest phone that later signs up keeps its bookings.
+ */
+async function resolveRenter(pooledDb: Database, actor: ReservationActor): Promise<string> {
+  if (actor.kind === "renter") {
+    const rows = await pooledDb
+      .select({ id: renters.id })
+      .from(renters)
+      .where(eq(renters.userId, actor.userId))
+      .limit(1);
+    const row = rows[0];
+    if (!row) throw new AppError("STATE_CONFLICT", "Renter profile does not exist for this user.");
+    return row.id;
+  }
+  // Guest: race-safe on the phone unique index (A-17).
+  const inserted = await pooledDb
+    .insert(renters)
+    .values({ userId: null, phone: actor.phone })
+    .onConflictDoNothing({ target: renters.phone })
+    .returning({ id: renters.id });
+  if (inserted[0]) return inserted[0].id;
+  const raced = await pooledDb
+    .select({ id: renters.id })
+    .from(renters)
+    .where(eq(renters.phone, actor.phone))
+    .limit(1);
+  const row = raced[0];
+  if (!row) throw new AppError("INTERNAL", "Guest renter row could not be resolved.");
+  return row.id;
+}
+
+/**
+ * FR-INV-02 step 2 (A-19): a booking identity already holding
+ * `booking.max_active_reservations_per_phone` reservations in status
+ * `held`/`confirmed` is refused 409 DUPLICATE_RESOURCE. Backstop only — the
+ * 50% DP is the primary anti-spam and no-show control.
+ */
+async function enforceActiveReservationCap(pooledDb: Database, renterId: string): Promise<void> {
+  const max = await getConfig("booking.max_active_reservations_per_phone");
+  const active = await pooledDb
+    .select({ id: reservations.id })
+    .from(reservations)
+    .where(and(eq(reservations.renterId, renterId), inArray(reservations.status, ["held", "confirmed"])));
+  if (active.length >= max) {
+    throw new AppError("DUPLICATE_RESOURCE", "This phone already holds the maximum active reservations.");
+  }
+}
+
+/* ------------------------------------------------------------------ */
 /* Public entry point                                                   */
 /* ------------------------------------------------------------------ */
 
 export async function createReservationHold(
   pooledDb: Database,
   body: CreateReservationBody,
-  renter: Principal,
+  actor: ReservationActor,
 ): Promise<CreateReservationResponse> {
   const startsAt = new Date(body.startsAt);
   const endsAt = new Date(body.endsAt);
 
-  /* -------- Step 1: renter verification (pre-check 1) ---------------------- */
-  const renterRows = await pooledDb
-    .select({
-      id: renters.id,
-      verificationStatus: renters.verificationStatus,
-    })
-    .from(renters)
-    .where(eq(renters.userId, renter.userId))
-    .limit(1);
-  const renterRow = renterRows[0];
-  if (!renterRow) throw new AppError("STATE_CONFLICT", "Renter profile does not exist for this user.");
-  if (renterRow.verificationStatus !== "verified") {
-    throw new AppError("VERIFICATION_REQUIRED", "Identity verification is not complete.");
-  }
+  /* -------- Step 1: resolve the booking identity (pre-check 1, A-17) ------- */
+  const renterId = await resolveRenter(pooledDb, actor);
 
-  /* -------- Step 2: duration and window (pre-check 2) ---------------------- */
+  /* -------- Step 2: phone guard (pre-check 2, A-19) ------------------------ */
+  await enforceActiveReservationCap(pooledDb, renterId);
+
+  /* -------- Step 3: duration and window (pre-check 3) ---------------------- */
   const [slotMinutes, minDuration, maxDuration, maxAdvanceDays, minLeadMinutes] = await Promise.all([
     getConfig("booking.slot_minutes"),
     getConfig("booking.min_duration_minutes"),
@@ -348,7 +408,7 @@ export async function createReservationHold(
     throw new AppError("WINDOW_OUT_OF_RANGE", "startsAt is outside the bookable window.");
   }
 
-  /* -------- Step 3: opening hours, WIB, both edges (pre-check 3) ----------- */
+  /* -------- Step 4: opening hours, WIB, both edges (pre-check 4) ----------- */
   const outletRows = await pooledDb
     .select({
       id: outlets.id,
@@ -366,7 +426,7 @@ export async function createReservationHold(
     throw new AppError("OUTSIDE_OPENING_HOURS", "Requested window is outside the outlet's opening hours.");
   }
 
-  /* -------- Step 4: outlet active and offering active (pre-check 4) -------- */
+  /* -------- Step 5: outlet active and offering active (pre-check 5) -------- */
   const offeringRows = await pooledDb
     .select({ active: outletCategories.active })
     .from(outletCategories)
@@ -382,7 +442,7 @@ export async function createReservationHold(
   try {
     result = await holdReservation(pooledDb, {
       body,
-      renterId: renterRow.id,
+      renterId,
       ownerId: outletRow.ownerId,
       startsAt,
       endsAt,
@@ -463,6 +523,37 @@ export async function createReservationHold(
       .limit(1);
     const url = intentRows[0]?.paymentUrl;
     if (url) response.paymentUrl = url;
+  }
+
+  // A-18: a guest booking gets a reservation-scoped access token, returned in
+  // the 201 and delivered by WhatsApp. Guests have no session and no list.
+  if (actor.kind === "guest") {
+    const guestToken = signGuestToken({
+      reservationId: result.reservationId,
+      expiresAt: new Date(Date.now() + GUEST_TOKEN_TTL_MS),
+    });
+    response.guestToken = guestToken;
+
+    // FR-NOT-01.4: delivery rides the outbox; a messaging failure must never
+    // block the booking — the token already rides the 201 response.
+    try {
+      await enqueueNotification(pooledDb, {
+        userId: null,
+        template: "guest_reservation_access",
+        channel: "whatsapp",
+        to: actor.phone,
+        vars: {
+          guestToken,
+          reservationId: result.reservationId,
+          outletId: resource.outletId,
+          category: resource.category,
+          startsAt: resource.startsAt,
+          endsAt: resource.endsAt,
+        },
+      });
+    } catch {
+      // Best-effort: the outbox retries; the 201 must still return the token.
+    }
   }
   return response;
 }

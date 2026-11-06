@@ -94,7 +94,6 @@ export async function createAdminUser(input: CreateAdminUserInput): Promise<{ id
 
 export interface RenterProfile {
   phone: string | null;
-  verificationStatus: string;
 }
 
 /** GET /renters/me backing query (own data only — section 1.3). */
@@ -102,7 +101,6 @@ export async function getRenterProfile(userId: string): Promise<RenterProfile | 
   const rows = await db
     .select({
       phone: users.phoneNumber,
-      verificationStatus: renters.verificationStatus,
     })
     .from(renters)
     .innerJoin(users, eq(users.id, renters.userId))
@@ -112,7 +110,6 @@ export async function getRenterProfile(userId: string): Promise<RenterProfile | 
   if (!row) return null;
   return {
     phone: row.phone,
-    verificationStatus: row.verificationStatus,
   };
 }
 

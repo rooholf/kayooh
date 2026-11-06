@@ -14,7 +14,7 @@
  * shared {@link ErrorEnvelope} shape (SRS 3.2).
  */
 import { z } from "zod";
-import { vCategoryCode, vIdr, vPromo, vQty, vTs, vUuid } from "./validation";
+import { vCategoryCode, vIdr, vPhone, vPromo, vQty, vTs, vUuid } from "./validation";
 
 export const createReservationBodySchema = z
   .object({
@@ -25,6 +25,11 @@ export const createReservationBodySchema = z
     startsAt: vTs,
     endsAt: vTs,
     promoCode: vPromo.optional(),
+    /**
+     * V-PHONE (revision 1.2 guest checkout): REQUIRED when the request is
+     * unauthenticated, REJECTED with 400 when it is authenticated.
+     */
+    contactPhone: vPhone.optional(),
   })
   .strict();
 
@@ -80,6 +85,11 @@ export const createReservationResponseSchema = z
     price: createReservationPriceSchema,
     /** Absent when `finalIdr = 0` (confirmed directly at insert time). */
     paymentUrl: z.string().url().optional(),
+    /**
+     * A-18 (revision 1.2): a reservation-scoped signed token returned ONLY when
+     * the booking was made as a guest; it grants `GET /reservations/{id}`.
+     */
+    guestToken: z.string().optional(),
   })
   .strict();
 

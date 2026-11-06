@@ -20,7 +20,6 @@ import {
   outlets,
   owners,
   pricingRules,
-  renters,
   users,
 } from "@repo/db";
 import { computeAvailability } from "../src/modules/inventory/index.js";
@@ -117,8 +116,7 @@ function canonicalPhone(phone: string): string {
   return `+62${phone.slice(1)}`;
 }
 
-/** FR-ID-01: sign the renter in end-to-end, then promote the profile to
- *  `verified` (starts `not_started`). Returns the session cookie. */
+/** FR-ID-01: sign the renter in end-to-end. Returns the session cookie. */
 async function signInVerifiedRenter(t: TestApp, phone = PHONE): Promise<string> {
   const canonical = canonicalPhone(phone);
   const send = await t.app.inject({
@@ -138,7 +136,6 @@ async function signInVerifiedRenter(t: TestApp, phone = PHONE): Promise<string> 
 
   const [user] = await db.select().from(users).where(eq(users.phoneNumber, canonical));
   expect(user).toBeDefined();
-  await db.update(renters).set({ verificationStatus: "verified" }).where(eq(renters.userId, user.id));
   return cookie;
 }
 

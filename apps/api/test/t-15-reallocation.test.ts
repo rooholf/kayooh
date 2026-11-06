@@ -76,10 +76,6 @@ async function renterViaOtp(): Promise<{ userId: string; renterId: string; cooki
   const [user] = await db.select().from(users).where(eq(users.phoneNumber, phoneRaw));
   expect(user).toBeDefined();
   const [renter] = await db.select().from(renters).where(eq(renters.userId, user.id));
-  await db
-    .update(renters)
-    .set({ verificationStatus: "verified" })
-    .where(eq(renters.userId, user.id));
   return { userId: user.id, renterId: renter.id, cookie, phone: phoneRaw };
 }
 
@@ -115,14 +111,7 @@ async function seedOverflow(): Promise<OverflowScenario> {
       startsAt: window.startsAt,
       endsAt: window.endsAt,
     };
-    const held = await createReservationHold(db, body, {
-      userId: renter.userId,
-      role: "renter",
-      ownerId: null,
-      outletId: null,
-      sessionId: "t15-seed",
-      sessionCreatedAt: new Date(),
-    });
+    const held = await createReservationHold(db, body, { kind: "renter", userId: renter.userId });
     await db.execute(sql`
       UPDATE reservations
       SET status = 'confirmed', confirmed_at = now()

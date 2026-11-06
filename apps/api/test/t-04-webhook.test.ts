@@ -23,7 +23,7 @@ import {
   reservations,
 } from "@repo/db";
 import { buildTestApp, truncateAll, type TestApp } from "./helpers.js";
-import { nextWindow, principalFor, seedOffering, seedRenter } from "./staff.helpers.js";
+import { nextWindow, actorFor, seedOffering, seedRenter } from "./staff.helpers.js";
 import { createReservationHold } from "../src/modules/inventory/index.js";
 import type { CreateReservationBody } from "@repo/contracts";
 
@@ -69,7 +69,7 @@ async function heldBooking(quantity = 1): Promise<HeldBooking> {
     endsAt: window.endsAt,
     quantity,
   };
-  const held = await createReservationHold(db, body, principalFor(renter.userId));
+  const held = await createReservationHold(db, body, actorFor(renter.userId));
   const [intent] = await db
     .select()
     .from(paymentIntents)
@@ -161,7 +161,7 @@ describe("T-04 (FR-PAY-02): webhook is idempotent and reconciles the DP", () => 
     const heldA = await createReservationHold(
       db,
       { outletId: partner.outletId, category: "commuter", startsAt: window.startsAt, endsAt: window.endsAt, quantity: 1 },
-      principalFor(renterA.userId),
+      actorFor(renterA.userId),
     );
     const [intentA] = await db
       .select()

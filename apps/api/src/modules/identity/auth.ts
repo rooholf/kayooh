@@ -8,7 +8,7 @@
  * - Per-role absolute session TTLs (FR-ID-02.3) are enforced in the request
  *   guard (guards.ts); BA's own cookie TTL carries the renter 30 d sliding.
  */
-import { eq } from "@repo/db";
+import { and, eq, isNull } from "@repo/db";
 import { betterAuth } from "better-auth";
 import { drizzleAdapter } from "better-auth/adapters/drizzle";
 import { APIError, createAuthMiddleware } from "better-auth/api";
@@ -195,9 +195,10 @@ export function createAuthBundle(deps: AuthDeps): AuthBundle {
           const result = await verifyOtp(normalizePhone(rawPhone), code);
           return result.ok;
         },
-        // FR-ID-01.6: on first successful verify create the renters row, and
-        // canonicalize the stored phone (the plugin persists the RAW input
-        // form; SRS keeps users.phone in +62E.164).
+        // FR-ID-01.6 / A-17: on first successful verify, link an existing guest
+        // `renters` row with the same phone (user_id = NULL) by setting its
+        // user_id instead of inserting a duplicate; otherwise create the row.
+        // The phone is the booking identity across guest and authenticated use.
         callbackOnVerification: async ({ user }) => {
           const canonical = user.phoneNumber ? normalizePhone(user.phoneNumber) : null;
           if (canonical && canonical !== user.phoneNumber) {
@@ -211,9 +212,20 @@ export function createAuthBundle(deps: AuthDeps): AuthBundle {
             .from(renters)
             .where(eq(renters.userId, user.id))
             .limit(1);
-          if (existing.length === 0) {
-            await db.insert(renters).values({ userId: user.id, phone: canonical }).onConflictDoNothing();
+          if (existing.length > 0) return;
+
+          if (canonical) {
+            const linked = await db
+              .update(renters)
+              .set({ userId: user.id })
+              .where(and(eq(renters.phone, canonical), isNull(renters.userId)))
+              .returning({ id: renters.id });
+            if (linked.length > 0) return;
           }
+          await db
+            .insert(renters)
+            .values({ userId: user.id, phone: canonical })
+            .onConflictDoNothing();
         },
         signUpOnVerification: {
           // Renters sign up by phone (A-10); BA requires a placeholder email.
