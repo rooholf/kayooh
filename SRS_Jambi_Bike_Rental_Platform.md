@@ -1,10 +1,16 @@
 # Software Requirements Specification: Jambi Bike Rental Platform
 
-Version 1.1 | 6 November 2026
-Sources: PRD "Jambi Bike Rental Network: PRD and System Architecture" v1.1; "Tech Stack and Architecture: Jambi Bike Rental Platform" v1.0
+Version 1.2 | 6 November 2026
+Sources: PRD "Jambi Bike Rental Network: PRD and System Architecture" v1.2; "Tech Stack and Architecture: Jambi Bike Rental Platform" v1.0
 Audience: AI coding agent. Implement from this document without asking for clarification. Every MUST is testable.
 
-**Revision 1.1 — architecture pivot to local Jambi operational practice.** This revision supersedes any earlier statement in conflict with it:
+**Revision 1.2 — guest checkout and optional renter auth (conversion optimization).** This revision supersedes any earlier statement in conflict with it:
+1. **Mandatory digital ID verification removed.** FR-ID-04, the renter ID screens and endpoints, the `verification_requests` and `id_document_views` tables and the `verification_status` enum are deleted; `POST /reservations` no longer returns 422 `VERIFICATION_REQUIRED`.
+2. **Guest checkout.** Sign-in is optional (FR-ID-01). A renter may book from a public, unauthenticated session by supplying a contact phone (`contactPhone`, V-PHONE); the 50% online down payment (FR-INV-02) is the primary anti-spam and no-show control. A guest `renters` row is created keyed by phone with `user_id = NULL`.
+3. **Incentivized auth.** Renter accounts now exist mainly to claim platform and owner promotions and vouchers; a `promoCode` is accepted only for an authenticated session (FR-PRC-01).
+4. **Offline collateral retained.** Staff still collect and log physical collateral (KTP, SIM or vehicle) at check-out (FR-RNT-01); nothing about that flow changes.
+
+**Revision 1.1 — architecture pivot to local Jambi operational practice.** This revision supersedes any earlier statement in conflict with it, except where revision 1.2 supersedes it:
 1. **Multi-bike reservations.** `reservations.quantity` (V-QTY) is stored and checked against `computeAvailability`: a lock succeeds only when `available >= quantity`, otherwise 409 `SOLD_OUT`.
 2. **Digital security deposits removed.** The `deposits` and `deposit_claims` tables, the `deposit_status` enum, and every deposit endpoint no longer exist.
 3. **50% down payment (DP).** A reservation moves `held` → `confirmed` only after the DP (config `booking.dp_rate_bps`, default 5000 = 50%) is paid online. The remaining 50% is collected **offline** (cash/QRIS) by staff at check-out.
@@ -44,7 +50,7 @@ Network baseline (seed data): 4 outlets, 4 owners, 150 bikes.
 
 | Role | Scope | Created by |
 |---|---|---|
-| `renter` | Own data only | Self sign-up by phone OTP |
+| `renter` | Own data only | Optional; self sign-up by phone OTP (a guest books without one — revision 1.2) |
 | `staff` | One outlet (`users.outlet_id`) | Admin |
 | `owner` | One owner tenant (`users.owner_id`), read-mostly | Admin |
 | `admin` | Entire platform | Seed script / other admin |
@@ -55,13 +61,13 @@ Network baseline (seed data): 4 outlets, 4 owners, 150 bikes.
 | Capability | renter | staff | owner | admin |
 |---|---|---|---|---|
 | Browse outlets and availability | yes | yes | yes | yes |
-| Create reservation, pay, view own voucher | yes | no | no | no |
+| Create reservation, pay, view own voucher | yes (guests too, with `contactPhone` — revision 1.2) | no | no | no |
 | Check-out, check-in, inspect, change bike state, report incident | no | own outlet | no | yes |
 | View rentals, bikes, earnings, statements | own rentals | own outlet | own tenant | all |
 | Set safety buffer, promo opt-out | no | no | own tenant | all |
 | Raise payout dispute | no | no | own tenant | no |
 | Onboard owners, outlets, bikes, users; pricing; promotions; commission rules | no | no | no | yes |
-| Review ID verification, resolve an offline collateral/damage claim, resolve dispute, run settlement | no | no | no | yes |
+| Resolve an offline collateral/damage claim, resolve a flagged scan, resolve dispute, run settlement | no | no | no | yes |
 
 ### 1.4 System invariants (the three PRD rules, made testable)
 
@@ -87,7 +93,7 @@ Network baseline (seed data): 4 outlets, 4 owners, 150 bikes.
 
 | Phase | Modules and features |
 |---|---|
-| P1 | Identity, tenancy, ID verification seam, catalog, inventory lock, multi-bike reservation (`quantity`), mock payments through `FakeGateway`, 50% down payment, physical collateral logging at check-out, check-out/check-in/inspection, offline staff queue, hold expiry and no-show jobs, notifications, basic owner dashboard (live rentals, bike status counts, gross earnings accrual) |
+| P1 | Identity, tenancy, guest checkout (optional auth), catalog, inventory lock, multi-bike reservation (`quantity`), mock payments through `FakeGateway`, 50% down payment, physical collateral logging at check-out, check-out/check-in/inspection, offline staff queue, hold expiry and no-show jobs, notifications, basic owner dashboard (live rentals, bike status counts, gross earnings accrual) |
 | P2 | Ledger, commission rules, promotions, weekly statements and PDFs, Tuesday payouts, dispute queue, utilization and performance reports |
 | P3 | Sister-outlet groups in production (`feature.sister_outlets_enabled = true`), e-bike category, optional Capacitor wrapper |
 
@@ -119,7 +125,7 @@ Network baseline (seed data): 4 outlets, 4 owners, 150 bikes.
 - `app_rls`: used for owner-scoped requests. RLS enforced. Each transaction runs `SELECT set_config('app.owner_id', <uuid>, true)`.
 - `app_service`: `BYPASSRLS`. Used for renter, staff, admin and system paths. Authorization is enforced in the application layer.
 
-**Interfaces to implement (P1):** `VerificationProvider { submit(req): Promise<{ref}>; getStatus(ref): Promise<'pending'|'verified'|'rejected'> }` with `ManualReviewProvider`; `PaymentGateway { createInvoice, getInvoice, refund, createDisbursement, verifyWebhook }`; `NotificationProvider { send(channel, template, to, vars) }`.
+**Interfaces to implement (P1):** `PaymentGateway { createInvoice, getInvoice, refund, createDisbursement, verifyWebhook }`; `NotificationProvider { send(channel, template, to, vars) }`. (The former `VerificationProvider` was removed with FR-ID-04 in revision 1.2.)
 
 ---
 
@@ -139,7 +145,7 @@ Network baseline (seed data): 4 outlets, 4 owners, 150 bikes.
 - Auth: Better Auth session cookie (`HttpOnly; Secure; SameSite=Lax`). Unauthenticated: 401. Authenticated but not permitted: 403. A resource outside the caller's scope returns 404 (never 403) to avoid leaking existence.
 - Single resource: the JSON object. List: `{ "data": [...], "nextCursor": string|null }`; query `limit` (V-LIMIT) and `cursor` (V-CURSOR); order `created_at DESC, id DESC` unless stated.
 - Error body (all non-2xx): `{ "error": { "code": string, "message": string, "details": [{ "path": string, "issue": string }]?, "requestId": string } }`.
-- `Idempotency-Key` header (UUID) is REQUIRED on `POST /reservations` and `POST /reservations/{id}/reallocate`. Same key and same body within 24 h returns the stored response with header `Idempotent-Replay: true`. Same key, different body: 422 `IDEMPOTENCY_KEY_REUSED`. Same key while the first request runs: 409 `IDEMPOTENCY_IN_PROGRESS`. Stored in `idempotency_keys`.
+- `Idempotency-Key` header (UUID) is REQUIRED on `POST /reservations` and `POST /reservations/{id}/reallocate`. Same key and same body within 24 h returns the stored response with header `Idempotent-Replay: true`. Same key, different body: 422 `IDEMPOTENCY_KEY_REUSED`. Same key while the first request runs: 409 `IDEMPOTENCY_IN_PROGRESS`. Stored in `idempotency_keys`. For a guest booking the key is scoped to `contactPhone` instead of `user_id` (revision 1.2).
 - Rate limits (Redis, per IP unless noted): anonymous 120 req/min; authenticated 600 req/min per user; exceeded: 429 `RATE_LIMITED` with `Retry-After`.
 
 ### 3.3 Error code catalog
@@ -151,7 +157,7 @@ Network baseline (seed data): 4 outlets, 4 owners, 150 bikes.
 | 403 | `FORBIDDEN` |
 | 404 | `NOT_FOUND` |
 | 409 | `SOLD_OUT`, `STATE_CONFLICT`, `DUPLICATE_RESOURCE`, `IDEMPOTENCY_IN_PROGRESS`, `SCAN_FLAGGED`, `MULTI_OUTLET_DISABLED` |
-| 422 | `VERIFICATION_REQUIRED`, `OUTSIDE_OPENING_HOURS`, `DURATION_OUT_OF_RANGE`, `WINDOW_OUT_OF_RANGE`, `CATEGORY_NOT_OFFERED`, `PROMO_INVALID`, `AMOUNT_BELOW_MINIMUM`, `VOUCHER_INVALID`, `VOUCHER_EXPIRED`, `IDEMPOTENCY_KEY_REUSED`, `DISPUTE_WINDOW_CLOSED` |
+| 422 | `OUTSIDE_OPENING_HOURS`, `DURATION_OUT_OF_RANGE`, `WINDOW_OUT_OF_RANGE`, `CATEGORY_NOT_OFFERED`, `PROMO_INVALID`, `AMOUNT_BELOW_MINIMUM`, `VOUCHER_INVALID`, `VOUCHER_EXPIRED`, `IDEMPOTENCY_KEY_REUSED`, `DISPUTE_WINDOW_CLOSED` |
 | 429 | `RATE_LIMITED` |
 | 500 / 502 / 503 | `INTERNAL`, `GATEWAY_UNAVAILABLE` |
 
@@ -169,7 +175,7 @@ Network baseline (seed data): 4 outlets, 4 owners, 150 bikes.
 - **V-ASSET-TAG:** `^JMB-[0-9]{3}-[A-Z]{3}-[0-9]{3}$`, globally unique.
 - **V-OUTLET-CODE:** `^JMB-[0-9]{3}$`, globally unique.
 - **V-PROMO:** uppercased, `^[A-Z0-9]{4,16}$`.
-- **V-PHOTO-KEY:** `^uploads/(checklist|damage|id)/[0-9a-f-]{36}\.(jpg|png|webp)$`. The server MUST `HEAD` the object: it must exist and be at most 5 MiB.
+- **V-PHOTO-KEY:** `^uploads/(checklist|damage)/[0-9a-f-]{36}\.(jpg|png|webp)$`. The server MUST `HEAD` the object: it must exist and be at most 5 MiB.
 - **V-CLIENT-EVENT-ID:** UUID v4, generated on the client.
 - **V-CHECKLIST:** object with exactly the keys `frame`, `brakes`, `tires`, `chain`, `saddle`, `handlebar_gears`, each one of `ok`, `minor_issue`, `damaged`. All keys required (A-02).
 - **V-QTY:** integer, 1 to `booking.max_quantity` (default 5). Number of bikes one reservation locks.
@@ -200,6 +206,7 @@ Stored in table `app_config(key text PK, value jsonb, updated_by, updated_at)`, 
 | `booking.min_duration_minutes` / `max_duration_minutes` | TBD | 60 / 1440 |
 | `booking.max_advance_days` / `min_lead_minutes` | TBD | 7 / 0 |
 | `booking.max_quantity` | TBD | 5 (max bikes in one reservation) |
+| `booking.max_active_reservations_per_phone` | TBD | 3 (anti-spam backstop for guest checkout; A-19) |
 | `booking.dp_rate_bps` | FIXED | 5000 (50% down payment collected online; balance collected offline) |
 | `checkout.early_minutes` | TBD | 0 |
 | `late.grace_minutes` | TBD | 15 |
@@ -213,7 +220,6 @@ Stored in table `app_config(key text PK, value jsonb, updated_by, updated_at)`, 
 | `reallocation.response_minutes` | TBD | 30 |
 | `payments.min_charge_idr` | TBD | 10000 |
 | `noshow.refund_policy` | TBD | `full_refund` or `retain_full`; FIXTURE `full_refund` (A-03) |
-| `idv.retention_days` | TBD | 90 (legal review required before launch) |
 | `reports.repeat_fault_threshold` / `window_days` | TBD | 3 / 90 |
 | `holidays` | TBD | `[]` (dates excluded from business days) |
 | `feature.sister_outlets_enabled` | P3 flag | false |
@@ -246,10 +252,7 @@ bike_events(bike_id, owner_id, type bike_event_type NOT NULL, from_state bike_st
 scan_events(client_event_id uuid UNIQUE NOT NULL, staff_id, outlet_id, type text, payload jsonb, occurred_at timestamptz,
       received_at timestamptz DEFAULT now(), status CHECK IN ('applied','flagged','rejected'), flag_reason text NULL,
       resolved_by uuid NULL, resolved_at timestamptz NULL)
-renters(user_id UNIQUE, phone text, verification_status verification_status NOT NULL DEFAULT 'not_started')
-verification_requests(renter_id, provider text, provider_ref text, document_type CHECK IN ('ktp','sim','passport'),
-      document_key text, status verification_status, reviewed_by NULL, reviewed_at NULL, reject_reason text NULL)
-id_document_views(verification_request_id, viewer_id, viewed_at)     -- append-only
+renters(user_id uuid UNIQUE NULL → users, phone text UNIQUE NOT NULL)   -- guest: user_id NULL, phone is the identity (revision 1.2)
 pricing_rules(outlet_id NULL, category, day_type pricing_day_type NOT NULL DEFAULT 'all', rate_idr bigint CHECK (>0), effective_from timestamptz)
 promotions(code text UNIQUE, kind CHECK IN ('percent','fixed'), value bigint, max_discount_idr bigint NULL,
       starts_at, ends_at, category NULL, outlet_id NULL, max_uses int NULL, max_uses_per_renter int NULL, active boolean)
@@ -276,7 +279,9 @@ payment_webhook_events(provider text, event_id text, raw jsonb, received_at, pro
 refunds(payment_intent_id, reservation_id NULL, rental_id NULL, amount_idr bigint CHECK (>0),
       reason CHECK IN ('mechanical_failure','reallocation_declined','late_payment_sold_out','no_show','dispute'),
       gateway_ref NULL, status CHECK IN ('pending','succeeded','failed'))
-idempotency_keys(key uuid, user_id, request_hash text, response jsonb NULL, status_code int, PRIMARY KEY (key, user_id))
+idempotency_keys(key uuid, user_id uuid NULL, guest_phone text NULL, request_hash text, response jsonb NULL, status_code int,
+      CHECK ((user_id IS NULL) <> (guest_phone IS NULL)),
+      UNIQUE NULLS NOT DISTINCT (key, user_id, guest_phone))    -- guests scope the key to contactPhone (revision 1.2)
 outbox_events(type text, payload jsonb, dispatched_at NULL)         -- transactional outbox for in-process event bus
 -- Phase 2
 commission_rules(owner_id NULL, rate_bps int CHECK (0..10000), base CHECK IN ('pre_discount','post_discount'), effective_from)
@@ -301,7 +306,6 @@ audit_log(actor_id NULL, actor_role text, action text, entity text, entity_id uu
 - `bike_event_type`: `registered`, `checked_out`, `checked_in`, `inspected`, `state_changed`, `incident_reported`.
 - `reservation_status`: `held`, `confirmed`, `fulfilled`, `expired`, `cancelled`, `no_show`.
 - `rental_status`: `open`, `returned`, `completed`.
-- `verification_status`: `not_started`, `pending`, `verified`, `rejected`.
 - `payment_purpose`: `booking`, `late_fee`. `payment_status`: `created`, `pending`, `paid`, `failed`, `expired`, `refunded`.
 - `pricing_day_type`: `all`, `weekday`, `weekend`.
 - `collateral_type`: `ktp`, `sim`, `vehicle`.
@@ -337,16 +341,17 @@ Each requirement lists atomic sub-tasks in execution order, then validation and 
 
 ### 6.1 Identity and Tenancy
 
-#### FR-ID-01 Renter sign-in by phone OTP [P1]
+#### FR-ID-01 Renter sign-in by phone OTP — optional [P1]
+Sign-in is optional (revision 1.2): a guest books with a `contactPhone` only (FR-INV-02) and the 50% down payment is the primary anti-spam and no-show control. A renter account exists primarily to claim platform and owner promotions and vouchers, and secondarily to see booking history.
 Better Auth phone-number plugin; OTP delivered by WhatsApp through `NotificationProvider`.
 1. Normalize and validate `phone` (V-PHONE).
 2. Enforce limits: at most 1 OTP per phone per 60 s, 5 per phone per hour, 20 per IP per hour. Otherwise 429 `RATE_LIMITED`.
 3. Generate a 6-digit numeric OTP with a CSPRNG. Store only its hash. TTL 300 s.
 4. Send via WhatsApp template `otp`.
 5. On verify: at most 5 wrong attempts per OTP, then the OTP is invalidated. A wrong, expired or used OTP returns 401 `OTP_INVALID`.
-6. On first successful verify, in one transaction create the `users` row (role `renter`) and the `renters` row (`verification_status = not_started`).
+6. On first successful verify, in one transaction create the `users` row (role `renter`) and the `renters` row. If a guest `renters` row with the same phone already exists (`user_id = NULL`), link it by setting `user_id` instead of inserting a duplicate row (A-17): the phone is the booking identity across guest and authenticated use.
 7. Issue a session (TTL 30 days, sliding).
-- **AC:** 6th OTP request within an hour returns 429. A correct OTP after 5 wrong attempts still returns 401. Inputs `081234567890`, `6281234567890` and `+6281234567890` all normalize to `+6281234567890` and resolve to the same user.
+- **AC:** 6th OTP request within an hour returns 429. A correct OTP after 5 wrong attempts still returns 401. Inputs `081234567890`, `6281234567890` and `+6281234567890` all normalize to `+6281234567890` and resolve to the same user. A guest reservation booked with phone X is visible to the account later created from the same phone X.
 
 #### FR-ID-02 Staff, owner, admin sign-in [P1]
 1. Accounts are created only by admin (`POST /admin/users`); public sign-up for these roles is disabled.
@@ -361,14 +366,8 @@ Better Auth phone-number plugin; OTP delivered by WhatsApp through `Notification
 3. Every owner endpoint runs in a transaction that first calls `set_config('app.owner_id', ownerId, true)`, and repository helpers require `ownerId` as a parameter (compile-time, no default).
 - **AC (T-02):** owner A's session cannot read, via any owner endpoint or direct `app_rls` SQL, any row of owner B's outlets, bikes or ledger; the response is 404 or zero rows.
 
-#### FR-ID-04 Renter ID verification [P1]
-Requirement stands; method is on hold, so it sits behind `VerificationProvider`. Shipped implementation: `ManualReviewProvider`.
-1. `POST /renters/me/id-documents/upload-url` returns a presigned PUT URL (expires 5 min, `Content-Type` image/jpeg|png|webp, max 5 MiB) and the object key (`uploads/id/<uuid>.<ext>`).
-2. `POST /renters/me/verification` with `{documentType, documentKey}`: verify object exists (V-PHOTO-KEY). Allowed only when status is `not_started` or `rejected`, else 409 `STATE_CONFLICT`. Create `verification_requests`, call `provider.submit`, set `renters.verification_status = pending`.
-3. Admin lists pending requests, opens an image (a presigned GET, 60 s expiry; each open inserts `id_document_views`), then `PATCH /admin/verification-requests/{id}` with `{decision: approve|reject, reason?}`. `reason` is required (V-TEXT-L) when rejecting.
-4. Approve sets `verified`; reject sets `rejected`. Notify the renter (template `verification_result`).
-5. Document access: only role `admin`. Bucket private and encrypted at rest. Delete objects `idv.retention_days` after the renter's last rental or the rejection.
-- **AC:** a renter with `pending` status calling `POST /reservations` gets 422 `VERIFICATION_REQUIRED`.
+#### FR-ID-04 (removed) Renter ID verification
+Removed in revision 1.2 (conversion-rate optimization). There is **no** digital ID verification: the `verification_requests` and `id_document_views` tables, the `VerificationProvider` interface, `POST /renters/me/id-documents/upload-url`, `POST /renters/me/verification`, the admin verification queue, the `verification_status` column and the `verification_result` notification template do not exist, and `POST /reservations` never returns 422 `VERIFICATION_REQUIRED`. A renter's good faith is secured by (a) the 50% down payment (FR-INV-02) — the primary anti-spam and no-show control — and (b) the physical collateral (KTP, SIM or vehicle) that staff collect and log offline at check-out (FR-RNT-01, V-COLLATERAL). No digital identity document is ever uploaded, stored or reviewed by the platform.
 
 #### FR-ID-05 (removed) Digital security deposit
 Removed in revision 1.1. There is **no** digital deposit: the `deposits` and `deposit_claims` tables, the `deposit_status` enum, `POST /renters/me/deposit`, `POST /admin/renters/{id}/deposit/release` and `PATCH /admin/deposit-claims/{id}` do not exist. A renter's good faith is secured by (a) the 50% down payment (FR-INV-02) and (b) the physical collateral collected at check-out (FR-RNT-01). Damage discovered at check-in is settled offline against that collateral (FR-RNT-03).
@@ -395,7 +394,7 @@ Removed in revision 1.1. There is **no** digital deposit: the `deposits` and `de
 Pure function `quote({outletId, category, startsAt, endsAt, promoCode?, renterId}) → {priceIdr, discountIdr, finalIdr, rateSnapshot, promoId, ownerPromoBps}`.
 1. `dayType` = `weekend` when the WIB date of `startsAt` is Saturday or Sunday, else `weekday`. Rate: the latest `pricing_rules` with `effective_from <= now()` matching `(outlet_id, category, dayType)`, else `(NULL, category, dayType)`, else `(outlet_id, category, 'all')`, else `(NULL, category, 'all')`; none: 422 `CATEGORY_NOT_OFFERED`. `rateSnapshot` records `{rateIdr, unitMinutes, dayType}`.
 2. `units = ceil(durationMinutes / pricing.billing_unit_minutes)`; `priceIdr = rateIdr * units`.
-3. Promo (P2; P1 ignores `promoCode`, returning `PROMO_INVALID` if supplied): active, `starts_at <= now() < ends_at`, scope matches, `max_uses` and `max_uses_per_renter` not exceeded. `percent`: `discount = min(floor(price * value / 100), max_discount_idr ?? price)`; `fixed`: `min(value, price)`. `percent` value must be 1 to 100.
+3. Promo (P2; P1 ignores `promoCode`, returning `PROMO_INVALID` if supplied): active, `starts_at <= now() < ends_at`, scope matches, `max_uses` and `max_uses_per_renter` not exceeded. A `promoCode` is accepted only for an authenticated session; an unauthenticated request supplying one returns 401 `UNAUTHENTICATED` (revision 1.2, incentivized auth). `percent`: `discount = min(floor(price * value / 100), max_discount_idr ?? price)`; `fixed`: `min(value, price)`. `percent` value must be 1 to 100.
 4. `finalIdr = priceIdr - discountIdr`. `ownerPromoBps = owner.promo_opt_out ? 0 : promo.owner_share_bps`.
 5. If `0 < finalIdr < payments.min_charge_idr`: 422 `AMOUNT_BELOW_MINIMUM`.
 - **AC:** weekday rate 10000, unit 60, window 90 min gives 20000; the same window on a Saturday uses the weekend rate 15000 and gives 30000. Percent 25 on 20000 gives discount 5000, final 15000. Window 61 min gives 2 units.
@@ -413,12 +412,13 @@ Function `computeAvailability(tx, {outletId, category, startsAt, endsAt, exclude
 - **AC (T-01 set):** inService 5, buffer 0, four overlapping confirmed reservations of `quantity` 1, 0 rentals: available 1. With inService 5 and no other commitments, one confirmed reservation of `quantity` 3 leaves available 2, so a follow-up request of `quantity` 2 succeeds and one of `quantity` 3 fails `SOLD_OUT`. Reservation 10:00 to 11:00 does not overlap window 11:00 to 12:00. Buffer 1 with inService 5 and 0 committed: available 4. An overdue open rental counts against a window next week.
 
 #### FR-INV-02 Create reservation (hold) [P1]
-`POST /reservations`. Inputs: `outletId` (V-UUID), `category` (V-CAT), `quantity?` (V-QTY, default 1), `startsAt`, `endsAt` (V-TS), `promoCode?` (V-PROMO); header `Idempotency-Key`.
+`POST /reservations`. Public — guest checkout (revision 1.2). Inputs: `outletId` (V-UUID), `category` (V-CAT), `quantity?` (V-QTY, default 1), `startsAt`, `endsAt` (V-TS), `promoCode?` (V-PROMO), `contactPhone?` (V-PHONE; REQUIRED when the request is unauthenticated, REJECTED with 400 when it is authenticated); header `Idempotency-Key`.
 Pre-transaction validation, in this order (first failure returns):
-1. Schema (400). Renter `verification_status = verified` else 422 `VERIFICATION_REQUIRED`.
-2. `endsAt > startsAt`; minutes of `startsAt` and duration are multiples of `booking.slot_minutes`; duration within `booking.min/max_duration_minutes` else 422 `DURATION_OUT_OF_RANGE`; `startsAt >= now + booking.min_lead_minutes` and `<= now + booking.max_advance_days` else 422 `WINDOW_OUT_OF_RANGE`.
-3. `startsAt` and `endsAt` each fall inside the outlet's `hours` (WIB) else 422 `OUTSIDE_OPENING_HOURS`. Closed time between them is allowed.
-4. Outlet active and `(outletId, category)` active else 422 `CATEGORY_NOT_OFFERED`.
+1. Schema (400). Renter identity: an authenticated session resolves to the session's renter; an unauthenticated request resolves or creates the guest `renters` row keyed by `contactPhone` with `user_id = NULL` (A-17). `promoCode` on an unauthenticated request returns 401 `UNAUTHENTICATED` — promotions require an account (incentivized auth).
+2. Phone guard (anti-spam backstop): the phone already holding `booking.max_active_reservations_per_phone` reservations in status `held` or `confirmed` returns 409 `DUPLICATE_RESOURCE` (A-19; the 50% DP remains the primary anti-spam and no-show control).
+3. `endsAt > startsAt`; minutes of `startsAt` and duration are multiples of `booking.slot_minutes`; duration within `booking.min/max_duration_minutes` else 422 `DURATION_OUT_OF_RANGE`; `startsAt >= now + booking.min_lead_minutes` and `<= now + booking.max_advance_days` else 422 `WINDOW_OUT_OF_RANGE`.
+4. `startsAt` and `endsAt` each fall inside the outlet's `hours` (WIB) else 422 `OUTSIDE_OPENING_HOURS`. Closed time between them is allowed.
+5. Outlet active and `(outletId, category)` active else 422 `CATEGORY_NOT_OFFERED`.
 
 Single database transaction (`READ COMMITTED`):
 1. `SELECT 1 FROM outlet_categories WHERE outlet_id = $1 AND category = $2 FOR UPDATE`.
@@ -429,13 +429,13 @@ Single database transaction (`READ COMMITTED`):
 6. Insert `payment_intents(purpose = booking, amount = dpIdr, status = created, expires_at = reservation.expires_at)`.
 7. Insert outbox event `reservation.held`. Commit.
 
-After commit (never inside the lock): enqueue BullMQ job `release-hold` at `expires_at` (job id `hold:<reservationId>`); call `gateway.createInvoice({externalId: intent.id, amount, durationSeconds: 900})` with an 8 s timeout. Success: store `gateway_ref`, `payment_url`, status `pending`; respond 201 `{reservation, price, paymentUrl}`. Failure: set reservation `cancelled` (`cancel_reason = gateway_error`), intent `failed`, respond 502 `GATEWAY_UNAVAILABLE`.
+After commit (never inside the lock): enqueue BullMQ job `release-hold` at `expires_at` (job id `hold:<reservationId>`); call `gateway.createInvoice({externalId: intent.id, amount, durationSeconds: 900})` with an 8 s timeout. Success: store `gateway_ref`, `payment_url`, status `pending`; respond 201 `{reservation, price, paymentUrl}` — plus `guestToken` (A-18) when the booking was made as a guest. Failure: set reservation `cancelled` (`cancel_reason = gateway_error`), intent `failed`, respond 502 `GATEWAY_UNAVAILABLE`.
 - **AC (T-01, the protected rule):** an outlet with 5 commuter bikes and 50 parallel valid requests (each `quantity = 1`) for the same window yields exactly 5 responses 201 and 45 responses 409 `SOLD_OUT`; `computeAvailability` afterwards returns 0. With the same 5 bikes, one request of `quantity = 3` leaves `available = 2`; a follow-up request of `quantity = 3` returns `SOLD_OUT` and one of `quantity = 2` returns 201.
 
 #### FR-INV-03 Hold expiry, no-show and sweeper [P1]
 1. Delayed job `release-hold` runs at `expires_at`; sweeper job `sweeper` runs every minute. Both execute the same idempotent SQL; Redis loss never loses a booking.
 2. Expire holds: `UPDATE reservations SET status = 'expired' WHERE status = 'held' AND expires_at <= now() RETURNING id`; set unpaid intents to `expired`; emit `reservation.released`.
-3. No-show: `UPDATE ... SET status = 'no_show' WHERE status = 'confirmed' AND starts_at + noshow.grace_minutes <= now()`. Apply `noshow.refund_policy` to the online down payment (`dp_idr`): `full_refund` refunds the DP (FR-PAY-03, reason `no_show`); `retain_full` does nothing. Notify renter (`no_show`). The released reservation stops counting its `quantity` on the next availability computation.
+3. No-show: `UPDATE ... SET status = 'no_show' WHERE status = 'confirmed' AND starts_at + noshow.grace_minutes <= now()`. Apply `noshow.refund_policy` to the online down payment (`dp_idr`): `full_refund` refunds the DP (FR-PAY-03, reason `no_show`); `retain_full` does nothing. Notify renter (`no_show`; for a guest booking, WhatsApp to the guest `contactPhone`). The released reservation stops counting its `quantity` on the next availability computation.
 4. Sweeper also runs FR-RNT-04 escalation and FR-INV-04 reallocation deadlines.
 - **AC:** a `held` row with `expires_at` 1 s in the past is `expired` after one sweeper run with Redis stopped. A `confirmed` reservation with `starts_at` 61 min ago becomes `no_show`; one 59 min ago does not.
 
@@ -551,7 +551,7 @@ All endpoints use the owner transaction context (FR-ID-03).
 ### 6.8 Notifications
 
 #### FR-NOT-01 Delivery [P1]
-1. Templates: `otp`, `reservation_confirmed`, `no_show`, `refund_issued`, `reallocation_offer`, `verification_result`, `late_reminder`, `owner_late_flag`, `drift_alert`; P2: `statement_ready`, `payout_paid`, `payout_failed`, `dispute_update`.
+1. Templates: `otp`, `reservation_confirmed`, `no_show`, `refund_issued`, `reallocation_offer`, `late_reminder`, `owner_late_flag`, `drift_alert`; P2: `statement_ready`, `payout_paid`, `payout_failed`, `dispute_update`. (The former `verification_result` template was removed with FR-ID-04 in revision 1.2.)
 2. Each send inserts a `notifications` row and a BullMQ job. Up to 5 attempts, exponential backoff starting at 30 s. After the fifth failure set `failed` and write `audit_log`.
 3. Channel: WhatsApp to renters; email for owner and admin messages. If a WhatsApp send fails permanently and the user has an email, send the same template by email.
 4. Notification failure MUST NOT roll back or block the business transaction (enqueue after commit through the outbox).
@@ -597,13 +597,13 @@ Job `run-payouts`, cron `0 9 * * 2`, `tz: Asia/Jakarta`.
 ### 6.10 Security and Audit
 
 #### FR-SEC-01 QR tokens
-1. Voucher: `GET /reservations/{id}/voucher` (owning renter only; reservation `confirmed`) returns `{token, expiresAt}`. Token is a compact EdDSA-signed JWT with header `kid`, claims `{v:1, rid, nonce, iat, exp = iat + qr.voucher_ttl_seconds}`. The renter app refetches every `ttl/2` seconds.
+1. Voucher: `GET /reservations/{id}/voucher` (owning renter session, or the reservation's `guestToken` for a guest booking — A-18; reservation `confirmed`) returns `{token, expiresAt}`. Token is a compact EdDSA-signed JWT with header `kid`, claims `{v:1, rid, nonce, iat, exp = iat + qr.voucher_ttl_seconds}`. The renter app refetches every `ttl/2` seconds.
 2. Staff verification: signature with the public key set (bundled in the staff app for offline pre-check; the server re-verifies authoritatively), `exp + 120 s >= occurredAt >= iat - 120 s`.
 3. Bike tags encode `asset_tag` plus an HMAC-SHA256 signature with a key id; a physical tag cannot change per scan, so "rotating" means key rotation: tags can be reissued under a new key id and old key ids can be revoked (A-07). The server additionally requires `bike.current_outlet_id` to equal the staff outlet (FR-RNT-01), so a copied tag is useless elsewhere.
 4. Signing keys live in environment secrets; never in the repo.
 
 #### FR-SEC-02 Audit
-1. `audit_log` receives a row for: every admin mutation, ID document view, flagged-scan resolution, config change, commission rule change, payout and dispute action, and offline collateral/damage claim decision.
+1. `audit_log` receives a row for: every admin mutation, flagged-scan resolution, config change, commission rule change, payout and dispute action, and offline collateral/damage claim decision.
 2. Flagged scans: `GET /admin/flagged-scans`, `PATCH /admin/flagged-scans/{id}` `{resolution: dismissed|corrected, note (V-TEXT-L)}`.
 
 ---
@@ -620,20 +620,18 @@ Base path `/api/v1` (Better Auth endpoints are mounted at `/api/auth/*`). All bo
 | `GET /outlets/{id}` | public | path V-UUID | 200 outlet + `availability` | n/a |
 | `GET /outlets/{id}/availability` | public | query `category` V-CAT, `startsAt`, `endsAt` V-TS | 200 `{available: int}` | 422 `WINDOW_OUT_OF_RANGE`, `DURATION_OUT_OF_RANGE` |
 | `GET /outlets/stream` | public | none | 200 `text/event-stream` | n/a |
-| `GET /renters/me` | renter | none | 200 `{phone, verificationStatus}` | n/a |
-| `POST /renters/me/id-documents/upload-url` | renter | `documentType` ktp/sim/passport, `contentType` image/jpeg, image/png or image/webp, `sizeBytes` int 1 to 5242880 | 200 `{uploadUrl, key, expiresAt}` | n/a |
-| `POST /renters/me/verification` | renter | `documentType`, `documentKey` V-PHOTO-KEY (kind `id`) | 202 `{status: "pending"}` | 409 `STATE_CONFLICT` |
-| `POST /pricing/quote` | renter | `outletId, category, startsAt, endsAt, promoCode?` | 200 `{priceIdr, discountIdr, finalIdr, dpIdr, units}` | 422 `CATEGORY_NOT_OFFERED`, `PROMO_INVALID`, `AMOUNT_BELOW_MINIMUM`, window and duration codes |
-| `POST /reservations` | renter | header `Idempotency-Key`; `outletId, category, quantity?, startsAt, endsAt, promoCode?` | 201 `{reservation, price, paymentUrl?}` (`paymentUrl` absent when `dpIdr = 0`) | 409 `SOLD_OUT`, `IDEMPOTENCY_IN_PROGRESS`; 422 `VERIFICATION_REQUIRED`, `OUTSIDE_OPENING_HOURS`, `DURATION_OUT_OF_RANGE`, `WINDOW_OUT_OF_RANGE`, `CATEGORY_NOT_OFFERED`, `PROMO_INVALID`, `AMOUNT_BELOW_MINIMUM`, `IDEMPOTENCY_KEY_REUSED`; 502 `GATEWAY_UNAVAILABLE` |
-| `GET /reservations` | renter | query `status?`, `limit`, `cursor` | 200 list (own only) | n/a |
-| `GET /reservations/{id}` | renter | path V-UUID | 200 reservation incl. `status`, `quantity`, `expiresAt`, price fields (`priceIdr`, `discountIdr`, `finalIdr`, `dpIdr`), `atRisk` | n/a |
-| `GET /reservations/{id}/voucher` | renter | none | 200 `{token, expiresAt}` | 409 `STATE_CONFLICT` (not `confirmed`) |
+| `GET /renters/me` | renter | none | 200 `{phone}` | n/a |
+| `POST /pricing/quote` | public | `outletId, category, startsAt, endsAt, promoCode?` | 200 `{priceIdr, discountIdr, finalIdr, dpIdr, units}` | 422 `CATEGORY_NOT_OFFERED`, `PROMO_INVALID`, `AMOUNT_BELOW_MINIMUM`, window and duration codes; 401 `UNAUTHENTICATED` (`promoCode` without a session, P2) |
+| `POST /reservations` | public (guest or renter) | header `Idempotency-Key`; `outletId, category, quantity?, startsAt, endsAt, promoCode?, contactPhone?` (`contactPhone` required when unauthenticated, rejected when authenticated) | 201 `{reservation, price, paymentUrl?, guestToken?}` (`paymentUrl` absent when `dpIdr = 0`; `guestToken` present on guest bookings, A-18) | 409 `SOLD_OUT`, `IDEMPOTENCY_IN_PROGRESS`, `DUPLICATE_RESOURCE` (A-19); 401 `UNAUTHENTICATED` (`promoCode` without a session); 422 `OUTSIDE_OPENING_HOURS`, `DURATION_OUT_OF_RANGE`, `WINDOW_OUT_OF_RANGE`, `CATEGORY_NOT_OFFERED`, `PROMO_INVALID`, `AMOUNT_BELOW_MINIMUM`, `IDEMPOTENCY_KEY_REUSED`; 502 `GATEWAY_UNAVAILABLE` |
+| `GET /reservations` | renter | query `status?`, `limit`, `cursor` | 200 list (own only; guests have no list — they use `guestToken` links, A-18) | n/a |
+| `GET /reservations/{id}` | renter or guest token | path V-UUID; guest access via `Authorization: Bearer <guestToken>` (A-18) | 200 reservation incl. `status`, `quantity`, `expiresAt`, price fields (`priceIdr`, `discountIdr`, `finalIdr`, `dpIdr`), `atRisk` | n/a |
+| `GET /reservations/{id}/voucher` | renter or guest token | none; guest access via `Authorization: Bearer <guestToken>` (A-18) | 200 `{token, expiresAt}` | 409 `STATE_CONFLICT` (not `confirmed`) |
 | `GET /reservations/{id}/alternatives` | renter | none | 200 list of `{outletId, name, distanceKm?, availableNow}` | 409 `STATE_CONFLICT` (not `at_risk`) |
 | `POST /reservations/{id}/reallocate` | renter | header `Idempotency-Key`; `outletId` V-UUID | 200 new reservation | 409 `SOLD_OUT`, `STATE_CONFLICT` |
 | `POST /reservations/{id}/decline-reallocation` | renter | none | 200 `{refundId}` | 409 `STATE_CONFLICT` |
 | `POST /webhooks/{gateway}` | public | gateway payload (`fake` in P1) | 200 | 401 `WEBHOOK_SIGNATURE_INVALID` |
 
-There is no endpoint to cancel, end, or relocate a rental or a bike (NEG-3, NEG-8).
+There is no endpoint to cancel, end, or relocate a rental or a bike (NEG-3, NEG-8). Guest bookings (A-18) are accessed with the reservation-scoped `guestToken` sent in the 201 response and by WhatsApp; a guest token grants only `GET /reservations/{id}` and the voucher endpoint for that one reservation.
 
 ### 7.2 Staff (role `staff`, always scoped to the staff user's outlet)
 
@@ -683,7 +681,6 @@ There is no endpoint to cancel, end, or relocate a rental or a bike (NEG-3, NEG-
 | `POST /admin/promotions`, `PATCH /admin/promotions/{id}` [P2] | `code` V-PROMO, `kind`, `value` (percent 1 to 100; fixed V-IDR > 0), `maxDiscountIdr?`, `startsAt`, `endsAt` (> `startsAt`), `category?`, `outletId?`, `maxUses?`, `maxUsesPerRenter?` | 201 / 200 | 409 `DUPLICATE_RESOURCE` |
 | `POST /admin/commission-rules` [P2] | FR-LED-02 | 201 | n/a |
 | `PATCH /admin/config` | `{key, value}`; key must exist in section 4, value type-checked | 200 | n/a |
-| `GET /admin/verification-requests`, `PATCH .../{id}` | `status?`, paging; `decision`, `reason?` | 200 | 409 `STATE_CONFLICT` |
 | `GET /admin/flagged-scans`, `PATCH .../{id}` | paging; `resolution`, `note` | 200 | n/a |
 | `POST /admin/settlements/build` [P2] | `weekKey` V-WEEK (must be a completed week) | 202 | 409 `STATE_CONFLICT` |
 | `POST /admin/settlements/run-payouts`, `POST /admin/payouts/{id}/retry`, `POST /admin/payouts/{id}/mark-paid`, `GET /admin/payouts/export?weekKey=` [P2] | as FR-LED-04 | 202 / 200 / CSV | 409 `STATE_CONFLICT` |
@@ -705,7 +702,6 @@ OpenAPI 3.1 is generated from the Zod schemas in `packages/contracts` and served
 | `build-statements` | cron `5 0 * * 1`, tz `Asia/Jakarta` | unique `(owner_id, week_key)` | FR-LED-03 |
 | `run-payouts` | cron `0 9 * * 2`, tz `Asia/Jakarta` | unique `(owner_id, week_key)` + gateway idempotency key | FR-LED-04 |
 | `dispute-overdue-notify` | daily 09:00 WIB | one notification per dispute per day | FR-LED-05 |
-| `idv-retention-purge` | daily 02:00 WIB | delete is naturally repeatable | FR-ID-04 |
 
 ---
 
@@ -718,7 +714,7 @@ OpenAPI 3.1 is generated from the Zod schemas in `packages/contracts` and served
 | NFR-03 | **Availability and recovery:** 99.5% monthly API uptime; Postgres point-in-time recovery, RPO <= 5 min, RTO <= 60 min |
 | NFR-04 | **Security:** TLS 1.2+ with HSTS; CSP and CORS allow-list; cookies `HttpOnly; Secure; SameSite=Lax`; password hashing by Better Auth defaults; parameterized SQL only; secrets in environment, never in the repo; `pnpm audit` fails CI on high severity; webhook verification (FR-PAY-02); rate limits (3.2); RLS (FR-ID-03) |
 | NFR-05 | **Time and money:** UTC storage; WIB logic for weeks, hours, business days; integer rupiah only (lint rule banning `parseFloat`, `toFixed` and `number` money fields in `modules/ledger` and `modules/pricing`) |
-| NFR-06 | **Privacy:** ID images follow FR-ID-04; renter coordinates never persisted (NEG-4); renter phone masked for owners and staff lists; log redaction for phone, `lat`, `lng`, tokens. Obligations under Indonesia's personal data protection law MUST be reviewed by a qualified person before launch (gate G-03) |
+| NFR-06 | **Privacy:** renter coordinates never persisted (NEG-4); renter phone masked for owners and staff lists; log redaction for phone, `lat`, `lng`, tokens; no digital identity documents are stored anywhere (revision 1.2 — collateral is physical and offline, FR-RNT-01). Obligations under Indonesia's personal data protection law for renter phone numbers and contact data MUST be reviewed by a qualified person before launch (gate G-03) |
 | NFR-07 | **UI:** follow shadcn/ui and Tailwind design patterns; renter UI mobile-first, minimum width 360 px; WCAG 2.1 AA contrast; staff app touch targets at least 44 x 44 CSS px; staff PWA installable, precaches its app shell with Workbox, and on a repeat visit loads and accepts scans with the network disabled |
 | NFR-08 | **Observability:** one JSON log line per request (`requestId`, route, status, duration); Sentry for unhandled errors; alerts when 5xx rate > 2% over 5 min, `sweeper` has not run for 3 min, or a queue backlog > 100 for 5 min |
 | NFR-09 | **Quality gates (CI, blocking):** lint, `tsc --noEmit`, unit and integration tests against a real Postgres container, T-01 concurrency test, line coverage >= 90% on `modules/inventory`, `modules/ledger`, `modules/pricing` |
@@ -745,7 +741,7 @@ Tests derive directly from the requirements above. Integration tests use real Po
 | T-10 | FR-PRC-01, FR-RNT-02 | Table-driven pricing and late-fee cases from the ACs (61 min gives 2 units; 12:15 / 12:16 / 13:01 late fees) |
 | T-11 | section 5.1 | Every pair not in the transition table throws `STATE_CONFLICT`; every allowed transition writes exactly one `bike_events` row |
 | T-12 | INV-6 | UPDATE and DELETE on each append-only table raise an exception |
-| T-13 | End to end (Playwright) | Verified renter books a reservation with `quantity = 2`; FakeGateway DP paid event confirms it; staff scans voucher, checks out 2 bikes with `bikeAssetTags` (length 2), logs `collateral`, and records the offline `balanceCollection`; staff check-in; inspection `pass`. Expect 2 `rentals` `completed` (sharing the reservation), bikes `available`, availability restored |
+| T-13 | End to end (Playwright) | A guest renter (unauthenticated, `contactPhone`) books a reservation with `quantity = 2`; FakeGateway DP paid event confirms it; the guest fetches the voucher with `guestToken` (A-18); staff scans voucher, checks out 2 bikes with `bikeAssetTags` (length 2), logs `collateral`, and records the offline `balanceCollection`; staff check-in; inspection `pass`. Expect 2 `rentals` `completed` (sharing the reservation), bikes `available`, availability restored |
 | T-14 | Section 3.4, section 7 | Table-driven from the Zod schemas: each endpoint rejects unknown fields, each V-rule rejects its boundary value (n-1, n+1) with 400 and `details[].path` |
 | T-15 | FR-INV-04 | The FR-INV-04 AC; accepting an alternative creates a `confirmed` reservation with copied price and no payment intent; declining creates one full refund |
 | T-16 | FR-RNT-01, 02, 03, 05 | Flag reasons: each condition produces the listed `reason` (`QUANTITY_MISMATCH`, `COLLATERAL_REQUIRED`, `BALANCE_MISMATCH`, `RESERVATION_NOT_CONFIRMED`, plus the inspection/incident reasons) and leaves bike and rental state unchanged |
@@ -758,7 +754,7 @@ Tests derive directly from the requirements above. Integration tests use real Po
 
 - **G-01 Xendit sandbox check** before the payments PR merges: confirm that Invoice supports cards, OVO and GoPay (and QRIS), that a refund API is available, and that the Disbursement API is enabled. If any item fails, stop and report. Do not substitute another gateway silently. Phase 1 fallback for payouts is the CSV export in FR-LED-04.
 - **G-02 Better Auth check:** confirm the installed version provides phone-number OTP and email-password with additional user fields. Report if not.
-- **G-03 Legal review** of ID document handling before production launch (NFR-06).
+- **G-03 Legal review** of personal-data handling (renter phone numbers and contact data; there are no ID images since revision 1.2) before production launch (NFR-06).
 
 ### 11.2 Assumptions made to remove ambiguity (reversible, tagged in the text)
 
@@ -773,26 +769,29 @@ Tests derive directly from the requirements above. Integration tests use real Po
 | A-07 | Bike tag "rotation" is key rotation, not per-scan change | A printed tag cannot change per scan |
 | A-08 | Promo opt-out means the promotion still applies and the owner's share is 0 (platform bears the whole discount); opt-out is snapshotted per reservation | Literal reading of the tech document; the alternative reading (no promos at that owner's outlets) is a one-line change in FR-PRC-01 |
 | A-09 | Late fee is waived on mechanical failure; collection follows `late.collection_method` (`payment_intent` invoice or `offline_cash` recorded at the counter) | PRD defines the split, not the collection. Revision 1.1 removed deposit deduction |
-| A-10 | Renters sign in by phone OTP; staff, owner and admin by email and password, admin-created | PRD and tech document name roles but not credentials |
+| A-10 | Renters sign in by phone OTP when they choose to create an account; guests book with `contactPhone` only (revision 1.2). Staff, owner and admin sign in by email and password, admin-created | PRD and tech document name roles but not credentials |
 | A-11 | Capacity counts bikes by `home_outlet_id`; creating a second outlet per owner is blocked until `feature.sister_outlets_enabled`. P3 MUST revisit the capacity basis before enabling it | Tech document specifies home outlet; sister returns change `current_outlet_id` |
 | A-12 | A reservation is secured by a 50% online down payment (`booking.dp_rate_bps`); the balance and any extra charge are collected offline at the counter. There is no standing deposit balance | Revision 1.1 pivot to local practice: the PRD's "security deposit" is realized as a down payment plus physical collateral |
 | A-13 | Damage discovered at check-in is assessed by staff and settled offline against the collateral logged at check-out (FR-RNT-01, FR-RNT-03); an optional admin `manual_adjustment`/`damage_claim_credit` (P2) reconciles the ledger | PRD says "can be claimed against the deposit" without an online claim flow; revision 1.1 has no `deposit_claims` |
 | A-14 | Rental is `returned` at check-in and `completed` at inspection; ledger posts at `completed` | PRD says revenue posts "at rental completion" |
 | A-15 | Drift check compares server custody counts with staff-reported `physicalCounts` | PRD names the check but not its inputs |
 | A-16 | P1 dashboard earnings shows gross only; commission appears with the P2 ledger | Ledger is P2 in the tech document |
+| A-17 | A guest is a `renters` row keyed by phone with `user_id = NULL`; a later OTP verify from the same phone links the row instead of creating a duplicate, so guest bookings carry into the account | Revision 1.2 guest checkout needs a durable identity before any sign-up |
+| A-18 | A guest accesses one reservation through a reservation-scoped signed `guestToken` returned in the 201 response and delivered by WhatsApp; it grants `GET /reservations/{id}` and the voucher endpoint only. Guests have no list endpoint | A guest without a session still must fetch the QR voucher to check out |
+| A-19 | A phone may hold at most `booking.max_active_reservations_per_phone` (seed 3) reservations in status `held` or `confirmed`; excess returns 409 `DUPLICATE_RESOURCE`. Backstop only — the 50% DP is the primary anti-spam control | Revision 1.2 removes ID verification, so a cheap guard against hold-farming is needed |
 
 ### 11.3 Source discrepancies found
 
-- The tech document said two PRD items were on hold (down-payment, ID verification); the PRD also listed a deposit amount and release. Revision 1.1 resolves the down-payment by specifying a 50% DP (section 4) and removes the digital deposit entirely; ID verification remains in scope (FR-ID-04).
+- The tech document said two PRD items were on hold (down-payment, ID verification); the PRD also listed a deposit amount and release. Revision 1.1 resolves the down-payment by specifying a 50% DP (section 4) and removes the digital deposit entirely. Revision 1.2 removes ID verification entirely (FR-ID-04 deleted): the 50% DP plus offline physical collateral secure good faith.
 - The PRD lists payment by cards, GoPay and OVO; the tech document adds QRIS. This SRS requires all four to be confirmed in G-01.
 
 ### 11.4 Not specified in the PRD, deliberately excluded
 
-Renter-initiated cancellation or refund on request, multi-owner carts, loyalty or referral features, subscriptions, per-bike GPS, in-app chat, and any digital security deposit. The 50% down payment (FR-INV-02) and no-show forfeit per `noshow.refund_policy` are in scope as of revision 1.1. Add a requirement here before building any of them.
+Renter-initiated cancellation or refund on request, multi-owner carts, loyalty or referral features, subscriptions, per-bike GPS, in-app chat, any digital security deposit, and any digital ID verification or ID document storage (removed in revision 1.2; collateral is physical and offline). The 50% down payment (FR-INV-02) and no-show forfeit per `noshow.refund_policy` are in scope as of revision 1.1. Add a requirement here before building any of them.
 
 ### 11.5 Decisions still owed by the business (implemented as config, section 4)
 
-Rental rates and billing unit (including weekday/weekend tiers), booking window limits, late-fee rate and grace, escalation timings, down-payment rate (`booking.dp_rate_bps`, seed 50%), lost-unit penalty, ID verification provider and retention, QR token lifetime. The seed values in section 4 are illustrative mock data: owners and admin may change every amount.
+Rental rates and billing unit (including weekday/weekend tiers), booking window limits, late-fee rate and grace, escalation timings, down-payment rate (`booking.dp_rate_bps`, seed 50%), lost-unit penalty, maximum active reservations per phone (`booking.max_active_reservations_per_phone`, seed 3), QR token lifetime. The seed values in section 4 are illustrative mock data: owners and admin may change every amount.
 
 ---
 
@@ -800,11 +799,11 @@ Rental rates and billing unit (including weekday/weekend tiers), booking window 
 
 **Phase 1**
 1. `packages/db`: schema, enums, RLS, triggers, partial unique index, seed (section 1.1). Tests T-02, T-08, T-11, T-12.
-2. Identity (FR-ID-01 to FR-ID-03), config store, audit log (FR-SEC-02), error envelope, idempotency middleware.
-3. Inventory core: FR-INV-01, FR-INV-02, FR-PRC-01 (without promos), FR-PAY-02, FR-PAY-03 with `FakeGateway`. Tests T-01, T-04, T-09, T-10. Then Xendit adapter after gate G-01.
+2. Identity (FR-ID-01 to FR-ID-03, guest checkout identity A-17), config store, audit log (FR-SEC-02), error envelope, idempotency middleware (guest keying).
+3. Inventory core: FR-INV-01, FR-INV-02 (guest checkout, `contactPhone`, `guestToken`), FR-PRC-01 (without promos), FR-PAY-02, FR-PAY-03 with `FakeGateway`. Tests T-01, T-04, T-09, T-10. Then Xendit adapter after gate G-01.
 4. FR-INV-03 jobs and sweeper. Test T-03.
 5. Staff PWA and rental lifecycle: FR-OFF-01, FR-RNT-01 to FR-RNT-05, FR-INV-04, FR-INV-05, FR-SEC-01. Tests T-07, T-15, T-16.
-6. Catalog and renter site: FR-CAT-01, FR-CAT-02, FR-ID-04, FR-REP-02, FR-NOT-01. Test T-13.
+6. Catalog and renter site: FR-CAT-01, FR-CAT-02, FR-REP-02, FR-NOT-01. Test T-13.
 7. Basic owner dashboard (FR-REP-01 P1) and admin console pages.
 
 **Phase 2**
@@ -825,7 +824,7 @@ Rental rates and billing unit (including weekday/weekend tiers), booking window 
 | 2 Network baseline | Section 1.1, FR-CAT-02, seed (NFR-10) |
 | 3 Users | Sections 1.2, 1.3 |
 | 4.1 Discovery | FR-CAT-01, FR-REP-02 |
-| 4.2 Reservation, verification, payment, 15 min, 1 h | FR-ID-04, FR-INV-02, FR-INV-03, FR-PAY-02 |
+| 4.2 Reservation, payment, 15 min, 1 h | FR-INV-02, FR-INV-03, FR-PAY-02 |
 | 4.2b Multi-bike reservation and 50% down payment | FR-INV-01, FR-INV-02, FR-PRC-01, section 4 |
 | 4.3 Check-out | FR-RNT-01, FR-SEC-01 |
 | 4.4 Check-in | FR-RNT-02, FR-RNT-03 |

@@ -1,6 +1,8 @@
 # Jambi Bike Rental Network: PRD and System Architecture
 
-Version 1.1 | 6 November 2026 | For fleet owners and the platform team
+Version 1.2 | 6 November 2026 | For fleet owners and the platform team
+
+**Revision 1.2 (conversion-rate optimization: guest checkout).** Four changes: (1) mandatory digital ID verification is removed entirely — no ID upload, review queue or verification status exists, and no identity document is ever stored by the platform; (2) renter sign-in is optional — a renter can book as a **guest** by supplying a contact phone number, and the **50% down payment (DP)** is the primary anti-spam and no-show control; (3) renter accounts now exist primarily to claim platform and owner promotions and vouchers; (4) staff still collect **physical collateral** (KTP, SIM or vehicle) offline at check-out — nothing about that flow changes.
 
 **Revision 1.1 (architecture pivot to local Jambi practice).** Six changes: (1) multi-bike reservations via a `quantity` on each reservation; (2) the digital security deposit is removed entirely — there are no deposit balances, no `deposits`/`deposit_claims` tables and no deposit endpoints; (3) a **50% down payment (DP)** paid online confirms a reservation, and the remaining 50% is collected **offline** (cash/QRIS) by staff at check-out; (4) staff collect **physical collateral** (KTP, SIM or vehicle) at check-out and the event records the specific bikes handed over; (5) local penalty and pricing structures are **configurable seed data**, not policy — owners may change every amount; (6) Phase 1 uses a mock payment gateway (`FakeGateway`) exclusively.
 
@@ -30,7 +32,7 @@ Each owner currently runs exactly one outlet, so same-owner returns are effectiv
 
 ## 3. Users
 
-- **Renter:** finds an outlet with the right bike type, pays, collects, returns.
+- **Renter:** finds an outlet with the right bike type, pays, collects, returns. An account is optional: a guest books with a contact phone number only, and an account exists primarily to claim platform and owner promotions and vouchers.
 - **Outlet staff:** hands over and receives bikes using a scanner app.
 - **Owner:** monitors fleet health, utilization and earnings in a Tenant Dashboard.
 - **Platform admin:** onboards owners, manages promotions, handles disputes and payouts.
@@ -43,7 +45,7 @@ Renters browse a list and map of outlets only. Each outlet card shows live avail
 
 ### 4.2 Reservation
 
-Before any rental, the renter must complete ID verification; there is no digital security deposit. The renter picks an outlet, category, a **quantity** of bikes and a time window. The reservation locks that many bikes under the category and is priced from the owner's rate card (a weekday/weekend tier may apply). The renter confirms by paying a **50% down payment (DP)** through the payment gateway; the DP moves the reservation from held to confirmed and produces a signed QR voucher. In Phase 1 the gateway is a mock (`FakeGateway`); a real gateway is wired in after a sandbox check. The remaining 50% balance is collected **offline** by staff at check-out (cash or QRIS). Unpaid checkout holds lapse after a 15-minute payment window so stock is not blocked. A confirmed reservation is held for 1 hour after its scheduled start time. If the renter has not collected the bikes by then, the reservation is marked no-show, the DP is refunded or retained per the configured refund policy, and the bikes are released.
+No account or ID verification is required to book (revision 1.2): a renter books as a guest by supplying a contact phone number; there is no digital security deposit and no digital ID check. The renter picks an outlet, category, a **quantity** of bikes and a time window. The reservation locks that many bikes under the category and is priced from the owner's rate card (a weekday/weekend tier may apply). The renter confirms by paying a **50% down payment (DP)** through the payment gateway — the DP is the primary anti-spam and no-show control; the DP moves the reservation from held to confirmed and produces a signed QR voucher, delivered to the contact phone by WhatsApp (guests receive a signed guest link to their booking and voucher). In Phase 1 the gateway is a mock (`FakeGateway`); a real gateway is wired in after a sandbox check. The remaining 50% balance is collected **offline** by staff at check-out (cash or QRIS). Unpaid checkout holds lapse after a 15-minute payment window so stock is not blocked. A confirmed reservation is held for 1 hour after its scheduled start time. If the renter has not collected the bikes by then, the reservation is marked no-show, the DP is refunded or retained per the configured refund policy, and the bikes are released.
 
 ### 4.3 Check-out (handover)
 
@@ -85,7 +87,7 @@ Every bike therefore has a continuous custody trail: which outlet, which staff m
 
 **Services**
 
-- Identity and tenancy (roles, owner isolation, renter ID verification)
+- Identity and tenancy (roles, owner isolation, optional renter auth and guest checkout)
 - Outlet and catalog (outlets, sister groups, bike categories)
 - Inventory and reservation (the lock, multi-bike `quantity`, down-payment confirmation)
 - Rental lifecycle (check-out, check-in, late and damage rules, physical collateral)
@@ -97,9 +99,9 @@ Every bike therefore has a continuous custody trail: which outlet, which staff m
 
 **Data and infrastructure:** PostgreSQL as the system of record with a tenant ID on every row and row-level security; Redis for hold expiry timers; an event bus so rental events feed the ledger and reports; object storage for condition photos; an append-only audit log.
 
-**Core entities:** Owner, Outlet, SisterGroup (owner-scoped), Bike (asset tag, category, home outlet, current outlet, state), Renter (with ID verification status), Reservation (quantity, down-payment amount, status), Rental (with logged physical collateral and offline balance), LedgerEntry, Payout.
+**Core entities:** Owner, Outlet, SisterGroup (owner-scoped), Bike (asset tag, category, home outlet, current outlet, state), Renter (phone-keyed, optional account), Reservation (quantity, down-payment amount, status), Rental (with logged physical collateral and offline balance), LedgerEntry, Payout.
 
-**Security:** rotating signed QR tokens, mandatory renter ID verification before any rental, a 50% down payment to confirm a reservation, physical collateral logged at check-out, immutable custody records, and server-side authority over all stock decisions even when staff devices are offline.
+**Security:** rotating signed QR tokens, guest checkout secured by a 50% down payment as the primary anti-spam control, physical collateral logged offline by staff at check-out, immutable custody records, and server-side authority over all stock decisions even when staff devices are offline. No digital identity documents are collected or stored by the platform.
 
 **Scalability:** a new outlet or owner is data onboarding. New categories such as e-bikes are added through category attributes (battery, charge state) without schema redesign.
 
@@ -124,7 +126,7 @@ Each owner receives an automated weekly statement showing gross revenue, commiss
 
 ## 8. Owner Asset Security
 
-Owners should feel their bikes are safer than under a manual notebook system. The design delivers this through a scan-based custody trail, photo-backed condition checks at both ends of every rental, mandatory renter ID verification, a 50% down payment plus physical collateral (KTP, SIM or vehicle) held at check-out, a clear overdue escalation path, and a hard rule that no rental ends without a staff scan at a registered storefront. Admin work disappears: no manual availability updates, no spreadsheet reconciliation and no hand-calculated payouts.
+Owners should feel their bikes are safer than under a manual notebook system. The design delivers this through a scan-based custody trail, photo-backed condition checks at both ends of every rental, a 50% down payment as the primary anti-spam control, physical collateral (KTP, SIM or vehicle) held offline by staff at check-out, a clear overdue escalation path, and a hard rule that no rental ends without a staff scan at a registered storefront. Admin work disappears: no manual availability updates, no spreadsheet reconciliation and no hand-calculated payouts.
 
 ## 9. Roadmap and Success Measures
 
@@ -140,7 +142,7 @@ Confirmed decisions:
 
 1. Commission is calculated on the pre-discount price during the pre-seed stage, and can be switched to post-discount later.
 2. Mechanical-failure refunds pay the online down payment back to the renter in full and return the offline balance in cash. The owner bears the whole online refund, and the platform commission is not reversed.
-3. ID verification is required before a renter can rent any bike. There is no digital security deposit; good faith is secured by a 50% online down payment and physical collateral collected at check-out.
+3. No account or digital ID verification is required to rent a bike (revision 1.2): guests book with a contact phone number and the 50% down payment is the primary anti-spam control; physical collateral is collected at check-out. There is no digital security deposit. Renter accounts exist primarily to claim platform and owner promotions and vouchers.
 4. A reservation may lock more than one bike (`quantity`); the down payment confirms it and the offline balance is collected by staff at check-out.
 5. A confirmed reservation is held for 1 hour after its scheduled rental start, then released as a no-show; the down payment is refunded or retained per the configured refund policy.
 6. Phase 1 payments run exclusively through the mock `FakeGateway`; a real gateway is added after a sandbox check in Phase 2.
@@ -155,5 +157,4 @@ Configurable seed data (owners may change every amount; the values below are ill
 
 On hold for further meetings:
 
-1. ID verification method and provider. The requirement itself stands.
-2. The exact weekday/weekend rate card and penalty amounts per owner — these are seed values that owners configure; final values are set before launch.
+1. The exact weekday/weekend rate card and penalty amounts per owner — these are seed values that owners configure; final values are set before launch.
