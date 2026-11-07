@@ -6,9 +6,8 @@
  * every owner-scoped table returns zero rows.
  */
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
-import { sql } from "@repo/db";
-import { db, pool, bikes, outlets, owners } from "@repo/db";
-import { buildTestApp, seedOwner, seedOutlet, truncateAll, type TestApp } from "./helpers.js";
+import { db, pool, bikes, outlets } from "@repo/db";
+import { buildTestApp, seedOwner, truncateAll, type TestApp } from "./helpers.js";
 
 let t: TestApp;
 
@@ -74,7 +73,7 @@ describe("T-02 (FR-ID-03): owner row-level isolation", () => {
       const bikes = await client.query("SELECT count(*)::int AS n FROM bikes");
       expect(Number(bikes.rows[0].n)).toBe(0);
       await client.query("ROLLBACK");
-    } catch (e) {
+    } catch {
       // current_setting may raise if unset; treat as zero-access.
       await client.query("ROLLBACK").catch(() => undefined);
     } finally {

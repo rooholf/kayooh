@@ -21,8 +21,6 @@ afterAll(async () => {
   await t.close();
 });
 
-const FORBIDDEN_COLUMNS = ["lat", "lng", "latitude", "longitude", "gps"];
-
 describe("T-08 (NEG-1/2/3): no bike location data or renter location/end routes", () => {
   it("bikes and bike_events have no location columns", async () => {
     const rows = await db.execute(sql`
