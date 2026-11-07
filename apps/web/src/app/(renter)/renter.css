@@ -1388,6 +1388,66 @@ button.aksi:disabled {
   color: var(--tinta);
 }
 
+/* the at-risk reallocation offer (#25) — choices printed inside the warning
+   box: alternative outlets as ruled rows, the decision pair underneath */
+.risiko-sisa {
+  display: block;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+}
+
+.risiko-opsi {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.risiko-opsi button {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  min-height: 44px;
+  padding: 10px 12px;
+  border: 2px dashed var(--tinta);
+  background: transparent;
+  color: var(--tinta);
+  font: inherit;
+  font-size: 12px;
+  font-weight: 600;
+  text-align: left;
+  cursor: pointer;
+}
+.risiko-opsi button[aria-pressed="true"] {
+  border-style: solid;
+  background: var(--kertas);
+}
+.risiko-opsi button span {
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.risiko-putusan {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+/* the decline path — hollow instead of solid ink, sold separately from the
+   primary accept action */
+.notice-recovery--tolak {
+  border-color: var(--tinta);
+  background: transparent;
+  color: var(--tinta);
+}
+.notice-recovery--tolak:hover {
+  color: var(--merah);
+  border-color: var(--merah);
+}
+
 /* rows list — the larger variant is the signed-in reservations list */
 .tiket-daftar--besar {
   margin: clamp(14px, 4.5vw, 20px) clamp(14px, 4.5vw, 24px) 0;

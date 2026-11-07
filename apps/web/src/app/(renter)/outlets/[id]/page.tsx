@@ -27,6 +27,7 @@ import {
   isCategoryCode,
   type CategoryCode,
 } from "../../_components/shared";
+import { useLiveAvailability } from "../../_hooks/useLiveAvailability";
 
 const API_BASE =
   process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:3001";
@@ -58,6 +59,10 @@ function OutletDetailInner() {
 
   const paramJenis = searchParams.get("jenis");
   const selected: CategoryCode = isCategoryCode(paramJenis) ? paramJenis : "commuter";
+
+  // FR-REP-02: live availability for the specimen counts on this outlet —
+  // the shared ["outlets"] cache is patched in place by the SSE stream.
+  useLiveAvailability();
 
   const { data, isLoading, isError, error, refetch, isFetching } = useQuery({
     queryKey: ["outlets"],
