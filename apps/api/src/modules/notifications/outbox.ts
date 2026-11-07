@@ -32,11 +32,12 @@ import { createNotificationProvider } from "../../lib/notifications.js";
 import { loadEnv } from "../../lib/env.js";
 
 export interface EnqueueNotificationInput {
-  userId: string;
+  /** Null for a guest renter (no users row); the recipient is then `to`. */
+  userId: string | null;
   template: NotificationTemplateName;
   channel: NotificationChannel;
   vars: Record<string, string | number | boolean>;
-  /** Override for owner/admin routing; defaults to the template's channel. */
+  /** Override for guest/owner routing; defaults to the user's address. */
   to?: string;
 }
 

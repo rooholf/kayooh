@@ -231,7 +231,7 @@ The palette is a silkscreen pass set: one paper, two hot passes, one dark pass, 
 - **Micro** (Archivo 600/700, 8–9.5px, letter-spacing 0.08–0.34em, uppercase): ticker chrome, kickers, chips, masthead subline, desk-edge slogans at clamp(1rem, 1.6vw, 1.5rem).
 - **Tanggal & kaki** (Archivo 600, 10–10.5px, line-height 1.6): sheet-foot small print and the distance line.
 
-**Observed steps** (the steps this world actually uses; new type must pick from these or amend this list): 8, 8.5, 9, 9.5, 10, 10.5, 11.5, 12, 13, 15, 23 max small-cap display, plus the fluid clamps above. Do not introduce intermediate sizes.
+**Observed steps** (the steps this world actually uses; new type must pick from these or amend this list): 8, 8.5, 9, 9.5, 10, 10.5, 11, 11.5, 12, 12.5, 13, 14, 15, 16, 18, 20, 23, 26 max display figures, plus the fluid clamps above. Do not introduce intermediate sizes.
 
 ### Named Rules
 **The Tabular Rule.** Every figure that stacks in a column (counts, distances, the siap number, dates) uses tabular numerals (`font-variant-numeric: tabular-nums`). Figures never wobble.
@@ -277,6 +277,16 @@ Zero radii everywhere (`0px`). Outlines are 2–3 px solid ink (3 px on the plat
 
 ### Signature: the siap stamp
 - Rotated (−1.2deg) yellow slab with 3 px ink keyline: Archivo Black figure (live total from the server response) beside two-line uppercase label ("UNIT SIAP HARI INI · N OUTLET BUKA"). When the fetch fails the stamp is replaced by a dashed kertas notice on the red plate — never a fabricated number.
+
+### Signature: the claim ticket (“Tiket Ambil”)
+- **Step stamps** (`.langkah-strip` / `.langkah`): four numbered plates on one 3 px ink rule — **1 PILIH · 2 DATA · 3 BAYAR · 4 QR**. The number is Archivo Black, the label Archivo 700 micro. `todo` prints in **Nol**, `now` floods Merah Cetak with kertas text and a kuning figure, `done` floods Kuning Matahari with ink. The current plate carries `aria-current="step"`. These are the reservation sheet’s progress; they stamp in as steps complete — never a blue progress bar.
+- **Ruled invoice** (`.nota` / `.nota-baris` / `.nota-total`): a 3 px ink box of ruled key/value rows (Archivo 600 `dt`, Archivo Black tabular `dd`), the DP row flagged with a Kuning field, and a painted **Total** bar (Merah Cetak, kertas text, Archivo Black figure). A caption states the pricing basis (“Harga per sepeda · N sepeda”) because the quote is per unit. Figures are printed from the response — never multiplied or invented (INV-5).
+- **Hold clock** (`.jam-tahan`): the memorable moment — a stamped Kuning square, rotated −0.8deg, Archivo Black tabular countdown beside a two-line micro label; at zero the plate flips to kertas and the figure is struck through in **Nol**. It is polite text, never a per-second live region.
+- **Status stamp** (`.status-cap`): one Archivo Black stamp per reservation state, in four tones — `commit` (Merah/kertas), `paid` (Kuning/ink), `done` (Tinta/kuning), `void` (kertas/Nol). Each is followed by the one sentence naming the rule that produces it.
+- **List rows** (`.tiket-baris` / `.tiket-cap`): reservations list as ruled rows (an anchor each, never cards) — a small status stamp at the left, category·quantity + WIB window + `Total … · DP online …` stacked in body voice, a Merah arrow at the right. Rows cap the list top and bottom; no card chrome.
+- **Voucher ticket** (`.tiket-ambil`): the perforated claim ticket bought at step 3 — outlet name (Archivo Black) + address, a facts list ruled with **dashed** interior rules (Jenis · Jumlah · Jendela · Dibayar · Seri), a dashed perforation (`.tiket-ambil-robek`) separating the stub from the seal, then the **QR** (`.qr`) rendered inline at ink #171009 on kertas, a quiet validity line, and the instruction “Tunjukkan layar ini ke staf…”. The QR is an inline SVG (never raster), refetched at `ttl/2`; while it loads it says so (`.qr-tunggu`) rather than showing an empty frame.
+- **Tear rule** (`.robek`): a 3 px dashed ink line between sheet sections — the ticket edge, not a divider card.
+- **At-risk notice** (`.notice--risiko`): solid 3 px ink keyline on Kuning ink text — a warning, distinguished from the dashed info box and the Merah error box.
 
 ## Do's and Don'ts
 

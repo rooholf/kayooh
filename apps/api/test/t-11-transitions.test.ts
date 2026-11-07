@@ -6,7 +6,7 @@
  * the bike (and the custody trail) untouched.
  */
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
-import { eq, sql } from "@repo/db";
+import { eq } from "@repo/db";
 import { db, bikes, bikeEvents, categories } from "@repo/db";
 import { buildTestApp, seedAdmin, seedOutlet, truncateAll, type TestApp } from "./helpers.js";
 import { sessionCookie } from "./helpers.js";

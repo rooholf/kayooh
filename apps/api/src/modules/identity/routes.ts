@@ -20,7 +20,6 @@ export function registerIdentityRoutes(app: FastifyInstance): void {
     }
     return {
       phone: profile.phone,
-      verificationStatus: profile.verificationStatus,
     };
   });
 

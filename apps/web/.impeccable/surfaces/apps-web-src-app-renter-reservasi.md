@@ -5,6 +5,13 @@ primary_target: "apps/web/src/app/(renter)/reservasi"
 related_targets: ["apps/web/src/app/(renter)/outlets/[id]","apps/web/src/app/(renter)/masuk","apps/web/src/app/(renter)/verifikasi","apps/web/src/app/(renter)/deposit"]
 ---
 
+> **Build amendments (SRS revisions 1.1 / 1.2) — these supersede the stale lines below.**
+> - **No security deposit (rev 1.1).** Any `/deposit` gate, deposit statuses, and `DEPOSIT_REQUIRED` below no longer exist.
+> - **No ID verification / guest checkout (rev 1.2).** `POST /reservations` is **public**; a guest books with **`contactPhone` (required, V-PHONE)** and sign-in is **optional** (only a `promoCode` needs a session → 401 `UNAUTHENTICATED`). Any `/verifikasi` gate, gate-status stamps, and `VERIFICATION_REQUIRED` below no longer exist. `GET /renters/me` is **not** a gate read.
+> - **`POST /pricing/quote` is public.** Availability, outlet detail, quote and reservations are all reachable signed-out; the only gate left is the guest phone field (step **2 DATA**).
+> - **Realized topology (as built, `feature/fr-inv-02-renter-booking`):** `/reservasi/baru` = the checkout sheet (1 PILIH · 2 DATA · 3 BAYAR, reached from an outlet’s CTA with `?outlet=&jenis=`); `/reservasi` = the reservations list (session-only, plus a **Tiket di perangkat ini** section for guest `guestToken`s); `/reservasi/[id]` = status + step **4 QR** voucher. No `/masuk`, `/verifikasi` or `/deposit` routes were built.
+> - The 15-minute hold, the 60 s voucher TTL refetch, the 50 % online DP split, and the no-self-cancel rule below are **unchanged and authoritative**.
+
 # Surface brief — Pilih sepeda & reservasi (“jalur tiket ambil”)
 
 ## Scope
@@ -103,8 +110,8 @@ Out of scope: the poster home and catalog rebuild (their brief governs), owner/a
 ## Constraints and open decisions
 
 - Reusable components: action bar, segment cells, chips, ruled rows, notices. New, in-vocabulary: stamp plate (numbered step), invoice row, countdown square, perforated ticket. No new faces/colors; blue reserved.
-- The web app currently has no Better Auth client — the build adds session wiring (cookie-based) as a prerequisite; recorded as an assumption, not a design decision.
+- Session wiring (**resolved**): no Better Auth client was added. The list’s session-only `GET /reservations` is authenticated by a **same-origin Next.js proxy** (`apps/web/src/app/api/reservations/[[...path]]/route.ts`) that forwards the caller’s Better Auth cookie to the API — chosen over adding `Access-Control-Allow-Credentials` to `apps/api` (reflecting an arbitrary origin with credentials is a smell). The detail/voucher reads use the device `guestToken` when present, else the same cookie.
 - Idempotency: one UUID per reservation attempt; after 502 the attempt is spent server-side (reservation cancelled), so a retry uses a new key. Never reuse a key with a changed body (422 `IDEMPOTENCY_KEY_REUSED`).
 - A reservation the renter does not own returns 404 — show “tidak ditemukan”, no leak.
-- e2e: keep `e2e/renter.spec.ts` for discovery/catalog; the reservation path gets `e2e/renter-reservasi.spec.ts` when built. Extract the NEG‑4 coordinate guard and the NEG‑2 `assetTag|bikeId` body check into a shared helper both specs inherit, and run the NEG‑2 check on every new renter route (the voucher page above all).
+- e2e: `e2e/renter.spec.ts` keeps discovery/catalog; the reservation path is covered by `e2e/renter-reservasi.spec.ts`. **Done:** the NEG‑4 coordinate guard and the NEG‑2 `assetTag|bikeId` body check are the shared helpers in `e2e/guards.ts` (`guardNoCoordinates`, `expectNoBikeIds`), inherited by both specs and run on every new renter route (the voucher page above all).
 - Open for the build: gate topology (routes vs steps), duration presets, return-URL config, list depth, and final copy. None of these may change the PRD-derived truths above (no per-bike choosing, no self-cancel, server-only availability).

@@ -26,13 +26,14 @@ import {
   resolvePrincipal,
 } from "./modules/identity/index.js";
 import { registerReservationRoutes } from "./modules/reservations/create-reservation.js";
+import { registerReservationReadRoutes } from "./modules/reservations/get-reservation.js";
 import { registerReallocationRoutes } from "./modules/reservations/reallocation-routes.js";
 import { registerStaffRoutes } from "./modules/staff/routes.js";
 import { registerAdminRoutes } from "./modules/admin/index.js";
 import { registerCatalogRoutes } from "./modules/catalog/index.js";
+import { registerPricingRoutes } from "./modules/pricing/index.js";
 import { registerOwnerRoutes } from "./modules/owner/index.js";
 import { registerOutboxSchedule, registerSweeperSchedule } from "./modules/jobs/index.js";
-import { registerVerificationRoutes } from "./modules/verification/index.js";
 import { registerSseRoutes, initSseBus, closeSseBus } from "./modules/sse/index.js";
 import { registerWebhookRoutes } from "./modules/payments/webhook-routes.js";
 
@@ -104,7 +105,10 @@ export async function buildApp(options: BuildAppOptions = {}): Promise<{
     }
     if (request.method === "OPTIONS") {
       void reply.header("Access-Control-Allow-Methods", "GET,POST,PUT,PATCH,DELETE,OPTIONS");
-      void reply.header("Access-Control-Allow-Headers", "content-type,authorization,x-requested-with");
+      void reply.header(
+        "Access-Control-Allow-Headers",
+        "content-type,authorization,x-requested-with,idempotency-key",
+      );
       void reply.code(204);
       void reply.send();
     }
@@ -192,12 +196,13 @@ export async function buildApp(options: BuildAppOptions = {}): Promise<{
   /* Versioned SRS routes. */
   registerIdentityRoutes(app);
   registerReservationRoutes(app);
+  registerReservationReadRoutes(app);
   registerReallocationRoutes(app);
   registerStaffRoutes(app);
   registerCatalogRoutes(app);
+  registerPricingRoutes(app);
   registerOwnerRoutes(app);
   registerAdminRoutes(app);
-  registerVerificationRoutes(app);
   registerSseRoutes(app);
   // FR-PAY-02: the gateway webhook is public and lives OUTSIDE /api/v1.
   registerWebhookRoutes(app, { nodeEnv: env.nodeEnv, webhookSecret: env.paymentWebhookSecret });

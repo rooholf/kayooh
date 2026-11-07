@@ -212,6 +212,13 @@ function OutletDetailInner() {
             yang memindahkan sepeda — tidak ada cara lain.
           </p>
 
+          <Link
+            className="kembali"
+            href={`/reservasi/baru?outlet=${outlet.id}&jenis=${selected}`}
+          >
+            Pesan {selected.toUpperCase()} di outlet ini →
+          </Link>
+
           <Link className="kembali" href="/outlets">
             <svg width="16" height="16" viewBox="0 0 16 16" aria-hidden="true">
               <path

@@ -116,18 +116,24 @@ function isValidDayKey(value: unknown): value is DayKey {
   );
 }
 
+/** WIB (UTC+7) weekday key for an instant, matching the outlet `hours` jsonb. */
+export function wibDayKey(date: Date): DayKey | null {
+  const shifted = new Date(date.getTime() + 7 * 60 * 60 * 1000);
+  const dayKey = DAY_KEYS[shifted.getUTCDay()];
+  return isValidDayKey(dayKey) ? dayKey : null;
+}
+
 /**
- * Today's opening intervals from an outlet's `hours`, in WIB. Unknown shapes
- * render as no line rather than an invented one (fail closed, never wrong).
+ * Opening intervals for one WIB day from an outlet's `hours`. Unknown shapes
+ * return null rather than an invented line (fail closed, never wrong).
  */
-export function todaysHours(
+export function intervalsForDay(
   hours: unknown,
-  now: Date = new Date(),
+  date: Date,
 ): Array<{ open: string; close: string }> | null {
   if (!hours || typeof hours !== "object" || Array.isArray(hours)) return null;
-  const shifted = new Date(now.getTime() + 7 * 60 * 60 * 1000);
-  const dayKey = DAY_KEYS[shifted.getUTCDay()];
-  if (!isValidDayKey(dayKey)) return null;
+  const dayKey = wibDayKey(date);
+  if (dayKey === null) return null;
   const intervals = (hours as Record<string, unknown>)[dayKey];
   if (!Array.isArray(intervals)) return null;
   const parsed: Array<{ open: string; close: string }> = [];
@@ -145,6 +151,17 @@ export function todaysHours(
     parsed.push({ open, close });
   }
   return parsed;
+}
+
+/**
+ * Today's opening intervals from an outlet's `hours`, in WIB. Unknown shapes
+ * render as no line rather than an invented one (fail closed, never wrong).
+ */
+export function todaysHours(
+  hours: unknown,
+  now: Date = new Date(),
+): Array<{ open: string; close: string }> | null {
+  return intervalsForDay(hours, now);
 }
 
 /** "07.00–19.00" from today's intervals (24 h, WIB conventions, dot separator). */

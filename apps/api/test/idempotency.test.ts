@@ -99,8 +99,8 @@ describe("idempotency middleware (SRS 3.2)", () => {
 
   it("releases the key after a failed response so the client can retry", async () => {
     const key = newIdempotencyKey();
-    const first = await postReservation(key); // 403 FORBIDDEN (admin on renter route)
-    expect(first.statusCode).toBe(403);
+    const first = await postReservation(key); // 400 VALIDATION_ERROR (BODY is not the FR-INV-02 schema)
+    expect(first.statusCode).toBe(400);
     // The pending row was released: an immediate retry is NOT in-progress.
     const [adminUser] = await db.select().from(users).limit(1);
     const rows = await db
@@ -165,7 +165,7 @@ describe("idempotency middleware (SRS 3.2)", () => {
       headers: { cookie: secondCookie, "idempotency-key": key },
       payload: BODY,
     });
-    expect(res.statusCode).toBe(403); // fresh request, not a replay
+    expect(res.statusCode).toBe(400); // fresh request, not a replay
     expect(res.headers["idempotent-replay"]).toBeUndefined();
     // The first user's stored row is untouched.
     const rows = await db

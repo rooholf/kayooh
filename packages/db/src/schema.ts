@@ -29,6 +29,7 @@ import {
   smallint,
   text,
   timestamp,
+  unique,
   uniqueIndex,
   uuid,
 } from "drizzle-orm/pg-core";
@@ -67,13 +68,6 @@ export const reservationStatus = pgEnum("reservation_status", [
 ]);
 
 export const rentalStatus = pgEnum("rental_status", ["open", "returned", "completed"]);
-
-export const verificationStatus = pgEnum("verification_status", [
-  "not_started",
-  "pending",
-  "verified",
-  "rejected",
-]);
 
 export const paymentPurpose = pgEnum("payment_purpose", ["booking", "late_fee"]);
 
@@ -410,60 +404,30 @@ export const bikeEvents = pgTable(
 );
 
 /* ------------------------------------------------------------------ */
-/* Renters, verification                                               */
+/* Renters                                                            */
 /* ------------------------------------------------------------------ */
 
+/**
+ * A-17 (rev 1.2): the renter profile is the booking identity. An authenticated
+ * renter has `user_id` set; a guest is a row keyed by `phone` with
+ * `user_id = NULL`. A later OTP verify from the same phone LINKS the guest row
+ * (sets user_id) instead of inserting a duplicate, so guest bookings carry into
+ * the account (identity/auth.ts callbackOnVerification).
+ */
 export const renters = pgTable(
   "renters",
   {
     id: uuid("id").primaryKey().default(sql`gen_random_uuid()`),
-    userId: uuid("user_id")
-      .notNull()
-      .references(() => users.id),
+    userId: uuid("user_id").references(() => users.id),
     phone: text("phone"),
-    verificationStatus: verificationStatus("verification_status")
-      .notNull()
-      .default("not_started"),
-    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
-  },
-  (t) => [uniqueIndex("renters_user_id_uq").on(t.userId)],
-);
-
-export const verificationRequests = pgTable(
-  "verification_requests",
-  {
-    id: uuid("id").primaryKey().default(sql`gen_random_uuid()`),
-    renterId: uuid("renter_id")
-      .notNull()
-      .references(() => renters.id),
-    provider: text("provider").notNull(), // 'manual_review' until provider decision
-    providerRef: text("provider_ref"),
-    documentType: text("document_type").notNull(),
-    documentKey: text("document_key"),
-    status: verificationStatus("status").notNull().default("pending"),
-    reviewedBy: uuid("reviewed_by").references(() => users.id),
-    reviewedAt: timestamp("reviewed_at", { withTimezone: true }),
-    rejectReason: text("reject_reason"),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   },
   (t) => [
-    check(
-      "verification_requests_doc_type_check",
-      sql`document_type IN ('ktp','sim','passport')`,
-    ),
-    index("verification_requests_status_idx").on(t.status, t.createdAt),
+    // Nullable by design: many guest rows share user_id = NULL (NULLS DISTINCT).
+    uniqueIndex("renters_user_id_uq").on(t.userId),
+    uniqueIndex("renters_phone_uq").on(t.phone),
   ],
 );
-
-// INV-6: append-only (trigger). Access audit for ID documents (FR-ID-04.3).
-export const idDocumentViews = pgTable("id_document_views", {
-  id: uuid("id").primaryKey().default(sql`gen_random_uuid()`),
-  verificationRequestId: uuid("verification_request_id")
-    .notNull()
-    .references(() => verificationRequests.id),
-  viewerId: uuid("viewer_id").references(() => users.id),
-  viewedAt: timestamp("viewed_at", { withTimezone: true }).notNull().defaultNow(),
-});
 
 /* ------------------------------------------------------------------ */
 /* Pricing                                                             */
@@ -764,21 +728,33 @@ export const auditLog = pgTable(
  * A stored 2xx response is replayed for 24 h with header Idempotent-Replay: true.
  * A-19 (logged deviation): `created_at` is absent from the SRS section 5 sketch
  * but is required to implement the "same key and same body within 24 h" window.
+ *
+ * Scope (SRS 3.2, rev 1.2): an authenticated request keys on `user_id`; a guest
+ * booking keys on `guest_phone` (the contact phone) instead. Exactly one of the
+ * two columns is set — enforced by `idempotency_keys_scope_check` — and the
+ * UNIQUE (key, user_id, guest_phone) NULLS NOT DISTINCT index makes the pair the
+ * effective key.
  */
 export const idempotencyKeys = pgTable(
   "idempotency_keys",
   {
     key: uuid("key").notNull(),
-    userId: uuid("user_id")
-      .notNull()
-      .references(() => users.id),
+    userId: uuid("user_id").references(() => users.id),
+    guestPhone: text("guest_phone"),
     requestHash: text("request_hash").notNull(),
     response: jsonb("response"),
     statusCode: integer("status_code"),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   },
   (t) => [
-    primaryKey({ columns: [t.key, t.userId] }),
+    // NULLS NOT DISTINCT so (key, NULL, phone) rows collide as intended.
+    unique("idempotency_keys_scope_uq")
+      .on(t.key, t.userId, t.guestPhone)
+      .nullsNotDistinct(),
+    check(
+      "idempotency_keys_scope_check",
+      sql`(user_id IS NULL) <> (guest_phone IS NULL)`,
+    ),
     check(
       "idempotency_keys_response_check",
       sql`(status_code IS NULL AND response IS NULL) OR (status_code BETWEEN 200 AND 599 AND response IS NOT NULL)`,

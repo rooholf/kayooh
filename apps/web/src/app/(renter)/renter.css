@@ -872,3 +872,700 @@
   color: var(--merah);
   border-color: var(--merah);
 }
+
+/* ==================================================================
+   Tiket Ambil — the reservation sheet (1 PILIH · 2 DATA · 3 BAYAR · 4 QR)
+   Extends the Poster Solidaritas vocabulary: numbered stamp plates, a
+   ruled invoice with a painted total, a stamped hold clock, and a
+   perforated tear rule. Blue stays reserved for the chosen hour block.
+   ================================================================== */
+
+/* the current-choice strip */
+.ringkas {
+  margin: clamp(14px, 4.5vw, 20px) clamp(14px, 4.5vw, 24px) 0;
+  border: 3px solid var(--tinta);
+  background: var(--kuning);
+  color: var(--tinta);
+  padding: 10px 12px 11px;
+  font-family: "Archivo Black", "Archivo", sans-serif;
+  font-size: 11.5px;
+  line-height: 1.35;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+  font-variant-numeric: tabular-nums;
+}
+
+/* numbered stamp plates */
+.langkah-strip {
+  list-style: none;
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  margin: clamp(14px, 4.5vw, 20px) clamp(14px, 4.5vw, 24px) 0;
+  padding: 0;
+  border: 3px solid var(--tinta);
+  background: var(--kertas);
+}
+.langkah {
+  padding: 9px 4px 10px;
+  text-align: center;
+  border-right: 3px solid var(--tinta);
+  font-family: "Archivo", sans-serif;
+  font-weight: 700;
+  font-size: 8px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--tinta);
+}
+.langkah:last-child {
+  border-right: 0;
+}
+.langkah b {
+  display: block;
+  font-family: "Archivo Black", "Archivo", sans-serif;
+  font-size: 15px;
+  line-height: 1;
+  margin-bottom: 4px;
+  font-variant-numeric: tabular-nums;
+}
+.langkah[data-state="todo"] {
+  color: #6e6350;
+}
+.langkah[data-state="now"] {
+  background: var(--merah);
+  color: var(--kertas);
+}
+.langkah[data-state="now"] b {
+  color: var(--kuning);
+}
+.langkah[data-state="done"] {
+  background: var(--kuning);
+  color: var(--tinta);
+}
+
+/* a step body */
+.langkah-badan {
+  margin: 0 clamp(14px, 4.5vw, 24px);
+  padding: clamp(16px, 5vw, 22px) 0 0;
+}
+.langkah-judul {
+  font-family: "Archivo Black", "Archivo", sans-serif;
+  font-size: clamp(14px, 4.4vw, 17px);
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+  border-bottom: 3px solid var(--tinta);
+  padding-bottom: 7px;
+}
+.langkah-badan .label {
+  margin-top: 14px;
+}
+
+/* day strip */
+.hari-strip {
+  display: flex;
+  margin-top: 10px;
+  border: 3px solid var(--tinta);
+  overflow-x: auto;
+  scrollbar-width: thin;
+}
+.hari-strip > button {
+  flex: 1 0 auto;
+  min-width: 58px;
+  min-height: 56px;
+  padding: 8px 6px;
+  border: 0;
+  border-right: 3px solid var(--tinta);
+  background: var(--kertas);
+  font-family: "Archivo", sans-serif;
+  font-weight: 700;
+  font-size: 9px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--tinta);
+  font-variant-numeric: tabular-nums;
+  cursor: pointer;
+}
+.hari-strip > button:last-child {
+  border-right: 0;
+}
+.hari-strip > button b {
+  display: block;
+  font-family: "Archivo Black", "Archivo", sans-serif;
+  font-size: 14px;
+  margin-top: 3px;
+}
+.hari-strip > button:hover {
+  background: var(--kertas-deep);
+}
+.hari-strip > button[aria-pressed="true"] {
+  background: var(--merah);
+  color: var(--kertas);
+}
+
+/* slot grid — the 2 px gap reveals the ink ground, so rules stay crisp
+   whatever the row count */
+.slot-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 2px;
+  margin-top: 10px;
+  background: var(--tinta);
+  border: 3px solid var(--tinta);
+}
+.slot-grid > button {
+  min-height: 44px;
+  padding: 8px 2px;
+  border: 0;
+  background: var(--kertas);
+  font-family: "Archivo", sans-serif;
+  font-weight: 700;
+  font-size: 11px;
+  color: var(--tinta);
+  font-variant-numeric: tabular-nums;
+  cursor: pointer;
+  transition: background 120ms ease, color 120ms ease;
+}
+.slot-grid > button:hover:not(:disabled) {
+  background: var(--kertas-deep);
+}
+.slot-grid > button[aria-pressed="true"] {
+  background: var(--biru);
+  color: var(--kuning);
+  box-shadow: inset 0 0 0 2px var(--kuning);
+}
+.slot-grid > button:disabled {
+  color: #6e6350;
+  text-decoration: line-through;
+  text-decoration-thickness: 2px;
+  cursor: not-allowed;
+}
+
+/* duration: presets + fine stepper */
+.durasi {
+  margin-top: 10px;
+}
+.durasi-preset {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 2px;
+  background: var(--tinta);
+  border: 3px solid var(--tinta);
+}
+.durasi-preset > button {
+  min-height: 48px;
+  border: 0;
+  background: var(--kertas);
+  font-family: "Archivo Black", "Archivo", sans-serif;
+  font-size: 12px;
+  color: var(--tinta);
+  font-variant-numeric: tabular-nums;
+  cursor: pointer;
+}
+.durasi-preset > button[aria-pressed="true"] {
+  background: var(--merah);
+  color: var(--kertas);
+}
+.durasi-halus {
+  display: flex;
+  align-items: stretch;
+  margin-top: 8px;
+  border: 3px solid var(--tinta);
+}
+.durasi-halus button {
+  flex: 0 0 auto;
+  width: 56px;
+  min-height: 48px;
+  border: 0;
+  background: var(--kertas);
+  font-family: "Archivo Black", "Archivo", sans-serif;
+  font-size: 20px;
+  color: var(--tinta);
+  cursor: pointer;
+}
+.durasi-halus button:disabled {
+  color: #6e6350;
+  cursor: not-allowed;
+}
+.durasi-halus output {
+  flex: 1 1 auto;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 0;
+  border-left: 3px solid var(--tinta);
+  border-right: 3px solid var(--tinta);
+  font-family: "Archivo Black", "Archivo", sans-serif;
+  font-size: clamp(14px, 4.4vw, 17px);
+  font-variant-numeric: tabular-nums;
+}
+
+/* quantity stepper */
+.jumlah {
+  display: flex;
+  align-items: stretch;
+  margin-top: 10px;
+  border: 3px solid var(--tinta);
+  max-width: 260px;
+}
+.jumlah button {
+  flex: 0 0 auto;
+  width: 56px;
+  min-height: 48px;
+  border: 0;
+  background: var(--kertas);
+  font-family: "Archivo Black", "Archivo", sans-serif;
+  font-size: 20px;
+  color: var(--tinta);
+  cursor: pointer;
+}
+.jumlah button:disabled {
+  color: #6e6350;
+  cursor: not-allowed;
+}
+.jumlah output {
+  flex: 1 1 auto;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 0;
+  border-left: 3px solid var(--tinta);
+  border-right: 3px solid var(--tinta);
+  font-family: "Archivo Black", "Archivo", sans-serif;
+  font-size: 18px;
+  font-variant-numeric: tabular-nums;
+}
+
+/* live count line */
+.sedia {
+  margin-top: 12px;
+  font-weight: 700;
+  font-size: 11px;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  font-variant-numeric: tabular-nums;
+}
+.sedia b {
+  color: var(--merah);
+}
+.sedia--nol b {
+  color: #6e6350;
+}
+
+/* phone field */
+.medan {
+  display: block;
+  margin-top: 14px;
+}
+.medan input {
+  margin-top: 8px;
+  width: 100%;
+  min-height: 52px;
+  border: 3px solid var(--tinta);
+  background: var(--kertas);
+  padding: 0 12px;
+  font-family: "Archivo", sans-serif;
+  font-weight: 700;
+  font-size: 16px;
+  letter-spacing: 0.04em;
+  color: var(--tinta);
+  font-variant-numeric: tabular-nums;
+}
+.medan input::placeholder {
+  color: #6e6350;
+}
+.medan input:focus-visible {
+  outline: 3px solid var(--merah);
+  outline-offset: 2px;
+  box-shadow: none;
+}
+.medan-ket {
+  margin-top: 6px;
+  font-weight: 600;
+  font-size: 11px;
+  line-height: 1.45;
+}
+.medan-ket--salah {
+  color: var(--merah);
+}
+
+/* the ruled invoice */
+.nota-basis {
+  margin-top: 14px;
+  font-weight: 700;
+  font-size: 11px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+.nota {
+  margin-top: 8px;
+  border: 3px solid var(--tinta);
+  background: var(--kertas);
+}
+.nota + .nota {
+  margin-top: 10px;
+}
+.nota-baris {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 11px 14px;
+  border-bottom: 2px solid var(--tinta);
+  font-weight: 600;
+  font-size: 12.5px;
+  line-height: 1.4;
+}
+.nota-baris:last-child {
+  border-bottom: 0;
+}
+.nota-baris dt {
+  margin: 0;
+}
+.nota-baris dd {
+  margin: 0;
+  font-family: "Archivo Black", "Archivo", sans-serif;
+  font-size: 14px;
+  font-variant-numeric: tabular-nums;
+}
+.nota-baris--diskon dd {
+  color: var(--merah);
+}
+.nota-baris--dp {
+  background: var(--kuning);
+  border-bottom: 3px solid var(--tinta);
+}
+.nota-total {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 12px 14px;
+  background: var(--merah);
+  color: var(--kertas);
+}
+.nota-total dt {
+  margin: 0;
+  font-weight: 700;
+  font-size: 10px;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+}
+.nota-total dd {
+  margin: 0;
+  font-family: "Archivo Black", "Archivo", sans-serif;
+  font-size: clamp(20px, 6vw, 26px);
+  font-variant-numeric: tabular-nums;
+}
+
+/* the hold clock — the memorable moment */
+.jam-tahan {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 10px;
+  margin: 14px clamp(14px, 4.5vw, 24px) 0;
+  background: var(--kuning);
+  color: var(--tinta);
+  padding: 10px 14px 11px;
+  box-shadow: 0 0 0 3px var(--tinta);
+  transform: rotate(-0.8deg);
+}
+.jam-tahan b {
+  font-family: "Archivo Black", "Archivo", sans-serif;
+  font-size: clamp(30px, 10vw, 42px);
+  line-height: 0.95;
+  font-variant-numeric: tabular-nums;
+}
+.jam-tahan span {
+  font-weight: 700;
+  font-size: 9px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  line-height: 1.35;
+  max-width: 15ch;
+}
+.jam-tahan--habis {
+  background: var(--kertas);
+}
+.jam-tahan--habis b {
+  text-decoration: line-through;
+  text-decoration-thickness: 3px;
+  color: #6e6350;
+}
+
+/* status stamp */
+.status-papan {
+  margin: clamp(14px, 4.5vw, 20px) clamp(14px, 4.5vw, 24px) 0;
+}
+.status-cap {
+  display: inline-block;
+  margin-top: 14px;
+  font-family: "Archivo Black", "Archivo", sans-serif;
+  font-size: clamp(18px, 5.6vw, 23px);
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  padding: 8px 14px 9px;
+  box-shadow: 0 0 0 3px var(--tinta);
+}
+.status-cap--commit {
+  background: var(--merah);
+  color: var(--kertas);
+}
+.status-cap--paid {
+  background: var(--kuning);
+  color: var(--tinta);
+}
+.status-cap--done {
+  background: var(--tinta);
+  color: var(--kuning);
+}
+.status-cap--void {
+  background: var(--kertas);
+  color: #6e6350;
+}
+.status-aturan {
+  margin-top: 12px;
+  font-weight: 600;
+  font-size: 12px;
+  line-height: 1.5;
+  max-width: 46ch;
+}
+
+/* perforated tear rule */
+.robek {
+  height: 0;
+  border-top: 3px dashed var(--tinta);
+  margin: 18px clamp(14px, 4.5vw, 24px);
+}
+
+/* footnotes */
+.catatan {
+  margin: 12px clamp(14px, 4.5vw, 24px) 0;
+  font-weight: 500;
+  font-size: 11px;
+  line-height: 1.55;
+  color: var(--tinta);
+  max-width: 52ch;
+}
+.catatan b {
+  font-weight: 700;
+}
+.langkah-badan .catatan {
+  margin-left: 0;
+  margin-right: 0;
+}
+
+/* saved tickets on this device */
+.tiket-daftar {
+  list-style: none;
+  margin: 8px 0 0;
+  padding: 0;
+}
+
+/* the CTA button shares the .aksi geometry */
+button.aksi {
+  border: 0;
+  cursor: pointer;
+  font-family: "Archivo", system-ui, sans-serif;
+  width: auto;
+}
+button.aksi:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  transform: none;
+}
+
+/* ==================================================================
+   Reservations list + QR voucher — /reservasi and /reservasi/[id].
+   The same claim-ticket world: ruled rows instead of cards, a small
+   status stamp per row, and the perforated ticket that carries the
+   scan-me seal. Blue stays reserved for the chosen hour block.
+   ================================================================== */
+
+/* a warning notice (the at-risk stock state) — solid ink keyline on yellow,
+   distinct from the dashed info box and the red error box */
+.notice--risiko {
+  border: 3px solid var(--tinta);
+  background: var(--kuning);
+  color: var(--tinta);
+}
+
+/* rows list — the larger variant is the signed-in reservations list */
+.tiket-daftar--besar {
+  margin: clamp(14px, 4.5vw, 20px) clamp(14px, 4.5vw, 24px) 0;
+}
+.tiket-daftar li + li {
+  margin-top: 10px;
+}
+
+/* one reservation, printed as a ruled row (an anchor, never a card) */
+.tiket-baris {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 14px;
+  border: 3px solid var(--tinta);
+  background: var(--kertas);
+  color: var(--tinta);
+  text-decoration: none;
+}
+.tiket-baris:hover {
+  background: var(--kertas-deep);
+}
+.tiket-baris-isi {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  flex: 1 1 auto;
+  min-width: 0;
+}
+.tiket-baris-isi b {
+  font-family: "Archivo Black", "Archivo", sans-serif;
+  font-size: 12.5px;
+  letter-spacing: 0.02em;
+  line-height: 1.3;
+}
+.tiket-baris-isi > span {
+  font-weight: 600;
+  font-size: 10.5px;
+  line-height: 1.4;
+  color: var(--tinta);
+  font-variant-numeric: tabular-nums;
+}
+.tiket-baris-panah {
+  flex: 0 0 auto;
+  font-family: "Archivo Black", "Archivo", sans-serif;
+  font-size: 18px;
+  color: var(--merah);
+}
+
+/* the status stamp on a row — smaller kin of .status-cap */
+.tiket-cap {
+  flex: 0 0 auto;
+  align-self: flex-start;
+  font-family: "Archivo Black", "Archivo", sans-serif;
+  font-size: 9px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  text-align: center;
+  padding: 5px 8px 6px;
+  min-width: 62px;
+  box-shadow: 0 0 0 3px var(--tinta);
+}
+.tiket-cap--commit {
+  background: var(--merah);
+  color: var(--kertas);
+}
+.tiket-cap--paid {
+  background: var(--kuning);
+  color: var(--tinta);
+}
+.tiket-cap--done {
+  background: var(--tinta);
+  color: var(--kuning);
+}
+.tiket-cap--void {
+  background: var(--kertas);
+  color: #6e6350;
+}
+
+/* the perforated claim ticket (4 · Tiket QR) */
+.tiket-ambil {
+  margin-top: 14px;
+  border: 3px solid var(--tinta);
+  background: var(--kertas);
+  padding: 16px 16px 18px;
+}
+.tiket-ambil-kepala {
+  font-family: "Archivo Black", "Archivo", sans-serif;
+  font-size: clamp(16px, 5vw, 20px);
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+  line-height: 1.15;
+}
+.tiket-ambil-alamat {
+  margin-top: 5px;
+  font-weight: 600;
+  font-size: 10.5px;
+  line-height: 1.45;
+  color: #6e6350;
+  max-width: 46ch;
+}
+.tiket-ambil-fakta {
+  margin-top: 14px;
+  border-top: 2px solid var(--tinta);
+}
+.tiket-ambil-fakta-baris {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 8px 0;
+  border-bottom: 2px dashed var(--tinta);
+}
+.tiket-ambil-fakta-baris:last-child {
+  border-bottom: 0;
+}
+.tiket-ambil-fakta-baris dt {
+  margin: 0;
+  font-weight: 700;
+  font-size: 9px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: #6e6350;
+}
+.tiket-ambil-fakta-baris dd {
+  margin: 0;
+  font-family: "Archivo Black", "Archivo", sans-serif;
+  font-size: 12.5px;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+/* the perforation that separates the facts from the seal */
+.tiket-ambil-robek {
+  height: 0;
+  border-top: 3px dashed var(--tinta);
+  margin: 16px 0;
+}
+
+/* the scan-me seal, printed in the sheet's ink-on-paper pair */
+.qr {
+  display: flex;
+  justify-content: center;
+  padding: 4px 0;
+}
+.qr svg {
+  display: block;
+  width: min(240px, 100%);
+  height: auto;
+}
+.qr-tunggu {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 160px;
+  border: 2px dashed var(--tinta);
+  background: var(--kertas-deep);
+  font-weight: 700;
+  font-size: 10px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: #6e6350;
+}
+.tiket-ambil-usia {
+  margin-top: 10px;
+  text-align: center;
+  font-weight: 700;
+  font-size: 9.5px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: #6e6350;
+  font-variant-numeric: tabular-nums;
+}
+.tiket-ambil-arah {
+  margin-top: 8px;
+  font-weight: 600;
+  font-size: 10.5px;
+  line-height: 1.5;
+  color: var(--tinta);
+  max-width: 48ch;
+}

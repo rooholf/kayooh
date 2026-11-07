@@ -26,8 +26,8 @@ import {
 import { createReservationResponseSchema } from "@repo/contracts";
 import { createReservationHold } from "../src/modules/inventory/index.js";
 import { computeAvailability } from "../src/modules/inventory/index.js";
+import type { ReservationActor } from "../src/modules/inventory/index.js";
 import { AppError } from "../src/lib/errors.js";
-import type { Principal } from "../src/modules/identity/guards.js";
 import type { CreateReservationBody } from "@repo/contracts";
 import { truncateAll } from "./helpers.js";
 
@@ -35,19 +35,16 @@ import { truncateAll } from "./helpers.js";
 /* Seeds                                                                */
 /* ------------------------------------------------------------------ */
 
-async function seedRenter(opts?: { verificationStatus?: string }): Promise<string> {
+async function seedRenter(): Promise<string> {
   const email = `renter.${Date.now()}.${Math.floor(Math.random()*1e6)}@renters.kayooh.test`;
   const phone = `+62812${String(Math.floor(Math.random()*1e8)).padStart(8, "0")}`;
   const [user] = await db
     .insert(users)
-    .values({ email, emailVerified: false, name: "renter", role: "renter", phone })
+    .values({ email, emailVerified: false, name: "renter", role: "renter", phoneNumber: phone })
     .returning({ id: users.id });
   await db
     .insert(renters)
-    .values({
-      userId: user.id,
-      verificationStatus: opts?.verificationStatus ?? "verified",
-    })
+    .values({ userId: user.id })
     .returning({ id: renters.id });
   return user.id;
 }
@@ -119,15 +116,8 @@ function window(hhmmOffsetMinutes = 24 * 60): { startsAt: string; endsAt: string
   return { startsAt: startsAt.toISOString(), endsAt: endsAt.toISOString() };
 }
 
-function principalFor(userId: string): Principal {
-  return {
-    userId,
-    role: "renter",
-    ownerId: null,
-    outletId: null,
-    sessionId: "test-session",
-    sessionCreatedAt: new Date(),
-  };
+function actorFor(userId: string): ReservationActor {
+  return { kind: "renter", userId };
 }
 
 function bodyFor(partner: SeedPartner, w: { startsAt: string; endsAt: string }): CreateReservationBody {
@@ -164,7 +154,7 @@ describe("FR-INV-02 create reservation (build_transactional_inventory_lock)", ()
     const renterId = await seedRenter();
     const body = bodyFor(partner, window());
 
-    const response = await createReservationHold(db, body, principalFor(renterId));
+    const response = await createReservationHold(db, body, actorFor(renterId));
     // The route validates service output against the same contract — do the same here.
     const checked = createReservationResponseSchema.parse(response);
     expect(checked.reservation.status).toBe("held");
@@ -208,7 +198,7 @@ describe("FR-INV-02 create reservation (build_transactional_inventory_lock)", ()
     const body = bodyFor(partner, window(24 * 60 + 5));
 
     const results = await Promise.allSettled(
-      Array.from({ length: 5 }, () => createReservationHold(db, body, principalFor(renterId))),
+      Array.from({ length: 5 }, () => createReservationHold(db, body, actorFor(renterId))),
     );
     const successes = results.filter((r) => r.status === "fulfilled") as PromiseFulfilledResult<unknown>[];
     const soldOuts = results.filter(
@@ -233,21 +223,13 @@ describe("FR-INV-02 create reservation (build_transactional_inventory_lock)", ()
   it("maps pre-transaction contract failures to the SRS 422 codes", async () => {
     const partner = await seedOffering(1);
 
-    await expect(
-      createReservationHold(
-        db,
-        bodyFor(partner, window()),
-        principalFor(await seedRenter({ verificationStatus: "pending" })),
-      ),
-    ).rejects.toMatchObject({ code: "VERIFICATION_REQUIRED" });
-
     // Unbookable window: less than min duration.
     const w = window();
     await expect(
       createReservationHold(
         db,
         { outletId: partner.outletId, category: "commuter", startsAt: w.startsAt, endsAt: w.startsAt },
-        principalFor(await seedRenter()),
+        actorFor(await seedRenter()),
       ),
     ).rejects.toMatchObject({ code: "DURATION_OUT_OF_RANGE" });
 
@@ -264,9 +246,25 @@ describe("FR-INV-02 create reservation (build_transactional_inventory_lock)", ()
           startsAt: notSlot.toISOString(),
           endsAt: new Date(notSlot.getTime() + 3_600_000).toISOString(),
         },
-        principalFor(await seedRenter()),
+        actorFor(await seedRenter()),
       ),
     ).rejects.toMatchObject({ code: "WINDOW_OUT_OF_RANGE" });
+  });
+
+  it("refuses a 4th active reservation for one phone (409 DUPLICATE_RESOURCE, A-19)", async () => {
+    // `booking.max_active_reservations_per_phone` defaults to 3; bikes are
+    // plentiful so the cap — not availability — is what refuses the 4th hold.
+    const partner = await seedOffering(5);
+    const userId = await seedRenter();
+    const actor = actorFor(userId);
+    const body = bodyFor(partner, window());
+
+    for (let i = 0; i < 3; i += 1) {
+      await createReservationHold(db, body, actor);
+    }
+    await expect(createReservationHold(db, body, actor)).rejects.toMatchObject({
+      code: "DUPLICATE_RESOURCE",
+    });
   });
 
   it("rejects a window outside the outlet's WIB opening hours (422 OUTSIDE_OPENING_HOURS)", async () => {
@@ -300,7 +298,7 @@ describe("FR-INV-02 create reservation (build_transactional_inventory_lock)", ()
       createReservationHold(
         db,
         { outletId: partner.outletId, category: "commuter", startsAt: startsAt.toISOString(), endsAt: endsAt.toISOString() },
-        principalFor(renterId),
+        actorFor(renterId),
       ),
     ).rejects.toMatchObject({ code: "OUTSIDE_OPENING_HOURS" });
   });

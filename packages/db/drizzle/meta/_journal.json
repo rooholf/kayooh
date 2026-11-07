@@ -50,6 +50,13 @@
       "when": 1793971525279,
       "tag": "0006_low_human_robot",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1793992901292,
+      "tag": "0007_flippant_wasp",
+      "breakpoints": true
     }
   ]
 }
