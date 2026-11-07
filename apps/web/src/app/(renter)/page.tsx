@@ -14,7 +14,7 @@ import type { OutletListResponse } from "@repo/contracts";
 import { Slogan } from "./_components/Slogan";
 import { Bicycle } from "./_components/Bicycle";
 import { PosterPicker } from "./_components/PosterPicker";
-import { OutletList } from "./_components/OutletList";
+import { LiveOutletList } from "./_components/LiveOutletList";
 import { DemoTag } from "./_components/DemoTag";
 import { totalUnits, wibDateParts } from "./_components/shared";
 
@@ -105,7 +105,7 @@ export default async function RenterHomePage() {
           Ketersediaan Langsung
         </h2>
         <p className="katalog-sub">
-          Dihitung oleh server saat kamu membuka halaman ini.{" "}
+          Dihitung oleh server dan diperbarui langsung saat stok berubah.{" "}
           <b>Bukan dari salinan di perangkatmu.</b>
         </p>
         <DemoTag />
@@ -118,7 +118,7 @@ export default async function RenterHomePage() {
         ) : outlets.length === 0 ? (
           <p className="notice">Belum ada outlet terdaftar.</p>
         ) : (
-          <OutletList outlets={outlets} />
+          <LiveOutletList initial={data} />
         )}
       </section>
 

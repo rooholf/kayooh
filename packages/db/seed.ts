@@ -1,6 +1,7 @@
 /**
- * Idempotent seed for the section 1.1 network (NFR-10): 4 owners, 4 outlets,
- * 150 bikes, plus the 4 base categories and default pricing rules.
+ * Idempotent seed (NFR-10): the SRS §1.1 network (4 owners, 4 outlets, 150
+ * bikes, 4 base categories, default pricing rules) plus JMB-005 "Jambi City
+ * Center" — added for the e2e specs, which anchor on that outlet.
  *
  * Re-running is a no-op once the outlets (by code) already exist.
  */
@@ -20,6 +21,7 @@ const NETWORK = [
   { code: "JMB-002", name: "Danau Sipin Recreation", owner: "Sipin Lakeside Rentals", commuter: 15, road: 0, mtb: 10, fixie: 5, lat: -1.605, lng: 103.62 },
   { code: "JMB-003", name: "Kotabaru", owner: "Kotabaru Active", commuter: 10, road: 20, mtb: 5, fixie: 15, lat: -1.615, lng: 103.605 },
   { code: "JMB-004", name: "Pasar Jambi", owner: "Laju Express Rentals", commuter: 20, road: 0, mtb: 5, fixie: 0, lat: -1.608, lng: 103.618 },
+  { code: "JMB-005", name: "Jambi City Center", owner: "City Center Cycles Jambi", commuter: 15, road: 10, mtb: 10, fixie: 10, lat: -1.6075, lng: 103.611 },
 ] as const;
 
 const HOURS = {

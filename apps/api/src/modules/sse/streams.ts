@@ -44,7 +44,17 @@ function streamEvents(
   attach: (emit: (event: EmittedEvent) => void) => () => void,
 ): Promise<void> {
   const raw = reply.raw;
-  raw.writeHead(200, STREAM_HEADERS);
+  /* The raw write bypasses Fastify's reply-header buffering, so the CORS
+     hook's Access-Control-Allow-Origin never lands on this response. The
+     browser's EventSource needs it (public, anonymous stream — app.ts
+     reflects the origin for dev, mirrored here by hand). */
+  const origin = request.headers.origin;
+  raw.writeHead(200, {
+    ...STREAM_HEADERS,
+    ...(typeof origin === "string" && origin.length > 0
+      ? { "Access-Control-Allow-Origin": origin, Vary: "Origin" }
+      : {}),
+  });
 
   let open = true;
   let detach: () => void = () => undefined;

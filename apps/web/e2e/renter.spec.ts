@@ -34,7 +34,8 @@ for (const [profile, viewport] of Object.entries(VIEWPORTS)) {
 
     // Poster present: slogan borders + masthead.
     await expect(
-      page.getByText("SEPEDA SIAP ◆ DI OUTLET NYATA")
+      // The marquee loops two identical decorative tracks; one existing proves it.
+      page.getByText("SEPEDA SIAP ◆ DI OUTLET NYATA").first()
     ).toBeVisible();
     await expect(
       page.getByRole("heading", { name: /KAYOOH JAMBI/ })
@@ -52,8 +53,9 @@ for (const [profile, viewport] of Object.entries(VIEWPORTS)) {
     ).toBeVisible();
 
     // Specimen row shows the chosen type + live figure (not an invented number).
-    await expect(page.getByRole("button", { name: /COMMUTER/ })).toHaveClass(
-      /aria-pressed="true"/
+    await expect(page.getByRole("button", { name: /COMMUTER/ })).toHaveAttribute(
+      "aria-pressed",
+      "true"
     );
 
     await expectNoBikeIds(page);

@@ -58,6 +58,7 @@ interface ReservationRow {
   finalIdr: bigint;
   dpIdr: bigint;
   atRisk: boolean;
+  reallocationDeadlineAt: Date | null;
 }
 
 function toResource(row: ReservationRow): ReservationResource {
@@ -75,6 +76,7 @@ function toResource(row: ReservationRow): ReservationResource {
     finalIdr: idr(row.finalIdr),
     dpIdr: idr(row.dpIdr),
     atRisk: row.atRisk,
+    reallocationDeadlineAt: row.reallocationDeadlineAt === null ? null : iso(row.reallocationDeadlineAt),
   });
 }
 
@@ -153,6 +155,7 @@ export function registerReservationReadRoutes(app: FastifyInstance): void {
         finalIdr: reservations.finalIdr,
         dpIdr: reservations.dpIdr,
         atRisk: reservations.atRisk,
+        reallocationDeadlineAt: reservations.reallocationDeadlineAt,
         createdAt: reservations.createdAt,
       })
       .from(reservations)
@@ -209,6 +212,7 @@ export function registerReservationReadRoutes(app: FastifyInstance): void {
         finalIdr: reservations.finalIdr,
         dpIdr: reservations.dpIdr,
         atRisk: reservations.atRisk,
+        reallocationDeadlineAt: reservations.reallocationDeadlineAt,
       })
       .from(reservations)
       .where(eq(reservations.id, reservationId))

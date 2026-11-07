@@ -11,8 +11,10 @@
  *
  * The page reports state only: the stamp, the hold clock while unpaid, the
  * printed invoice, and — once `confirmed` — the perforated QR ticket, refetched
- * every `ttl/2` seconds. It carries NO cancel, end, or relocate control
- * (NEG-3/NEG-8). Counts only, no bike ids (NEG-2); no coordinates (NEG-4).
+ * every `ttl/2` seconds. An at-risk (FR-INV-04) flag adds the ONE sanctioned
+ * renter choice (accept an alternative outlet, or decline for a full refund);
+ * there is otherwise NO cancel, end, or relocate-rental control (NEG-3/NEG-8).
+ * Counts only, no bike ids (NEG-2); no coordinates (NEG-4).
  */
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
@@ -28,6 +30,9 @@ import { getPaymentUrl } from "../_lib/handoff-store";
 import { useOutlets } from "../_hooks/useOutlets";
 import { useReservation } from "../_hooks/useReservation";
 import { useVoucher } from "../_hooks/useVoucher";
+import {
+  AtRiskOffer,
+} from "../_components/AtRiskOffer";
 import {
   HoldClock,
   Invoice,
@@ -175,15 +180,17 @@ function ReservasiDetailInner() {
         </p>
       )}
 
-      {r.atRisk && (
+      {r.atRisk && r.status === "confirmed" ? (
+        <AtRiskOffer r={r} onStatusChange={() => void reservation.refetch()} />
+      ) : r.atRisk ? (
         <div className="notice notice--risiko" role="status">
           <p>
             <b>Stok untuk jam ini berisiko.</b> Server menandai reservasi ini
-            butuh penyesuaian. Tautan alternatif akan muncul di sini; jangan
-            tinggalkan halaman ini.
+            karena sepeda rusak atau tidak ada saat pengecekan. Reservasi sudah
+            keluar dari status aktif; dana dikembalikan penuh.
           </p>
         </div>
-      )}
+      ) : null}
 
       <TearRule />
 

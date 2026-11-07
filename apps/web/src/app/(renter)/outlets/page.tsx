@@ -31,6 +31,7 @@ import {
   isWaktuCode,
   type CategoryCode,
 } from "../_components/shared";
+import { useLiveAvailability } from "../_hooks/useLiveAvailability";
 
 const API_BASE =
   process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:3001";
@@ -63,6 +64,10 @@ function OutletsInner() {
   const waktu = isWaktuCode(paramWaktu) ? WAKTU_LABEL[paramWaktu] : null;
 
   const [filter, setFilter] = useState<CategoryCode | null>(initialFilter);
+
+  // FR-REP-02: the SSE stream patches the ["outlets"] cache in place as the
+  // server commits state changes — counts move without any refetch.
+  useLiveAvailability();
 
   const { data, isLoading, isError, error, refetch, isFetching } = useQuery({
     queryKey: ["outlets"],
@@ -110,7 +115,7 @@ function OutletsInner() {
           Ketersediaan Outlet
         </h1>
         <p className="katalog-sub">
-          Dihitung oleh server saat halaman dibuka.{" "}
+          Dihitung oleh server dan diperbarui langsung saat stok berubah.{" "}
           <b>Bukan dari salinan di perangkatmu.</b>
         </p>
         <DemoTag />

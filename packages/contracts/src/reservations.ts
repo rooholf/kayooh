@@ -66,6 +66,12 @@ export const reservationResourceSchema = z
     /** Online 50% down payment; the balance is collected offline (FR-INV-02.4). */
     dpIdr: vIdr,
     atRisk: z.boolean(),
+    /**
+     * FR-INV-04: the moment an at-risk reservation's reallocation offer expires
+     * (the sweeper then cancels + refunds). Present only on the affected
+     * reservation; absent otherwise.
+     */
+    reallocationDeadlineAt: vTs.nullable().optional(),
   })
   .strict();
 
