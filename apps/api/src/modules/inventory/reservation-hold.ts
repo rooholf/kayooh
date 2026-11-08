@@ -115,6 +115,7 @@ async function holdReservation(
         category: body.category,
         startsAt,
         endsAt,
+        quantity: body.quantity ?? 1,
         promoCode: body.promoCode,
       });
 

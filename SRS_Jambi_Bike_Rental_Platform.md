@@ -391,13 +391,13 @@ Removed in revision 1.1. There is **no** digital deposit: the `deposits` and `de
 ### 6.3 Pricing and Promotions
 
 #### FR-PRC-01 Price quote [P1]; promotions [P2]
-Pure function `quote({outletId, category, startsAt, endsAt, promoCode?, renterId}) → {priceIdr, discountIdr, finalIdr, rateSnapshot, promoId, ownerPromoBps}`.
+Pure function `quote({outletId, category, startsAt, endsAt, quantity?, promoCode?, renterId}) → {priceIdr, discountIdr, finalIdr, rateSnapshot, promoId, ownerPromoBps}`. `quantity` defaults to 1 (V-QTY).
 1. `dayType` = `weekend` when the WIB date of `startsAt` is Saturday or Sunday, else `weekday`. Rate: the latest `pricing_rules` with `effective_from <= now()` matching `(outlet_id, category, dayType)`, else `(NULL, category, dayType)`, else `(outlet_id, category, 'all')`, else `(NULL, category, 'all')`; none: 422 `CATEGORY_NOT_OFFERED`. `rateSnapshot` records `{rateIdr, unitMinutes, dayType}`.
-2. `units = ceil(durationMinutes / pricing.billing_unit_minutes)`; `priceIdr = rateIdr * units`.
+2. `units = ceil(durationMinutes / pricing.billing_unit_minutes)`; `priceIdr = rateIdr * units * quantity` (quantity defaults to 1). The rate is per bike per billing unit; a multi-bike reservation scales the price, the 50% down payment (FR-INV-02.4) and the offline balance accordingly.
 3. Promo (P2; P1 ignores `promoCode`, returning `PROMO_INVALID` if supplied): active, `starts_at <= now() < ends_at`, scope matches, `max_uses` and `max_uses_per_renter` not exceeded. A `promoCode` is accepted only for an authenticated session; an unauthenticated request supplying one returns 401 `UNAUTHENTICATED` (revision 1.2, incentivized auth). `percent`: `discount = min(floor(price * value / 100), max_discount_idr ?? price)`; `fixed`: `min(value, price)`. `percent` value must be 1 to 100.
 4. `finalIdr = priceIdr - discountIdr`. `ownerPromoBps = owner.promo_opt_out ? 0 : promo.owner_share_bps`.
 5. If `0 < finalIdr < payments.min_charge_idr`: 422 `AMOUNT_BELOW_MINIMUM`.
-- **AC:** weekday rate 10000, unit 60, window 90 min gives 20000; the same window on a Saturday uses the weekend rate 15000 and gives 30000. Percent 25 on 20000 gives discount 5000, final 15000. Window 61 min gives 2 units.
+- **AC:** weekday rate 10000, unit 60, window 90 min gives 20000 for `quantity = 1`; for `quantity = 2` the same window gives 40000. The same window on a Saturday uses the weekend rate 15000 and gives 30000 for `quantity = 1`. Percent 25 on 20000 gives discount 5000, final 15000. Window 61 min gives 2 units. `quantity` defaults to 1, so omitting it reproduces the single-bike result.
 
 ### 6.4 Inventory and Reservation (the lock)
 
@@ -423,14 +423,14 @@ Pre-transaction validation, in this order (first failure returns):
 Single database transaction (`READ COMMITTED`):
 1. `SELECT 1 FROM outlet_categories WHERE outlet_id = $1 AND category = $2 FOR UPDATE`.
 2. `computeAvailability`; if `available < quantity` throw 409 `SOLD_OUT`.
-3. `quote()` (FR-PRC-01).
-4. Compute the online down payment: `dpIdr = roundHalfUp(finalIdr * booking.dp_rate_bps / 10000)`. The offline balance is `balanceIdr = finalIdr - dpIdr`, collected by staff at check-out (FR-RNT-01).
+3. `quote({ outletId, category, startsAt, endsAt, quantity, promoCode, renterId })` (FR-PRC-01) — `priceIdr`, `finalIdr` and `discountIdr` already include `quantity`.
+4. Compute the online down payment: `dpIdr = roundHalfUp(finalIdr * booking.dp_rate_bps / 10000)`. Because `finalIdr` scales with `quantity`, `dpIdr` and the offline balance scale with it. The offline balance is `balanceIdr = finalIdr - dpIdr`, collected by staff at check-out (FR-RNT-01).
 5. Insert reservation: `status = held`, `quantity = quantity`, `dp_idr = dpIdr`, `expires_at = now() + hold.checkout_minutes`, price fields and snapshots copied from the quote. If `dpIdr = 0` insert `confirmed` directly and skip steps 6 to 7.
 6. Insert `payment_intents(purpose = booking, amount = dpIdr, status = created, expires_at = reservation.expires_at)`.
 7. Insert outbox event `reservation.held`. Commit.
 
 After commit (never inside the lock): enqueue BullMQ job `release-hold` at `expires_at` (job id `hold:<reservationId>`); call `gateway.createInvoice({externalId: intent.id, amount, durationSeconds: 900})` with an 8 s timeout. Success: store `gateway_ref`, `payment_url`, status `pending`; respond 201 `{reservation, price, paymentUrl}` — plus `guestToken` (A-18) when the booking was made as a guest. Failure: set reservation `cancelled` (`cancel_reason = gateway_error`), intent `failed`, respond 502 `GATEWAY_UNAVAILABLE`.
-- **AC (T-01, the protected rule):** an outlet with 5 commuter bikes and 50 parallel valid requests (each `quantity = 1`) for the same window yields exactly 5 responses 201 and 45 responses 409 `SOLD_OUT`; `computeAvailability` afterwards returns 0. With the same 5 bikes, one request of `quantity = 3` leaves `available = 2`; a follow-up request of `quantity = 3` returns `SOLD_OUT` and one of `quantity = 2` returns 201.
+- **AC (T-01, the protected rule):** an outlet with 5 commuter bikes and 50 parallel valid requests (each `quantity = 1`) for the same window yields exactly 5 responses 201 and 45 responses 409 `SOLD_OUT`; `computeAvailability` afterwards returns 0. With the same 5 bikes, one request of `quantity = 3` leaves `available = 2`; a follow-up request of `quantity = 3` returns `SOLD_OUT` and one of `quantity = 2` returns 201. Pricing scales with `quantity`: a `quantity = 2` reservation yields `finalIdr = 2 ×` the single-bike price and `dpIdr = roundHalfUp(finalIdr * booking.dp_rate_bps / 10000)`.
 
 #### FR-INV-03 Hold expiry, no-show and sweeper [P1]
 1. Delayed job `release-hold` runs at `expires_at`; sweeper job `sweeper` runs every minute. Both execute the same idempotent SQL; Redis loss never loses a booking.
