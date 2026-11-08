@@ -12,7 +12,7 @@ import { buildApp } from "../src/app.js";
 import type { NotificationProvider, SendInput } from "../src/lib/types.js";
 
 export const TEST_DATABASE_URL =
-  process.env.DATABASE_URL ?? "postgresql://kayooh@127.0.0.1:5433/kayooh";
+  process.env.DATABASE_URL ?? "postgresql://kayooh@127.0.0.1:5433/kayooh_test";
 
 /** Captures every notification send (test seam for the OTP code). */
 export class CapturingNotificationProvider implements NotificationProvider {
