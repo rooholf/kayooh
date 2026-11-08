@@ -68,6 +68,11 @@ export default function ReservasiListPage() {
 
       <div className="alat">
         <p className="alat-merek">KAYOOH — RESERVASI</p>
+        {signedOut && (
+          <Link className="alat-link" href="/masuk">
+            Masuk →
+          </Link>
+        )}
         <button
           type="button"
           className="muat-ulang"

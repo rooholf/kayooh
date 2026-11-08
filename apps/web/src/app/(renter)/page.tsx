@@ -48,6 +48,14 @@ export default async function RenterHomePage() {
       <Slogan variant="red" text="SEPEDA SIAP ◆ DI OUTLET NYATA" />
       <Slogan variant="yellow" text="A BIKE IS WAITING ◆ AT A REAL OUTLET" />
 
+      {/* ---- strip: brand + optional account entry (sign-in unlocks promos + list) ---- */}
+      <div className="alat">
+        <p className="alat-merek">KAYOOH — POSTER HARIAN</p>
+        <Link className="alat-link" href="/masuk">
+          Masuk →
+        </Link>
+      </div>
+
       {/* ---- the emblem plate ---- */}
       <section className="plate" aria-label="Kayooh Jambi">
         <div className="plate-top">
