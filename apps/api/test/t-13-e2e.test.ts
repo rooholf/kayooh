@@ -73,12 +73,13 @@ async function confirmedGuestBooking(quantity: number) {
   };
   expect(body.reservation.status).toBe("held");
   expect(body.reservation.quantity).toBe(quantity);
-  // FR-PRC-01 quote() takes no quantity, and FR-INV-02 step 5 copies the price
-  // fields from the quote — so a quantity=2 reservation is still priced at the
-  // 1-hour weekday rate (10_000), with the DP at 50% (INV-5).
-  expect(body.price.finalIdr).toBe(10_000);
+  // FR-PRC-01 quote() scales price by quantity (FR-INV-02.4), and
+  // FR-INV-02 step 5 copies the price fields from the quote — so a
+  // quantity=2 reservation is priced at 2× the 1-hour weekday rate
+  // (20_000), with the DP at 50% (10_000, INV-5).
+  expect(body.price.finalIdr).toBe(20_000);
   expect(body.price.priceIdr).toBe(body.price.finalIdr);
-  expect(body.price.dpIdr).toBe(body.price.finalIdr / 2);
+  expect(body.price.dpIdr).toBe(10_000);
   expect(body.paymentUrl).toEqual(expect.stringContaining("pay.fixtures.jambi.test"));
   expect(body.guestToken).toEqual(expect.any(String));
 

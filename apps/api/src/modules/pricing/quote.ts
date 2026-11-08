@@ -20,6 +20,8 @@ export interface QuoteInput {
   category: string;
   startsAt: Date;
   endsAt: Date;
+  /** V-QTY: bikes to lock; defaults to 1 (FR-PRC-01, FR-INV-02). */
+  quantity?: number;
   promoCode?: string;
 }
 
@@ -91,7 +93,8 @@ export async function quote(
     (input.endsAt.getTime() - input.startsAt.getTime()) / 60_000,
   );
   const units = computeUnits(durationMinutes, unitMinutes);
-  const priceIdr = rateIdr * units;
+  const quantity = input.quantity ?? 1;
+  const priceIdr = rateIdr * units * quantity;
   const discountIdr = 0;
   const finalIdr = priceIdr - discountIdr;
 
