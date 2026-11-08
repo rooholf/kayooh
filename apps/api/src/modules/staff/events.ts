@@ -18,6 +18,7 @@
  * time-based rule reads `occurredAt`, not receipt time.
  */
 import { z } from "zod";
+import { randomUUID } from "node:crypto";
 import { and, eq, sql } from "@repo/db";
 import {
   bikeEvents,
@@ -366,7 +367,7 @@ async function applyCheckout(tx: TxOrDb, event: StaffEventInput, ctx: StaffConte
   const bikeEffects: Array<{ assetTag: string; state: string }> = [];
   const rentalEffects: Array<{ rentalId: string; state: string }> = [];
 
-  for (const bike of orderedBikes) {
+  for (const [i, bike] of orderedBikes.entries()) {
     const rental = (await tx
       .insert(rentals)
       .values({
@@ -395,7 +396,11 @@ async function applyCheckout(tx: TxOrDb, event: StaffEventInput, ctx: StaffConte
       outletId: ctx.staffOutletId,
       staffId: ctx.staffUserId,
       rentalId: rental.id,
-      clientEventId: event.clientEventId,
+      // One bike_events row per bike, so a multi-bike checkout reuses the scan's
+      // clientEventId only on the first row (client_event_id is UNIQUE). Replay
+      // can never reach this loop again — the scan_events
+      // UNIQUE(client_event_id) gate dedupes the whole event (FR-OFF-01.2).
+      clientEventId: i === 0 ? event.clientEventId : randomUUID(),
       photoKeys: payload.data.photoKeys,
       payload: { checklist: payload.data.checklist, collateral, balanceCollection: balance },
       occurredAt,
