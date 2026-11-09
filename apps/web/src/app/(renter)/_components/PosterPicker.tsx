@@ -4,16 +4,13 @@
  * The poster's search block — waktu & jenis pickers and the boxed-ink action.
  * Both controls are real buttons (aria-pressed); the action is a link to
  * /outlets carrying the choices as query params, where the catalog filters
- * by category and shows the chosen window. Below the strip the specimen row
- * shows the chosen type's silhouette and its live figure, so the renter
- * judges the bike against real stock before pressing anything. No per-type
- * copy is invented: silhouette + name + count only (NEG-2, never bike ids).
+ * by category and shows the chosen window. Below the strip a single readiness
+ * line shows the chosen type's live figure so the renter judges stock before
+ * pressing anything — no per-type copy, no glyph, just the number.
  */
 import Link from "next/link";
 import { useState } from "react";
 import type { OutletListItem } from "@repo/contracts";
-import { BikeGlyph } from "./BikeGlyph";
-import { BikeSpecimen } from "./BikeSpecimen";
 import {
   CATEGORY_LABEL,
   CATEGORY_ORDER,
@@ -82,7 +79,7 @@ export function PosterPicker({
           ))}
         </div>
 
-        <h2 className="label" id="label-jenis" style={{ marginTop: 17 }}>
+        <h2 className="label label--spaced" id="label-jenis">
           Jenis sepeda
         </h2>
         <div
@@ -97,8 +94,7 @@ export function PosterPicker({
               aria-pressed={kategori === c}
               onClick={() => setKategori(c)}
             >
-              <BikeGlyph category={c} className="baris-glif" />
-              <span>{CATEGORY_LABEL[c]}</span>
+              {CATEGORY_LABEL[c]}
             </button>
           ))}
         </div>
@@ -112,14 +108,33 @@ export function PosterPicker({
             </a>
           </p>
         ) : (
-          <BikeSpecimen
-            category={kategori}
-            mode="poster"
-            count={count}
-            outletTotal={openOutlets}
-            outletCount={outletsHolding}
-            recovery={recoveryProps}
-          />
+          <div className="siap-ringkas" role="status" aria-live="polite">
+            {count === 0 ? (
+              <>
+                <span>
+                  Tidak ada {CATEGORY_LABEL[kategori].toLowerCase()} siap hari
+                  ini.
+                </span>
+                {recoveryProps && (
+                  <button
+                    type="button"
+                    className="text-action spesimen-pindah"
+                    onClick={recoveryProps.onSelect}
+                  >
+                    {recoveryProps.label}
+                  </button>
+                )}
+              </>
+            ) : (
+              <span>
+                <b>{count}</b> unit {CATEGORY_LABEL[kategori].toLowerCase()} siap
+                hari ini di {outletsHolding} outlet
+                {openOutlets !== outletsHolding
+                  ? ` dari ${openOutlets} outlet buka`
+                  : ""}
+              </span>
+            )}
+          </div>
         )}
       </section>
 

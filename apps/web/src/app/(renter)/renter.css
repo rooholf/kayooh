@@ -258,6 +258,19 @@
   text-transform: uppercase;
   max-width: 22ch;
 }
+.siap-ringkas {
+  margin-top: 12px;
+  padding: 10px 12px;
+  border: 2px dashed var(--tinta);
+  font-weight: 600;
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--tinta);
+}
+.siap-ringkas b {
+  font-family: "Archivo Black", "Archivo", sans-serif;
+  font-variant-numeric: tabular-nums;
+}
 .plate-foot {
   margin-top: 13px;
   color: var(--kertas);
@@ -300,6 +313,9 @@
   letter-spacing: 0.24em;
   color: var(--merah);
   text-transform: uppercase;
+}
+.label--spaced {
+  margin-top: 17px;
 }
 .baris {
   display: flex;
