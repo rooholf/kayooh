@@ -1,8 +1,13 @@
 # Software Requirements Specification: Jambi Bike Rental Platform
 
-Version 1.2 | 6 November 2026
+Version 1.3 | 9 November 2026
 Sources: PRD "Jambi Bike Rental Network: PRD and System Architecture" v1.2; "Tech Stack and Architecture: Jambi Bike Rental Platform" v1.0
 Audience: AI coding agent. Implement from this document without asking for clarification. Every MUST is testable.
+
+**Revision 1.3 — B2B2C link-in-bio pivot.** This revision supersedes any earlier statement in conflict with it:
+1. **White-labeled direct booking engine.** The platform is no longer a multi-outlet discovery aggregator. It is a white-labeled, headless booking engine that an individual owner drops into their social-media bio as a direct booking link (e.g. `https://<host>/<outletCode>`). The renter entry point is outlet-specific; there is no global outlet map as the primary surface.
+2. **Catalog deprioritized.** `GET /outlets` (global list/map discovery) is retained but deprioritized; the primary renter surface is a direct, outlet-specific URL keyed by outlet code (FR-CAT-01). Availability, pricing, reservation and voucher flows are all scoped to that single outlet.
+3. **Preserved.** Guest checkout (FR-ID-01, revision 1.2), the 50% online down payment (FR-INV-02, `booking.dp_rate_bps`), physical offline collateral (FR-RNT-01, V-COLLATERAL) and the no-digital-deposit/no-digital-ID rules (revisions 1.1/1.2) remain strictly intact. Nothing about money, inventory locking or custody changes.
 
 **Revision 1.2 — guest checkout and optional renter auth (conversion optimization).** This revision supersedes any earlier statement in conflict with it:
 1. **Mandatory digital ID verification removed.** FR-ID-04, the renter ID screens and endpoints, the `verification_requests` and `id_document_views` tables and the `verification_status` enum are deleted; `POST /reservations` no longer returns 422 `VERIFICATION_REQUIRED`.
@@ -35,9 +40,9 @@ Audience: AI coding agent. Implement from this document without asking for clari
 
 ### 1.1 Purpose and scope
 
-A station-based, multi-owner bike rental aggregator for Jambi. Renters browse outlets, reserve a bike category for a time window, pay, collect the bike from a staffed outlet via QR scan, and return it to a staffed outlet of the same owner. Owners receive fleet visibility and weekly financial statements. The platform admin onboards owners, sets pricing and promotions, runs settlements and resolves disputes.
+A white-labeled, headless booking engine for individual bike-rental owners. An owner drops a single direct link (keyed by their outlet code, e.g. `https://<host>/<outletCode>`) into their social-media bio; a renter who taps it lands on that owner's own booking page, picks a bike category, time window and quantity, pays a 50% down payment, collects the bike at the staffed outlet via QR scan, and returns it to a staffed outlet of the same owner. There is no multi-outlet discovery map as the primary surface and no platform-wide outlet browser in the renter flow. Owners receive fleet visibility and weekly financial statements; the platform admin onboards owners, sets pricing and promotions, runs settlements and resolves disputes.
 
-Network baseline (seed data): 4 outlets, 4 owners, 150 bikes.
+Network baseline (seed data): 4 outlets, 4 owners, 150 bikes (demo/seed only; each owner operates their own branded booking page).
 
 | Outlet code | Name | Owner | Commuter | Road | MTB | Fixie | Total |
 |---|---|---|---|---|---|---|---|
@@ -60,7 +65,7 @@ Network baseline (seed data): 4 outlets, 4 owners, 150 bikes.
 
 | Capability | renter | staff | owner | admin |
 |---|---|---|---|---|
-| Browse outlets and availability | yes | yes | yes | yes |
+| Browse an outlet's availability (direct, outlet-specific URL) | yes | yes | yes | yes |
 | Create reservation, pay, view own voucher | yes (guests too, with `contactPhone` — revision 1.2) | no | no | no |
 | Check-out, check-in, inspect, change bike state, report incident | no | own outlet | no | yes |
 | View rentals, bikes, earnings, statements | own rentals | own outlet | own tenant | all |
@@ -93,7 +98,7 @@ Network baseline (seed data): 4 outlets, 4 owners, 150 bikes.
 
 | Phase | Modules and features |
 |---|---|
-| P1 | Identity, tenancy, guest checkout (optional auth), catalog, inventory lock, multi-bike reservation (`quantity`), mock payments through `FakeGateway`, 50% down payment, physical collateral logging at check-out, check-out/check-in/inspection, offline staff queue, hold expiry and no-show jobs, notifications, basic owner dashboard (live rentals, bike status counts, gross earnings accrual) |
+| P1 | Identity, tenancy, guest checkout (optional auth), direct outlet booking pages (white-labeled, link-in-bio), inventory lock, multi-bike reservation (`quantity`), mock payments through `FakeGateway`, 50% down payment, physical collateral logging at check-out, check-out/check-in/inspection, offline staff queue, hold expiry and no-show jobs, notifications, basic owner dashboard (live rentals, bike status counts, gross earnings accrual) |
 | P2 | Ledger, commission rules, promotions, weekly statements and PDFs, Tuesday payouts, dispute queue, utilization and performance reports |
 | P3 | Sister-outlet groups in production (`feature.sister_outlets_enabled = true`), e-bike category, optional Capacitor wrapper |
 
@@ -374,12 +379,15 @@ Removed in revision 1.1. There is **no** digital deposit: the `deposits` and `de
 
 ### 6.2 Catalog
 
-#### FR-CAT-01 Outlet discovery [P1]
-1. `GET /outlets` query `lat?` (V-LAT), `lng?` (V-LNG) (both or neither, else 400), `category?` (V-CAT).
-2. Return only `status = active` outlets. For each active `outlet_categories` row where at least one bike is homed there, return `availableNow` per category (FR-INV-01 with window `[now, now + booking.min_duration_minutes)`). Categories with zero bikes at the outlet are omitted (JMB-002 and JMB-004 show no road bikes).
-3. If lat/lng given: `distanceKm` by haversine, 1 decimal, sorted ascending; else sorted by `name`. Coordinates are not stored or logged (NEG-4).
-4. Item fields: `id, code, name, description, address, lat, lng, hours, isOpenNow, distanceKm?, availability: {category: n}`. No bike ids.
-- **AC:** with category filter `road`, JMB-002 and JMB-004 are not returned.
+#### FR-CAT-01 Outlet discovery and direct booking entry [P1]
+Revision 1.3: the renter entry point is a direct, outlet-specific URL keyed by outlet code (e.g. `https://<host>/<outletCode>` or `/o/{outletCode}`), not a global outlet map. The page renders that single outlet's availability, pricing and reservation flow (FR-PRC-01, FR-INV-02). The global `GET /outlets` list/map discovery is retained but deprioritized (admin/secondary use).
+
+1. Direct entry: resolve the outlet by `code` (V-OUTLET-CODE) from the URL; return 404 `NOT_FOUND` if inactive or unknown. Render the outlet's `availableNow` per category (FR-INV-01 with window `[now, now + booking.min_duration_minutes)`), `hours`, `isOpenNow`, address and `lat`/`lng` for distance display only. Categories with zero bikes at the outlet are omitted (JMB-002 and JMB-004 show no road bikes). No bike ids (NEG-2).
+2. `GET /outlets` (deprioritized global list): query `lat?` (V-LAT), `lng?` (V-LNG) (both or neither, else 400), `category?` (V-CAT). Return only `status = active` outlets with `availableNow` per category. If lat/lng given: `distanceKm` by haversine, 1 decimal, sorted ascending; else sorted by `name`. Coordinates are not stored or logged (NEG-4).
+3. Item fields: `id, code, name, description, address, lat, lng, hours, isOpenNow, distanceKm?, availability: {category: n}`. No bike ids.
+- **AC:** a direct URL for JMB-002 renders that outlet only and shows no road-bike category. With category filter `road` on the global list, JMB-002 and JMB-004 are not returned.
+
+Resolution endpoint (revision 1.3): `GET /outlets/by-code/{code}` (V-OUTLET-CODE) → 200 outlet + `availability` (same shape as `GET /outlets/{id}`); 404 `NOT_FOUND` if inactive or unknown. The white-labeled direct-entry page calls this.
 
 #### FR-CAT-02 Admin onboarding [P1]
 1. `POST /admin/owners`: `name` (V-TEXT-S), `bankCode` (V-TEXT-S), `bankAccountNumber` (`^[0-9]{6,20}$`), `bankAccountName` (V-TEXT-S).
@@ -618,6 +626,7 @@ Base path `/api/v1` (Better Auth endpoints are mounted at `/api/auth/*`). All bo
 |---|---|---|---|---|
 | `GET /outlets` | public | query `lat?` V-LAT, `lng?` V-LNG, `category?` V-CAT | 200 list (FR-CAT-01) | n/a |
 | `GET /outlets/{id}` | public | path V-UUID | 200 outlet + `availability` | n/a |
+| `GET /outlets/by-code/{code}` | public | path V-OUTLET-CODE | 200 outlet + `availability` (direct entry, revision 1.3) | 404 `NOT_FOUND` |
 | `GET /outlets/{id}/availability` | public | query `category` V-CAT, `startsAt`, `endsAt` V-TS | 200 `{available: int}` | 422 `WINDOW_OUT_OF_RANGE`, `DURATION_OUT_OF_RANGE` |
 | `GET /outlets/stream` | public | none | 200 `text/event-stream` | n/a |
 | `GET /renters/me` | renter | none | 200 `{phone}` | n/a |
