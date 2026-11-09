@@ -74,6 +74,14 @@
 }
 
 /* ---- the sheet ---- */
+.renter-sheet > main {
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 auto;
+}
+.kaki {
+  margin-top: auto;
+}
 .renter-sheet {
   position: relative;
   width: 100%;
