@@ -79,9 +79,6 @@
   flex-direction: column;
   flex: 1 1 auto;
 }
-.kaki {
-  margin-top: auto;
-}
 .renter-sheet {
   position: relative;
   width: 100%;
@@ -372,7 +369,7 @@
 
 /* ---- CTA: the boxed ink action ---- */
 .aksi {
-  margin: clamp(18px, 5.5vw, 26px) clamp(14px, 4.5vw, 24px) 0;
+  margin: clamp(18px, 5.5vw, 26px) clamp(14px, 4.5vw, 24px) 18px;
   background: var(--tinta);
   color: var(--kertas);
   min-height: 72px;
@@ -663,7 +660,7 @@
 
 /* ---- sheet foot ---- */
 .kaki {
-  margin-top: 18px;
+  margin-top: auto;
   background: var(--tinta);
   color: var(--kertas);
   padding: 14px clamp(14px, 4.5vw, 24px) 18px;
