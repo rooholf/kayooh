@@ -7,7 +7,7 @@
  * slot grid and duration presets. The server stays the single authority: any
  * window it disagrees with comes back as a 422 and the surface says so.
  */
-export const SLOT_MINUTES = 15;
+export const SLOT_MINUTES = 60;
 export const MIN_DURATION_MINUTES = 60;
 export const MAX_DURATION_MINUTES = 1440;
 export const MAX_ADVANCE_DAYS = 7;

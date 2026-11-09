@@ -3,7 +3,7 @@
  *
  * "Book Now!!" must drop the renter into a checkout where the only required
  * input is the phone — so both the landing and the checkout prefill the same
- * window: the first bookable 15-minute slot of the default duration, starting
+ * window: the first bookable hourly slot of the default duration, starting
  * today (WIB), else the first day within the advance horizon that has one.
  *
  * The server stays the only authority: whatever the client computes is re-
@@ -41,7 +41,7 @@ export function fitsWindow(start: string, durationMin: number, intervals: Interv
 }
 
 /**
- * All 15-minute starts inside the day's opening hours, plus the set that cannot
+ * All hourly starts inside the day's opening hours, plus the set that cannot
  * be booked for this window (past, or ending after close). Closed starts stay
  * visible and struck — never hidden (brief: honest states).
  */

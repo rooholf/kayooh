@@ -38,7 +38,7 @@ const ERROR_COPY: Record<string, ErrorCopy> = {
   },
   DURATION_OUT_OF_RANGE: {
     title: "Durasi tidak sesuai",
-    body: "Durasi sewa harus kelipatan 15 menit, minimal 1 jam dan maksimal 24 jam.",
+    body: "Durasi sewa harus kelipatan 1 jam, minimal 1 jam dan maksimal 24 jam.",
   },
   WINDOW_OUT_OF_RANGE: {
     title: "Waktu ambil tidak sesuai",
