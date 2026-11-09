@@ -110,8 +110,8 @@ export type CreateReservationResponse = z.infer<typeof createReservationResponse
 /* ------------------------------------------------------------------ */
 
 /**
- * Public price preview. Same inputs as the pricing leg of FR-INV-02 but with
- * no `quantity` (the quote is per bike, FR-PRC-01.2). `promoCode` needs a
+ * Public price preview. Scales price/DP/balance by `quantity` (FR-PRC-01,
+ * FR-INV-02); defaults to 1 when omitted. `promoCode` needs a
  * session: an unauthenticated request supplying one is 401 `UNAUTHENTICATED`
  * (incentivized auth, revision 1.2); otherwise P1 rejects it 422 `PROMO_INVALID`.
  */
@@ -121,6 +121,7 @@ export const quoteBodySchema = z
     category: vCategoryCode,
     startsAt: vTs,
     endsAt: vTs,
+    quantity: vQty.optional(),
     promoCode: vPromo.optional(),
   })
   .strict();

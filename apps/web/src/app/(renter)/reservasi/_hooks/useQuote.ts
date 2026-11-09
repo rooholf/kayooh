@@ -3,9 +3,10 @@
 /**
  * POST /pricing/quote — the public price preview (FR-PRC-01).
  *
- * The quote is per bike and takes no `quantity` (FR-PRC-01.2): the sheet
- * multiplies it by the chosen quantity for display only. Nothing is persisted.
- * Any promo requires a session (401 UNAUTHENTICATED) — we never send one here.
+ * The quote scales price/DP/balance by `quantity` (FR-PRC-01, FR-INV-02);
+ * the sheet sends the chosen quantity and prints the returned totals verbatim.
+ * Nothing is persisted. Any promo requires a session (401 UNAUTHENTICATED) —
+ * we never send one here.
  */
 import { useQuery } from "@tanstack/react-query";
 import type { QuoteResponse } from "@repo/contracts";
@@ -16,6 +17,7 @@ export interface QuoteInput {
   category: string;
   startsAt: string;
   endsAt: string;
+  quantity: number;
 }
 
 async function fetchQuote(input: QuoteInput): Promise<QuoteResponse> {
@@ -29,6 +31,7 @@ async function fetchQuote(input: QuoteInput): Promise<QuoteResponse> {
         category: input.category,
         startsAt: input.startsAt,
         endsAt: input.endsAt,
+        quantity: input.quantity,
       }),
     });
   } catch {
@@ -47,6 +50,7 @@ export function useQuote(input: QuoteInput | null) {
       input?.category ?? "",
       input?.startsAt ?? "",
       input?.endsAt ?? "",
+      input?.quantity ?? 1,
     ],
     enabled: input !== null,
     queryFn: () => fetchQuote(input as QuoteInput),

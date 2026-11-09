@@ -168,6 +168,7 @@ function ReservasiInner() {
             category,
             startsAt: startsAt.toISOString(),
             endsAt: endsAt.toISOString(),
+            quantity,
           }
         : null,
     [outlet, category, startsAt, endsAt],

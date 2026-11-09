@@ -949,7 +949,7 @@
 }
 .langkah-judul {
   font-family: "Archivo Black", "Archivo", sans-serif;
-  font-size: clamp(14px, 4.4vw, 17px);
+  font-size: clamp(13px, 4.4vw, 15px);
   letter-spacing: 0.03em;
   text-transform: uppercase;
   border-bottom: 3px solid var(--tinta);
@@ -990,7 +990,7 @@
 .hari-strip > button b {
   display: block;
   font-family: "Archivo Black", "Archivo", sans-serif;
-  font-size: 14px;
+  font-size: 13px;
   margin-top: 3px;
 }
 .hari-strip > button:hover {
@@ -1077,7 +1077,7 @@
   border: 0;
   background: var(--kertas);
   font-family: "Archivo Black", "Archivo", sans-serif;
-  font-size: 20px;
+  font-size: 15px;
   color: var(--tinta);
   cursor: pointer;
 }
@@ -1094,7 +1094,7 @@
   border-left: 3px solid var(--tinta);
   border-right: 3px solid var(--tinta);
   font-family: "Archivo Black", "Archivo", sans-serif;
-  font-size: clamp(14px, 4.4vw, 17px);
+  font-size: clamp(13px, 4.4vw, 15px);
   font-variant-numeric: tabular-nums;
 }
 
@@ -1113,7 +1113,7 @@
   border: 0;
   background: var(--kertas);
   font-family: "Archivo Black", "Archivo", sans-serif;
-  font-size: 20px;
+  font-size: 15px;
   color: var(--tinta);
   cursor: pointer;
 }
@@ -1212,7 +1212,7 @@
 .masuk-nomor {
   margin-top: 8px;
   font-family: "Archivo Black", "Archivo", sans-serif;
-  font-size: clamp(20px, 6vw, 26px);
+  font-size: clamp(15px, 6vw, 23px);
   letter-spacing: 0.04em;
   color: var(--tinta);
   font-variant-numeric: tabular-nums;
@@ -1254,7 +1254,7 @@
 .nota-baris dd {
   margin: 0;
   font-family: "Archivo Black", "Archivo", sans-serif;
-  font-size: 14px;
+  font-size: 13px;
   font-variant-numeric: tabular-nums;
 }
 .nota-baris--diskon dd {
@@ -1283,7 +1283,7 @@
 .nota-total dd {
   margin: 0;
   font-family: "Archivo Black", "Archivo", sans-serif;
-  font-size: clamp(20px, 6vw, 26px);
+  font-size: clamp(15px, 6vw, 23px);
   font-variant-numeric: tabular-nums;
 }
 
@@ -1567,7 +1567,7 @@ button.aksi:disabled {
 }
 .tiket-ambil-kepala {
   font-family: "Archivo Black", "Archivo", sans-serif;
-  font-size: clamp(16px, 5vw, 20px);
+  font-size: clamp(15px, 5vw, 23px);
   letter-spacing: 0.03em;
   text-transform: uppercase;
   line-height: 1.15;

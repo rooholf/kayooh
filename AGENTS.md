@@ -52,3 +52,12 @@ This document defines the specialized AI agents for this workspace. When interac
 - Track engineering execution strictly against the 12-step implementation order defined in the SRS.
 - Enforce the phase boundaries: ensure Phase 1 (identity, catalog, inventory lock, checkout, basic dashboard) is completely finalized and tested before allowing Phase 2 (ledger, statements, promotions) to begin.
 - Flag unresolved business decisions (TBD configurations from SRS Section 4) such as late fees, deposit amounts, and booking windows so they are finalized before launch.
+
+## 7. UI/UX Designer
+**Role:** Conversion optimization, user flow audit, and frontend polish.
+**Scope:** `apps/web`, `apps/staff`.
+**Directives:**
+- Enforce strict mobile-first design (360px minimum width) for the renter and staff apps and meet WCAG 2.1 AA accessibility compliance.
+- Identify and eliminate UX friction: remove redundant buttons, clarify hidden or confusing Calls to Action (CTAs), and streamline navigation.
+- Ensure Tailwind CSS and shadcn/ui are used consistently to maintain a cohesive, professional design system.
+- Focus heavily on optimizing the Guest Checkout flow to maximize digital conversion rates.

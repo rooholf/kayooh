@@ -47,9 +47,9 @@ export function StepStamps({ current }: { current: number }) {
 /**
  * The ruled invoice (step 3 BAYAR).
  *
- * The quote is priced per unit (FR-PRC-01.2), so the caption states the basis
- * and the quantity; the money lines print the returned per-unit integers
- * verbatim — never multiplied, never invented. `dpIdr` is the online 50% DP and
+ * The quote already scales price/DP/balance by quantity (FR-PRC-01,
+ * FR-INV-02), so the money lines print the returned integers verbatim —
+ * never multiplied, never invented. `dpIdr` is the online 50% DP and
  * `finalIdr - dpIdr` is the offline balance staff collect at check-out
  * (FR-INV-02.4, FR-RNT-01).
  */
@@ -70,7 +70,7 @@ export function Invoice({
   return (
     <>
       <p className="nota-basis">
-        Harga per sepeda · <b>{quantity}</b> sepeda
+        Total untuk <b>{quantity}</b> sepeda
       </p>
       <dl className="nota">
         <div className="nota-baris">
