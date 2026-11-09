@@ -1,6 +1,8 @@
 # Jambi Bike Rental Network: PRD and System Architecture
 
-Version 1.2 | 6 November 2026 | For fleet owners and the platform team
+Version 1.3 | 9 November 2026 | For fleet owners and the platform team
+
+**Revision 1.3 (B2B2C link-in-bio pivot).** The platform is no longer a multi-outlet discovery aggregator. It is a white-labeled, headless booking engine: an owner drops a single direct link (keyed by their outlet code, e.g. `https://<host>/<outletCode>`) into their social-media bio, and a renter who taps it lands on that owner's own booking page. Availability, pricing, reservation and voucher flows are all scoped to that single outlet; there is no global outlet map as the primary renter surface. Guest checkout (50% DP, optional sign-in), physical collateral and the no-digital-deposit/no-digital-ID rules are unchanged.
 
 **Revision 1.2 (conversion-rate optimization: guest checkout).** Four changes: (1) mandatory digital ID verification is removed entirely — no ID upload, review queue or verification status exists, and no identity document is ever stored by the platform; (2) renter sign-in is optional — a renter can book as a **guest** by supplying a contact phone number, and the **50% down payment (DP)** is the primary anti-spam and no-show control; (3) renter accounts now exist primarily to claim platform and owner promotions and vouchers; (4) staff still collect **physical collateral** (KTP, SIM or vehicle) offline at check-out — nothing about that flow changes.
 
@@ -8,7 +10,7 @@ Version 1.2 | 6 November 2026 | For fleet owners and the platform team
 
 ## 1. Purpose and Principles
 
-This platform is a station-based, multi-owner rental aggregator for Jambi. Renters browse outlets, reserve a bike, collect it at a staffed storefront, and return it to a verified storefront. Owners keep full ownership of their bicycles and receive automated fleet and financial reporting.
+This platform is a white-labeled, headless booking engine for individual bike-rental owners. An owner drops a single direct link (keyed by their outlet code) into their social-media bio; a renter who taps it lands on that owner's own booking page, reserves a bike, pays a 50% down payment, collects it at a staffed storefront and returns it to a verified storefront. Owners keep full ownership of their bicycles and receive automated fleet and financial reporting. There is no multi-outlet discovery map as the primary renter surface.
 
 Three rules govern every design decision:
 
@@ -39,9 +41,9 @@ Each owner currently runs exactly one outlet, so same-owner returns are effectiv
 
 ## 4. Feature Specification
 
-### 4.1 Outlet-based discovery
+### 4.1 Direct booking link (white-labeled)
 
-Renters browse a list and map of outlets only. Each outlet card shows live availability by category (Commuter, Road, MTB, Fixie), opening hours, address and distance from the renter. The renter location is used only to sort outlets and is never tied to a bike. Outlet profiles reflect their character: Danau Sipin shows no road bikes, and Pasar Jambi highlights cargo-rack commuters.
+An owner's booking page is reached through a single direct link keyed by their outlet code (e.g. `https://<host>/<outletCode>`), shared in their social-media bio. There is no global outlet map or multi-outlet browser as the primary renter surface. The page shows that one outlet's live availability by category (Commuter, Road, MTB, Fixie), opening hours, address and distance from the renter (sorting only; renter location is never tied to a bike and never persisted). Outlet profiles reflect their character: Danau Sipin shows no road bikes, and Pasar Jambi highlights cargo-rack commuters. A global outlet list may exist for admin/secondary use but is not the renter entry point.
 
 ### 4.2 Reservation
 

@@ -1,16 +1,18 @@
 # Jambi Bike Rental Network
 
-Station-based, multi-owner bike rental aggregator for Jambi. Renters browse outlets,
-reserve a bike category for a time window, pay, collect the bike from a staffed outlet
-via QR scan, and return it to a staffed outlet of the same owner. Owners get fleet
-visibility and weekly financial statements; admins onboard owners, set pricing and
-promotions, run settlements and resolve disputes.
+White-labeled, headless booking engine for individual bike-rental owners. An owner drops a single direct link
+(keyed by their outlet code, e.g. `https://<host>/<outletCode>`) into their social-media bio; a renter who taps it
+lands on that owner's own booking page, picks a bike category, time window and quantity, pays a 50% down payment,
+collects the bike at the staffed outlet via QR scan, and returns it to a staffed outlet of the same owner. There is
+no multi-outlet discovery map as the primary renter surface. Owners get fleet visibility and weekly financial
+statements; admins onboard owners, set pricing and promotions, run settlements and resolve disputes.
 
 ## Design rules
 
 1. **Station-to-station only** — every bike always has a home/current outlet and a custody state.
 2. **Booking-to-inventory lock** — the server, inside a DB transaction, is the only source of availability.
 3. **No dockless rentals** — no GPS, no bike map; a rental ends only through a staff scan-in.
+4. **Direct, outlet-specific entry** — renters arrive via an owner's bio link (`/<outletCode>`), not a global outlet browser (revision 1.3).
 
 ## Stack
 
@@ -78,6 +80,6 @@ REDIS_URL=redis://localhost:6379
 
 ## Roadmap
 
-- **Phase 1 (launch):** all four outlets, reservation lock, staff scanning, payments, basic dashboard.
+- **Phase 1 (launch):** all four outlets as white-labeled direct booking pages (`/<outletCode>`), reservation lock, staff scanning, payments, basic dashboard.
 - **Phase 2:** weekly statements, promotions engine, performance reports.
 - **Phase 3:** sister-outlet groups, e-bike category, optional Capacitor wrapper.

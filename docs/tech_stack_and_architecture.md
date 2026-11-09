@@ -12,7 +12,7 @@ The three PRD rules shape every choice below:
 2. **Booking-to-inventory lock:** the database, not the client and not the 5-minute sync, decides whether a bike is available.
 3. **No dockless:** there is no bike GPS table, no bike map endpoint and no "end ride from phone" action. A rental ends only through a staff scan-in.
 
-Two PRD items are still on hold (down-payment, ID verification method). The design leaves a clean seam for both so the meetings do not block the build (see section 9).
+Revision 1.3 (B2B2C link-in-bio pivot): the renter surface is no longer a multi-outlet discovery map. An owner shares a direct, outlet-specific link (`/<outletCode>`) in their bio; the renter lands on that owner's booking page. The global outlet list (`GET /outlets`) is retained but deprioritized. Money, locking and custody rules are unchanged.
 
 ## 2. Stack at a Glance
 
@@ -202,12 +202,12 @@ Outlet connectivity may be unreliable, but the staff app must keep working.
 - The server stays the authority for availability. While a counter is offline, renters still see the server's view, which is the safe direction.
 - QR vouchers and bike tags use **signed, rotating tokens** so screenshots and photocopied tags are useless.
 
-## 9. Security and the Two On-Hold Decisions
+## 9. Security and the On-Hold Decisions
 
 - **ID documents** are the most sensitive data. Store images in a private bucket, encrypt at rest, restrict access to a small role, log every view, and define a retention period. Indonesia's personal data protection law applies, so have the obligations reviewed by someone qualified before launch.
-- **ID verification method (on hold):** wrap it behind a `VerificationProvider` interface (`submit()`, `getStatus()`). Start with a manual-review implementation if needed and swap in an automated provider later with no change to the booking flow.
-- **Down-payment (on hold):** the payments module uses a generic `payment_intents` table (purpose, amount, status). Today a booking has one intent. If you adopt a down-payment, you add a second intent type and the no-show penalty rule. No schema redesign.
-- **Deposit:** a `deposit_status` on the renter and a `deposits` table are included. Amount and release rules are still to be decided.
+- **Revision 1.2:** digital ID verification is removed entirely (FR-ID-04 deleted). A renter's good faith is secured by the 50% down payment (FR-INV-02) and the physical collateral collected offline at check-out (FR-RNT-01). No `VerificationProvider`, no `verification_requests`/`id_document_views` tables, no `verification_status`.
+- **Revision 1.1:** the digital security deposit is removed entirely (FR-ID-05 deleted). There is no `deposits`/`deposit_claims` table and no deposit endpoints. Good faith is the 50% DP plus physical collateral.
+- **Down-payment:** the payments module uses a generic `payment_intents` table (purpose, amount, status). A booking has one intent for the 50% DP; the balance is collected offline by staff.
 - **Webhooks:** verify gateway signatures, store the raw event, and process idempotently by event id.
 - **Audit log:** custody, ledger and settlement changes are append-only.
 
@@ -228,7 +228,7 @@ Spend your first learning time on the lock. Build `reserve()` and a test that fi
 **Phase 1: launch**
 1. Database schema, seed the 4 outlets and 150 bikes from the network specs, and the reservation lock with its concurrency test.
 2. Staff PWA: scan check-out and check-in, condition photos, offline queue.
-3. Renter site: outlet browsing, availability by category, booking, payment, QR voucher.
+3. Renter site: direct outlet booking page (`/<outletCode>`), availability by category, booking, payment, QR voucher. (Global outlet browsing is deprioritized; revision 1.3.)
 4. Hold expiry and no-show jobs, with the sweeper.
 5. Basic owner dashboard (live rentals, bike status, earnings accrual).
 
