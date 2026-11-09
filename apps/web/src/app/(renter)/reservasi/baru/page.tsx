@@ -233,12 +233,12 @@ function ReservasiInner() {
           1 · Pilih jam &amp; durasi
         </h2>
 
-        <p className="label" style={{ marginTop: 12 }}>
+        <p className="label" style={{ marginTop: 8 }}>
           Hari ambil
         </p>
         <DayStrip days={days} value={dayKey} onChange={changeDay} />
 
-        <p className="label" style={{ marginTop: 14 }}>
+        <p className="label" style={{ marginTop: 8 }}>
           Jam ambil · WIB
         </p>
         <SlotGrid

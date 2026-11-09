@@ -985,8 +985,8 @@
 }
 .hari-strip > button {
   flex: 1 0 auto;
-  min-width: 58px;
-  min-height: 56px;
+  min-width: 52px;
+  min-height: 48px;
   padding: 8px 6px;
   border: 0;
   border-right: 3px solid var(--tinta);
@@ -1017,19 +1017,23 @@
   color: var(--kertas);
 }
 
-/* slot grid — the 2 px gap reveals the ink ground, so rules stay crisp
-   whatever the row count */
+/* slot grid — horizontal scroll strip so the 48 slots never eat vertical
+   real estate on a phone. The 2 px gap reveals the ink ground. */
 .slot-grid {
-  display: grid;
-  grid-template-columns: repeat(4, 1fr);
+  display: flex;
   gap: 2px;
   margin-top: 10px;
   background: var(--tinta);
   border: 3px solid var(--tinta);
+  overflow-x: auto;
+  scrollbar-width: thin;
+  padding: 2px;
 }
 .slot-grid > button {
+  flex: 0 0 auto;
+  min-width: 52px;
   min-height: 44px;
-  padding: 8px 2px;
+  padding: 8px 6px;
   border: 0;
   background: var(--kertas);
   font-family: "Archivo", sans-serif;

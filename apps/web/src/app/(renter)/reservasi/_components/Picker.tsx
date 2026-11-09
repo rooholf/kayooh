@@ -66,6 +66,11 @@ export function SlotGrid({
         <button
           key={slot}
           type="button"
+          ref={(el) => {
+            if (el !== null && value === slot) {
+              el.scrollIntoView({ inline: "center", block: "nearest", behavior: "smooth" });
+            }
+          }}
           aria-pressed={value === slot}
           disabled={closed.has(slot)}
           onClick={() => onChange(slot)}
