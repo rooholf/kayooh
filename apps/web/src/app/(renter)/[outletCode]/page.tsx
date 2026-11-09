@@ -247,11 +247,6 @@ export default async function OutletLandingPage({
               />
             </svg>
           </Link>
-
-          <p className="serah-terima">
-            Ambil di konter outlet dengan pindaian QR. Hanya kehadiran staf
-            yang memindahkan sepeda — tidak ada cara lain.
-          </p>
         </>
       )}
 
