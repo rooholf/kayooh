@@ -41,16 +41,13 @@ test.beforeEach(async ({ page }) => {
 test("outlet CTA opens the checkout at /reservasi/baru (step 1)", async ({
   page,
 }) => {
-  await page.goto("/outlets");
+  await page.goto("/JMB-001");
   await expect(
-    page.getByRole("link", { name: /Jambi City Center/ }).first()
+    page.getByRole("heading", { name: /Telanaipura Hub/ })
   ).toBeVisible({ timeout: 10_000 });
 
-  await page.getByRole("link", { name: /Jambi City Center/ }).first().click();
-  await expect(page).toHaveURL(/\/outlets\/[0-9a-f-]+$/, { timeout: 10_000 });
-
-  // The single handover verb from the catalog moves the choice into checkout.
-  await page.getByRole("link", { name: /Pesan .* di outlet ini/ }).click();
+  // The sanctioned conversion action hands the funnel straight into checkout.
+  await page.getByRole("link", { name: /Book Now!!/ }).click();
   await expect(page).toHaveURL(/\/reservasi\/baru\?outlet=[0-9a-f-]+&jenis=/, {
     timeout: 10_000,
   });
@@ -62,6 +59,9 @@ test("outlet CTA opens the checkout at /reservasi/baru (step 1)", async ({
   await expect(
     page.getByRole("heading", { name: /1 · Pilih jam & durasi/ })
   ).toBeVisible({ timeout: 10_000 });
+
+  // Prefill: a slot is already chosen and the phone field is the only empty required input.
+  await expect(page.locator(".aksi").first()).toBeVisible();
 
   await expectNoBikeIds(page);
   await expectNoSelfServeControls(page);

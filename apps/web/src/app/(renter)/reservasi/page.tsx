@@ -120,7 +120,7 @@ export default function ReservasiListPage() {
             <b>Belum ada reservasi.</b> Pilih outlet dan jenis sepeda untuk
             memulai tiket ambil pertamamu.
           </p>
-          <Link className="notice-link-action" href="/outlets">
+          <Link className="notice-link-action" href="/">
             Lihat outlet →
           </Link>
         </div>
@@ -170,8 +170,8 @@ export default function ReservasiListPage() {
         </section>
       )}
 
-      <Link className="kembali" href="/outlets">
-        ← Buka katalog outlet
+      <Link className="kembali" href="/">
+        ← Poster KAYOOH
       </Link>
     </main>
   );

@@ -2,8 +2,10 @@
 
 /**
  * /reservasi/baru — the claim-ticket checkout ("Tiket Ambil", steps 1 PILIH →
- * 2 DATA → 3 BAYAR). Reached from an outlet's specimen row with
- * `?outlet=<id>&jenis=`.
+ * 2 DATA → 3 BAYAR). Reached directly from the link-in-bio poster with
+ * `?outlet=<id>&jenis=` (revision 1.3); the slot/duration/quantity pickers
+ * arrive pre-filled and stay changeable — the only required input is the
+ * phone.
  *
  * Server is the only authority: the quote, the availability count and the lock
  * all come from responses (INV-1). Nothing is optimistic. Counts only, never
@@ -21,19 +23,24 @@ import { Slogan } from "../../_components/Slogan";
 import {
   availabilityCount,
   CATEGORY_LABEL,
-  intervalsForDay,
   isCategoryCode,
   type CategoryCode,
 } from "../../_components/shared";
 import { MAX_ADVANCE_DAYS, MAX_QUANTITY, durationLabel } from "../_lib/config";
 import {
   dayOptions,
-  slotsBetween,
   wibDateKey,
   wibInstant,
   windowLabel,
   type DayOption,
 } from "../_lib/schedule";
+import {
+  slotsForDay,
+  dayIntervals,
+  fitsWindow,
+  defaultWindow,
+  DEFAULT_DURATION_MINUTES,
+} from "../../booking/_lib/window";
 import { formatIdr } from "../_lib/format";
 import { errorCopy } from "../_lib/error-copy";
 import { listGuestReservationIds, saveGuestToken } from "../_lib/guest-token-store";
@@ -43,53 +50,6 @@ import { useQuote } from "../_hooks/useQuote";
 import { useCreateReservation } from "../_hooks/useCreateReservation";
 import { Invoice, StepStamps } from "../_components/Ticket";
 import { DayStrip, DurationRow, QuantityRow, SlotGrid } from "../_components/Picker";
-
-interface Interval {
-  open: string;
-  close: string;
-}
-
-const toMin = (hhmm: string): number => {
-  const [h = 0, m = 0] = hhmm.split(":").map((n) => Number.parseInt(n, 10));
-  return h * 60 + m;
-};
-
-/** Opening intervals for one WIB day; an unknown shape falls back to 07:00–19:00. */
-function dayIntervals(hours: unknown, dayKey: string): Interval[] {
-  const raw = intervalsForDay(hours, wibInstant(dayKey, "12:00"));
-  return raw === null ? [{ open: "07:00", close: "19:00" }] : raw;
-}
-
-/** A window starting at `start` must open at/after `open` and end by `close`. */
-function fitsWindow(start: string, durationMin: number, intervals: Interval[]): boolean {
-  const s = toMin(start);
-  return intervals.some((iv) => s >= toMin(iv.open) && s + durationMin <= toMin(iv.close));
-}
-
-/**
- * All 15-minute starts inside the day's opening hours, plus the set that cannot
- * be booked for this window (past, or ending after close). Closed starts stay
- * visible and struck — never hidden (brief: honest states).
- */
-function slotsForDay(
-  hours: unknown,
-  dayKey: string,
-  durationMin: number,
-  now: Date,
-): { slots: string[]; closed: Set<string> } {
-  const intervals = dayIntervals(hours, dayKey);
-  const all = new Set<string>();
-  for (const iv of intervals) {
-    for (const s of slotsBetween(iv.open, iv.close)) all.add(s);
-  }
-  const slots = [...all].sort();
-  const closed = new Set<string>();
-  for (const s of slots) {
-    const past = wibInstant(dayKey, s).getTime() <= now.getTime();
-    if (past || !fitsWindow(s, durationMin, intervals)) closed.add(s);
-  }
-  return { slots, closed };
-}
 
 function ReservasiInner() {
   const searchParams = useSearchParams();
@@ -105,7 +65,7 @@ function ReservasiInner() {
   const days = useMemo<DayOption[]>(() => dayOptions(now, MAX_ADVANCE_DAYS), [now]);
   const [dayKey, setDayKey] = useState(() => wibDateKey(now));
   const [slot, setSlot] = useState<string | null>(null);
-  const [durationMin, setDurationMin] = useState<number>(120);
+  const [durationMin, setDurationMin] = useState<number>(DEFAULT_DURATION_MINUTES);
   const [quantity, setQuantity] = useState(1);
   const [phone, setPhone] = useState("");
   const [knownTickets, setKnownTickets] = useState<string[]>([]);
@@ -121,23 +81,21 @@ function ReservasiInner() {
     [outlet, hours, dayKey, durationMin, now],
   );
 
-  // Brief: if today has no bookable slot, default to the first day that does.
-  const didInitDay = useRef(false);
+  // Funnel revision 1.3: the picker arrives PRE-FILLED — today's first
+  // bookable slot at the default duration, else the first day within the
+  // horizon that has one. Pickers stay visible and changeable; the phone is
+  // the only required input. Never invents a window: with no bookable slot
+  // anywhere, slot stays null and the page says "pilih jam ambil".
+  const didPrefill = useRef(false);
   useEffect(() => {
-    if (didInitDay.current || !outlet) return;
-    didInitDay.current = true;
-    const todayKey = wibDateKey(now);
-    const today = slotsForDay(hours, todayKey, durationMin, now);
-    const todayBookable = today.slots.some((s) => !today.closed.has(s));
-    if (todayBookable) return;
-    for (const day of days) {
-      const probe = slotsForDay(hours, day.key, durationMin, now);
-      if (probe.slots.some((s) => !probe.closed.has(s))) {
-        setDayKey(day.key);
-        return;
-      }
-    }
-  }, [outlet, hours, now, days, durationMin]);
+    if (didPrefill.current || outlet === undefined) return;
+    if (outlet === null) return; // wait for the real outlet
+    didPrefill.current = true;
+    const win = defaultWindow(outlet.hours, now, durationMin, days);
+    if (win === null) return;
+    setDayKey(win.dayKey);
+    setSlot(win.slot);
+  }, [outlet, now, days, durationMin]);
 
   function changeDay(next: string) {
     setDayKey(next);
@@ -243,11 +201,11 @@ function ReservasiInner() {
         <section className="status-papan">
           <h1 className="langkah-judul">Tiket ambil</h1>
           <p className="notice" role="status">
-            <b>Outlet tidak dikenali.</b> Mulai dari katalog untuk memilih
-            outlet dan jenis sepeda.
+            <b>Outlet tidak dikenali.</b> Mulai dari poster outlet atau
+            poster KAYOOH untuk memilih outlet dan jenis sepeda.
           </p>
-          <Link className="kembali" href="/outlets">
-            Buka katalog outlet →
+          <Link className="kembali" href="/">
+            Poster KAYOOH →
           </Link>
         </section>
       </main>
@@ -261,7 +219,7 @@ function ReservasiInner() {
 
       <div className="alat">
         <p className="alat-merek">KAYOOH — TIKET AMBIL</p>
-        <Link className="muat-ulang" href={`/outlets/${outlet.id}`}>
+        <Link className="muat-ulang" href={`/${outlet.code}`}>
           ← Ganti
         </Link>
       </div>

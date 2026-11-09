@@ -206,3 +206,79 @@ describe("FR-CAT-01 GET /api/v1/outlets", () => {
     expect(res.json()?.error?.code).toBe("VALIDATION_ERROR");
   });
 });
+
+describe("FR-CAT-01 rev 1.3 direct entry (GET /outlets/by-code/:code, GET /outlets/:id)", () => {
+  it("resolves an outlet by code with per-category counts (same shape as the list)", async () => {
+    const id = await seedOutlet({
+      code: "JMB-900",
+      name: "Bycode Rider",
+      lat: "-1.61",
+      lng: "103.613",
+      categories: ["commuter", "fixie"],
+      bikeCounts: { commuter: 3 },
+    });
+
+    const res = await t.app.inject({ method: "GET", url: "/api/v1/outlets/by-code/JMB-900" });
+    expect(res.statusCode).toBe(200);
+    const body = res.json();
+    expect(body.code).toBe("JMB-900");
+    expect(body.id).toBe(id);
+    expect(body.isOpenNow).toBe(true);
+    // Zero-bike categories are omitted; a live figure for offered bikes.
+    expect(body.availability).toEqual({ commuter: 3 });
+    expect(body).not.toHaveProperty("bikeIds");
+    expect(body).not.toHaveProperty("bikes");
+  });
+
+  it("404 NOT_FOUND for an unknown code", async () => {
+    const res = await t.app.inject({ method: "GET", url: "/api/v1/outlets/by-code/JMB-999" });
+    expect(res.statusCode).toBe(404);
+    expect(res.json()?.error?.code).toBe("NOT_FOUND");
+  });
+
+  it("404 NOT_FOUND for an inactive outlet code, 400 for a malformed code", async () => {
+    await seedOutlet({
+      code: "JMB-901",
+      name: "Closed Rider",
+      lat: "-1.61",
+      lng: "103.613",
+      categories: ["commuter"],
+      bikeCounts: { commuter: 1 },
+      status: "inactive",
+    });
+    const inactive = await t.app.inject({
+      method: "GET",
+      url: "/api/v1/outlets/by-code/JMB-901",
+    });
+    expect(inactive.statusCode).toBe(404);
+    expect(inactive.json()?.error?.code).toBe("NOT_FOUND");
+
+    const malformed = await t.app.inject({
+      method: "GET",
+      url: "/api/v1/outlets/by-code/not-a-code",
+    });
+    expect(malformed.statusCode).toBe(400);
+    expect(malformed.json()?.error?.code).toBe("VALIDATION_ERROR");
+  });
+
+  it("resolves a single outlet by id; unknown id is 404", async () => {
+    const id = await seedOutlet({
+      code: "JMB-902",
+      name: "Byid Rider",
+      lat: "-1.61",
+      lng: "103.613",
+      categories: ["mtb"],
+      bikeCounts: { mtb: 2 },
+    });
+    const ok = await t.app.inject({ method: "GET", url: `/api/v1/outlets/${id}` });
+    expect(ok.statusCode).toBe(200);
+    expect(ok.json()?.name).toBe("Byid Rider");
+
+    const missing = await t.app.inject({
+      method: "GET",
+      url: `/api/v1/outlets/${randomUUID()}`,
+    });
+    expect(missing.statusCode).toBe(404);
+    expect(missing.json()?.error?.code).toBe("NOT_FOUND");
+  });
+});

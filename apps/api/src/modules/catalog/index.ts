@@ -3,5 +3,5 @@
  * FR-CAT-01 (outlet discovery) lives here; FR-CAT-02 (admin onboarding)
  * arrives with the admin console step.
  */
-export { listOutlets, haversineKm } from "./outlets.js";
+export { listOutlets, getOutletByCode, getOutletById, haversineKm, serverNow } from "./outlets.js";
 export { registerCatalogRoutes } from "./routes.js";

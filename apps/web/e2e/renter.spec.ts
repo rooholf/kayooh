@@ -1,10 +1,8 @@
 /**
- * FR-CAT-01 — renter discovery E2E (visual smoke of the CURRENT state).
+ * FR-CAT-01 rev 1.3 — renter direct-entry E2E (link-in-bio pivot).
  *
  * Run with the API on :3001 (seeded) and `next start` on :3000:
  *   pnpm test:e2e        (from apps/web)
- *
- * Screenshots are written to ./e2e-artifacts/ .
  */
 import { test, expect, type Page } from "@playwright/test";
 import { mkdir } from "node:fs/promises";
@@ -28,90 +26,60 @@ test.beforeEach(async ({ page }) => {
 });
 
 for (const [profile, viewport] of Object.entries(VIEWPORTS)) {
-  test(`renter home (FR-CAT-01) — ${profile}`, async ({ page }) => {
+  test(`renter home (brand) — ${profile}`, async ({ page }) => {
     await page.setViewportSize(viewport);
     await page.goto("/");
 
-    // Poster present: slogan borders + masthead.
     await expect(
-      // The marquee loops two identical decorative tracks; one existing proves it.
       page.getByText("SEPEDA SIAP ◆ DI OUTLET NYATA").first()
     ).toBeVisible();
     await expect(
       page.getByRole("heading", { name: /KAYOOH JAMBI/ })
     ).toBeVisible();
 
-    // Jenis strip self-explaining: silhouette + name per type.
+    // The brand sheet points at the demo outlet.
     await expect(
-      page.getByRole("heading", { name: "Jenis sepeda" })
+      page.getByRole("link", { name: /Buka poster outlet/ })
     ).toBeVisible();
-    await expect(
-      page.getByRole("button", { name: /COMMUTER/ })
-    ).toBeVisible();
-    await expect(
-      page.getByRole("button", { name: /ROAD/ })
-    ).toBeVisible();
-
-    // Specimen row shows the chosen type + live figure (not an invented number).
-    await expect(page.getByRole("button", { name: /COMMUTER/ })).toHaveAttribute(
-      "aria-pressed",
-      "true"
-    );
 
     await expectNoBikeIds(page);
 
     await shot(page, `home-${profile}.png`);
   });
 
-  test(`renter outlets list (FR-CAT-01) — ${profile}`, async ({ page }) => {
+  test(`direct outlet landing /JMB-001 — ${profile}`, async ({ page }) => {
     await page.setViewportSize(viewport);
-    await page.goto("/outlets");
+    await page.goto("/JMB-001");
 
-    // The catalog loads client-side (TanStack Query); wait for content.
     await expect(
-      page.getByRole("heading", { name: /Ketersediaan Outlet/ })
+      page.getByRole("heading", { name: /Telanaipura Hub/ })
     ).toBeVisible({ timeout: 10_000 });
+
+    // Booking engine CTA is the conversion action.
     await expect(
-      page.getByRole("link", { name: /Jambi City Center/ }).first()
+      page.getByRole("link", { name: /Book Now!!/ })
     ).toBeVisible({ timeout: 10_000 });
 
     await expectNoBikeIds(page);
 
-    await shot(page, `outlets-${profile}.png`);
+    await shot(page, `outlet-jmb001-${profile}.png`);
   });
 }
 
-test("outlet detail link opens /outlets/:id and shows specimen rows", async ({
-  page,
-}) => {
+test("direct outlet landing /JMB-002 renders its own poster", async ({ page }) => {
   await page.setViewportSize(VIEWPORTS.mobile360x800);
-  await page.goto("/outlets");
-
-  await expect(
-    page.getByRole("link", { name: /Jambi City Center/ }).first()
-  ).toBeVisible({ timeout: 10_000 });
-
-  // /outlets/:id is now implemented — clicking an outlet navigates to its detail.
-  await page.getByRole("link", { name: /Jambi City Center/ }).first().click();
-  await expect(page).toHaveURL(/\/outlets\/[0-9a-f-]+$/, { timeout: 10_000 });
-
-  // Detail shows outlet identity and four specimen rows (one per type).
-  await expect(
-    page.getByRole("heading", { name: /Jambi City Center/ })
-  ).toBeVisible({ timeout: 10_000 });
-  await expect(page.getByRole("button", { name: /COMMUTER/ })).toBeVisible();
-  await expect(page.getByRole("button", { name: /ROAD/ })).toBeVisible();
-  await expect(page.getByRole("button", { name: /MTB/ })).toBeVisible();
-  await expect(page.getByRole("button", { name: /FIXIE/ })).toBeVisible();
-
-  // Selecting a type stamps ?jenis= in the URL.
-  await page.getByRole("button", { name: /ROAD/ }).click();
-  await expect(page).toHaveURL(/\/outlets\/[0-9a-f-]+\?jenis=road$/, {
+  await page.goto("/JMB-002");
+  await expect(page.getByRole("heading", { name: /Danau Sipin Recreation/ })).toBeVisible({
     timeout: 10_000,
   });
-
-  // NEG-2 still holds on the detail page.
+  await expect(page.getByRole("link", { name: /Book Now!!/ })).toBeVisible();
   await expectNoBikeIds(page);
+});
 
-  await shot(page, "outlet-detail.png");
+test("unknown outlet code shows the honest 404", async ({ page }) => {
+  await page.setViewportSize(VIEWPORTS.mobile360x800);
+  const res = await page.goto("/JMB-999");
+  expect(res?.status()).toBe(404);
+  await expect(page.getByText(/Poster tidak ditemukan/)).toBeVisible();
+  await expect(page.getByRole("link", { name: /Poster KAYOOH/ })).toBeVisible();
 });

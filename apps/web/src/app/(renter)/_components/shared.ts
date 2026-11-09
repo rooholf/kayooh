@@ -11,30 +11,8 @@ export const CATEGORY_LABEL: Record<CategoryCode, string> = {
   fixie: "FIXIE",
 };
 
-/** Short column headers for the ruled count grid. */
-export const CATEGORY_SHORT: Record<CategoryCode, string> = {
-  commuter: "COM",
-  road: "ROD",
-  mtb: "MTB",
-  fixie: "FIX",
-};
-
-export const WAKTU_ORDER = ["pagi", "siang", "sore", "malam"] as const;
-export type WaktuCode = (typeof WAKTU_ORDER)[number];
-
-export const WAKTU_LABEL: Record<WaktuCode, string> = {
-  pagi: "PAGI",
-  siang: "SIANG",
-  sore: "SORE",
-  malam: "MALAM",
-};
-
 export function isCategoryCode(value: string | null): value is CategoryCode {
   return (CATEGORY_ORDER as readonly string[]).includes(value ?? "");
-}
-
-export function isWaktuCode(value: string | null): value is WaktuCode {
-  return (WAKTU_ORDER as readonly string[]).includes(value ?? "");
 }
 
 export function availabilityCount(
@@ -74,27 +52,6 @@ export function wibDateParts(now: Date = new Date()): {
     month: "2-digit",
   }).format(now);
   return { weekday, dayMonth: day };
-}
-
-/** Indonesian decimal comma for distances, e.g. "1,2 km". */
-export function formatDistanceKm(km: number): string {
-  return `${km.toFixed(1).replace(".", ",")} km`;
-}
-
-/** Live ready total for one category across outlets (0 = none ready). */
-export function typeTotals(
-  outlets: OutletListItem[],
-  category: CategoryCode,
-): number {
-  return outlets.reduce((sum, outlet) => sum + availabilityCount(outlet, category), 0);
-}
-
-/** Outlets with at least one bike ready in the category. */
-export function outletsWithType(
-  outlets: OutletListItem[],
-  category: CategoryCode,
-): OutletListItem[] {
-  return outlets.filter((outlet) => availabilityCount(outlet, category) > 0);
 }
 
 /** Display helpers shared with the specimen rows (Indonesian words). */
