@@ -46,10 +46,24 @@ import { errorCopy } from "../_lib/error-copy";
 import { listGuestReservationIds, saveGuestToken } from "../_lib/guest-token-store";
 import { savePaymentUrl } from "../_lib/handoff-store";
 import { useOutlets } from "../_hooks/useOutlets";
+import { API_BASE } from "../_lib/api";
 import { useQuote } from "../_hooks/useQuote";
 import { useCreateReservation } from "../_hooks/useCreateReservation";
 import { Invoice, StepStamps } from "../_components/Ticket";
 import { DayStrip, DurationRow, QuantityRow, SlotGrid, CategoryRow } from "../_components/Picker";
+
+/** Dev/test only: flip the DP to paid via the API's dev auto-confirm. */
+async function autoPayDev(reservationId: string): Promise<void> {
+  try {
+    await fetch(`${API_BASE}/api/v1/dev/auto-pay`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ reservationId }),
+    });
+  } catch {
+    // The ticket page still shows the honest state (held → "menunggu bayar").
+  }
+}
 
 function ReservasiInner() {
   const searchParams = useSearchParams();
@@ -166,6 +180,12 @@ function ReservasiInner() {
         onSuccess: (data) => {
           const id = data.reservation.id;
           if (data.guestToken !== undefined) saveGuestToken(id, data.guestToken);
+          // Dev/test only: confirm the DP immediately instead of handing off
+          // to the fake gateway page (the fake URL is not a real site).
+          if (process.env.NODE_ENV === "development") {
+            void autoPayDev(id).then(() => router.replace(`/reservasi/${id}`));
+            return;
+          }
           if (data.paymentUrl !== undefined) {
             savePaymentUrl(id, data.paymentUrl);
             window.location.assign(data.paymentUrl);
