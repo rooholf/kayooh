@@ -129,7 +129,7 @@ function ReservasiInner() {
             quantity,
           }
         : null,
-    [outlet, category, startsAt, endsAt],
+    [outlet, category, startsAt, endsAt, quantity],
   );
   const quote = useQuote(quoteInput);
 
