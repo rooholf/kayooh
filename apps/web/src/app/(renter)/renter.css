@@ -1059,8 +1059,44 @@
   cursor: not-allowed;
 }
 
-/* duration: presets + fine stepper */
-.durasi {
+/* bike type: 4-up horizontal picker (first field of the booking form) */
+.jenis-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 2px;
+  margin-top: 10px;
+  background: var(--tinta);
+  border: 3px solid var(--tinta);
+}
+.jenis-grid > button {
+  min-height: 52px;
+  border: 0;
+  background: var(--kertas);
+  font-family: "Archivo Black", "Archivo", sans-serif;
+  font-size: 12px;
+  color: var(--tinta);
+  font-variant-numeric: tabular-nums;
+  cursor: pointer;
+}
+.jenis-grid > button small {
+  display: block;
+  font-family: "Archivo", sans-serif;
+  font-weight: 700;
+  font-size: 10px;
+  letter-spacing: 0.08em;
+  opacity: 0.75;
+}
+.jenis-grid > button[aria-pressed="true"] {
+  background: var(--merah);
+  color: var(--kertas);
+}
+.jenis-grid > button:disabled {
+  cursor: not-allowed;
+  text-decoration: line-through;
+  opacity: 0.45;
+}
+
+/* duration: presets + fine stepper */.durasi {
   margin-top: 10px;
 }
 .durasi-preset {

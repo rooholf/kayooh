@@ -35,14 +35,11 @@ all-outlet section) is removed from the renter surface.
    the poster says so).
 2. Outlet identification: name (pos-nama), address, today's hours in WIB,
    Buka/Tutup chip, outlet description (owner's character line), DemoTag.
-3. **Booking engine rows** (client isle, SSE-patched): one ruled row per
-   offered category — glyph · name · tabular "N unit siap sekarang" · price
-   line from a real quote of the default window ("Mulai Rp X · 2 jam · 1
-   sepeda"). Zero-bike categories omitted from the response never render;
-   live counts may become 0 — visible, quiet, honest (plus inline recovery
-   switch to the ready type). Selected row pressed.
-4. Primary CTA: **Book Now!!** → straight to the checkout
-   `/reservasi/baru?outlet=<id>&jenis=<chosen>` — no intermediary screens.
+3. Primary CTA: **Book Now!!** → straight to the checkout
+   `/reservasi/baru?outlet=<id>&jenis=<headline>` — no intermediary screens.
+   The headline ("Mulai Rp … · DP 50% …") comes from a real server quote of
+   the default window; hero total is the live ready count. No per-category
+   rows on the landing (revision: category moved into the checkout).
    Secondary: small "Masuk" account link in the alat strip (optional,
    unlocks promos only).
 5. Footer: serah-terima honesty line + kaki.
@@ -57,6 +54,9 @@ says the link is wrong/changed and gives the one recovery path to `/`.
 - Accessed with outlet+jenis prefilled; **defaults: first bookable WIB slot
   (today, else the first day with one), 2 jam duration, 1 bike** — all pickers
   stay visible and changeable; the only *required* input is the phone.
+- Step 1's first field is the bike type: a 4-up horizontal grid
+  (COMMUTER / ROAD / MTB / FIXIE) with live counts under each name;
+  types the outlet does not offer are struck/disabled, never hidden.
 - The day/duration switchers keep a live prefilled selection (never dead-end
   into a null slot).
 - The 50 % DP stays clearly calculated on the invoice sheet

@@ -49,7 +49,7 @@ import { useOutlets } from "../_hooks/useOutlets";
 import { useQuote } from "../_hooks/useQuote";
 import { useCreateReservation } from "../_hooks/useCreateReservation";
 import { Invoice, StepStamps } from "../_components/Ticket";
-import { DayStrip, DurationRow, QuantityRow, SlotGrid } from "../_components/Picker";
+import { DayStrip, DurationRow, QuantityRow, SlotGrid, CategoryRow } from "../_components/Picker";
 
 function ReservasiInner() {
   const searchParams = useSearchParams();
@@ -59,7 +59,8 @@ function ReservasiInner() {
 
   const paramOutlet = searchParams.get("outlet") ?? "";
   const paramJenis = searchParams.get("jenis");
-  const category: CategoryCode = isCategoryCode(paramJenis) ? paramJenis : "commuter";
+  const initialCategory: CategoryCode = isCategoryCode(paramJenis) ? paramJenis : "commuter";
+  const [category, setCategory] = useState<CategoryCode>(initialCategory);
 
   const [now] = useState(() => new Date());
   const days = useMemo<DayOption[]>(() => dayOptions(now, MAX_ADVANCE_DAYS), [now]);
@@ -230,8 +231,17 @@ function ReservasiInner() {
       {/* ---- 1 PILIH ---- */}
       <section className="langkah-badan" aria-labelledby="judul-pilih">
         <h2 className="langkah-judul" id="judul-pilih">
-          1 · Pilih jam &amp; durasi
+          1 · Pilih jenis, jam &amp; durasi
         </h2>
+
+        <p className="label" style={{ marginTop: 8 }}>
+          Jenis sepeda
+        </p>
+        <CategoryRow
+          value={category}
+          counts={outlet ? outlet.availability : null}
+          onChange={setCategory}
+        />
 
         <p className="label" style={{ marginTop: 8 }}>
           Hari ambil

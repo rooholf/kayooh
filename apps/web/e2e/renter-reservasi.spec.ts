@@ -57,7 +57,7 @@ test("outlet CTA opens the checkout at /reservasi/baru (step 1)", async ({
     page.getByRole("list", { name: "Tahap reservasi" })
   ).toBeVisible();
   await expect(
-    page.getByRole("heading", { name: /1 · Pilih jam & durasi/ })
+    page.getByRole("heading", { name: /1 · Pilih jenis, jam & durasi/ })
   ).toBeVisible({ timeout: 10_000 });
 
   // Prefill: a slot is already chosen and the phone field is the only empty required input.

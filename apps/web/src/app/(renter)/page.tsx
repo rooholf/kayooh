@@ -44,8 +44,8 @@ export default function RenterHomePage() {
         <Bicycle />
 
         <div className="siap">
-          <b>Sepeda!</b>
-          <span>Pesan langsung dari poster outlet</span>
+          <b>Kayooh!</b>
+          <span>Pesan Sekarang tinggal datang</span>
         </div>
 
         <p className="plate-foot">

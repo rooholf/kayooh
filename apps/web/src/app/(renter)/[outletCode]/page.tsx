@@ -23,8 +23,13 @@ import { Slogan } from "../_components/Slogan";
 import { Bicycle } from "../_components/Bicycle";
 import { DemoTag } from "../_components/DemoTag";
 import { CATEGORY_ORDER, totalUnits, wibDateParts, formatTodayHours } from "../_components/shared";
-import { OutletPoster, type LandingQuote } from "../booking/_components/OutletPoster";
 import { defaultWindow } from "../booking/_lib/window";
+import { formatIdr } from "../reservasi/_lib/format";
+
+interface LandingQuote {
+  priceIdr: number;
+  dpIdr: number;
+}
 
 const API_BASE = process.env.API_BASE_URL ?? "http://localhost:3001";
 
@@ -124,16 +129,13 @@ export default async function OutletLandingPage({
       ) as string[])
     : [];
 
-  // A real quote per offered category — the same pre-filled window the
-  // checkout uses, 1 unit ("Mulai Rp …"; the checkout re-quotes with the
-  // renter's actual picks).
+  // A real quote for the headline category — feeds the "Mulai Rp …" line on
+  // the Book Now!! button. The checkout re-quotes with the renter's picks.
   const window = outlet ? defaultWindow(outlet.hours, new Date()) : null;
-  const quotes: Record<string, LandingQuote | null> = {};
-  for (const category of offered) {
-    quotes[category] = outlet
-      ? await fetchQuote(outlet, window, category)
-      : null;
-  }
+  const headlineCategory = offered[0] ?? "commuter";
+  const headlineQuote = outlet
+    ? await fetchQuote(outlet, window, headlineCategory)
+    : null;
 
   const units = outlet ? totalUnits([outlet]) : 0;
 
@@ -216,7 +218,35 @@ export default async function OutletLandingPage({
             <DemoTag />
           </section>
 
-          <OutletPoster initial={outlet} quotes={quotes} />
+          <Link
+            className="aksi"
+            href={`/reservasi/baru?outlet=${outlet.id}&jenis=${headlineCategory}`}
+          >
+            <span className="aksi-teks">
+              <small>
+                {headlineQuote !== null
+                  ? `Mulai ${formatIdr(headlineQuote.priceIdr)} · DP 50% ${formatIdr(headlineQuote.dpIdr)}`
+                  : "2 jam · 1 sepeda"}
+              </small>
+              <b>Book Now!!</b>
+            </span>
+            <svg
+              className="aksi-panah"
+              width="34"
+              height="34"
+              viewBox="0 0 34 34"
+              aria-hidden="true"
+            >
+              <path
+                d="M6 17 H25 M17 6 L28 17 L17 28"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="4.5"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              />
+            </svg>
+          </Link>
 
           <p className="serah-terima">
             Ambil di konter outlet dengan pindaian QR. Hanya kehadiran staf

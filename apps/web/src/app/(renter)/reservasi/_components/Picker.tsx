@@ -11,6 +11,41 @@
  */
 import { DURATION_PRESETS, durationLabel, MAX_DURATION_MINUTES, MIN_DURATION_MINUTES, SLOT_MINUTES } from "../_lib/config";
 import type { DayOption } from "../_lib/schedule";
+import { CATEGORY_LABEL, type CategoryCode } from "../../_components/shared";
+
+export function CategoryRow({
+  value,
+  counts,
+  onChange,
+}: {
+  /** The selected bike type. */
+  value: CategoryCode;
+  /** Live counts per category; null when the outlet is unknown. */
+  counts: Record<string, number> | null;
+  onChange: (category: CategoryCode) => void;
+}) {
+  return (
+    <div className="jenis-grid" role="group" aria-label="Jenis sepeda">
+      {(Object.keys(CATEGORY_LABEL) as CategoryCode[]).map((category) => {
+        const count = counts?.[category];
+        const disabled = count === undefined;
+        return (
+          <button
+            key={category}
+            type="button"
+            aria-pressed={value === category}
+            disabled={disabled}
+            title={disabled ? "Outlet ini tidak menawarkan jenis ini" : undefined}
+            onClick={() => onChange(category)}
+          >
+            {CATEGORY_LABEL[category]}
+            {count !== undefined && <small>{count}</small>}
+          </button>
+        );
+      })}
+    </div>
+  );
+}
 
 export function DayStrip({
   days,
