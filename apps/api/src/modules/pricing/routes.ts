@@ -58,13 +58,15 @@ export function registerPricingRoutes(app: FastifyInstance): void {
 
     const durationMinutes = Math.round((endsAt.getTime() - startsAt.getTime()) / 60_000);
     const units = computeUnits(durationMinutes, q.unitMinutes);
+    const quantity = body.quantity ?? 1;
     const dpRateBps = BigInt(await getConfig("booking.dp_rate_bps"));
-    const dpIdr = roundHalfUp(BigInt(q.finalIdr) * dpRateBps, 10_000n);
+    const totalFinalIdr = q.finalIdr * quantity;
+    const dpIdr = roundHalfUp(BigInt(totalFinalIdr) * dpRateBps, 10_000n);
 
     const response: QuoteResponse = quoteResponseSchema.parse({
-      priceIdr: q.priceIdr,
-      discountIdr: q.discountIdr,
-      finalIdr: q.finalIdr,
+      priceIdr: q.priceIdr * quantity,
+      discountIdr: q.discountIdr * quantity,
+      finalIdr: totalFinalIdr,
       dpIdr: Number(dpIdr),
       units,
     });
