@@ -3,4 +3,4 @@ description: "Use when the user wants to design, redesign, shape, critique, audi
 agent: build
 subtask: true
 ---
-Call skill({ id: "impeccable" }) and follow its `Setup` and `Commands` sections to handle $ARGUMENTS.
+Call skill({ name: "impeccable" }) and follow its `Setup` and `Commands` sections to handle $ARGUMENTS.
