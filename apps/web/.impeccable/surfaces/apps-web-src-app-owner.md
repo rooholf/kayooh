@@ -39,9 +39,19 @@ related_targets: []
 - No bike GPS or dockless affordances; no renter identity beyond the masked phone on this surface.
 - The renter group's DESIGN.md (Poster Solidaritas) explicitly scopes itself out of `(owner)` — never import its rules wholesale.
 
-## Chosen direction — OPEN
+## Chosen direction — Poster Solidaritas (Pemilik)
 
-**Unresolved.** The owner decision is not answered yet; do not code or document a locked world from this brief until the owner decision round resolves it.
+**Resolved 11 Nov 2026:** the steered grounded candidate
+**Poster Solidaritas (Pemilik)** wins (user decision over the assigned Tenun
+Songket; no further roll).
+
+- Anchored mock: `apps/web/.impeccable/mocks/decision/grounded-poster-solidaritas.html`, frame 390×844.
+- Materials/thesis from the mock stand, with one house correction: small text
+  on red uses the renter world's AA-deepened `#B81B0D` (var `--merah`), not the
+  mock's raw `#DC2110`.
+- The renter poster's *rules* still do not govern this group — the owner
+  variant is its own read of the shared world (Operate mode, phone-first,
+  read-mostly; no slogan marquee duty).
 
 Decision trail (recorded in `.impeccable/` artifacts):
 
@@ -66,13 +76,18 @@ Decision trail (recorded in `.impeccable/` artifacts):
 
 ## Unresolved
 
-- **The owner's visual world** — pending the owner decision round (steered candidate above vs assigned Tenun Songket, or a further roll).
+- **The owner's visual world** — resolved: Poster Solidaritas (Pemilik), see the Chosen direction above.
 - Palette values and type faces — to be recorded in DESIGN.md at finish (new world, whatever wins).
 - If Poster Solidaritas (Pemilik) wins: whether to inherit the renter world's AA adaptations (deepened red `#B81B0D` for text grounds, hot `#DC2110` graphics-only) — the mock still uses raw `#DC2110` behind kertas-size text.
 - Where the P1 dashboard ends and P2 claims the layout (daily delta, period switch, rhythm bands) — the build cuts or stubs these honestly, it never invents them.
 
 ## Direction contract
 
-**Pending.** This file carries no thesis/own-world/story/first-viewport lock yet. When the owner decision round is answered, write the contract here from the won option's grounded comp, then proceed to build, finish review, and the `(owner)` DESIGN.md.
+`Poster Solidaritas (Pemilik)`. Thesis and house rules:
+
+- **Own world:** the Poster Solidaritas sheet read as the owner's ledger book — same kertas/ink/merah/kuning tokens as the renter, but the job is oversight, not conversion: ruled tally rows, boxed figures, stamped status. Operate mode: precision and restraint, known patterns earn their place, one authored motion moment at most.
+- **First viewport (390×844):** today's gross accrual as the plate's big figure, the open rentals list beneath it, then the late/risk strip — exactly what `GET /owner/dashboard/summary` returns; P2 claims (daily delta, period switch, rhythm bands) are cut or stubbed as shape, never fabricated.
+- **House corrections:** AA text grounds use `#B81B0D` (var `--merah`); hot `#DC2110` is graphics-only. Masked phones, WIB-labeled times, gross-labeled money throughout.
+- **Finish:** ends with the finish review, the verdict, and an `(owner)`-scoped DESIGN.md, with every shipping raster carrying its provenance.
 
 **FINISH** — unreviewed and undocumented is unfinished; whichever direction wins, this build ends with the finish review, the verdict, and an `(owner)`-scoped DESIGN.md, with every shipping raster carrying its provenance.
