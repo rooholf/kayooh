@@ -1,0 +1,64 @@
+# OpenCode GitHub automation — main trigger.
+#
+# Mention /oc or /opencode in any issue or PR comment and OpenCode runs on the
+# repo with the persona from AGENTS.md matching the issue's label. The prompt
+# routes to the right project agent (architect, backend, web-frontend,
+# pwa-engineer, qa, tpm, ui-ux) via the label → agent map below.
+#
+# Requires: secret CROWLLM_API_KEY (https://crowllm.com — hosted, free tier).
+# Optional: secret OPENCODE_GITHUB_TOKEN (a PAT with repo scope). Without it,
+# OIDC mode is used and the OpenCode GitHub App must be installed:
+# https://github.com/apps/opencode-agent
+
+name: opencode
+
+on:
+  issue_comment:
+    types: [created]
+  pull_request_review_comment:
+    types: [created]
+
+jobs:
+  opencode:
+    if: |
+      contains(github.event.comment.body, '/oc') ||
+      contains(github.event.comment.body, '/opencode')
+    runs-on: ubuntu-latest
+    permissions:
+      id-token: write
+      contents: read
+      issues: write
+      pull-requests: write
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 1
+          persist-credentials: false
+
+      - name: Resolve persona from issue label
+        id: persona
+        env:
+          LABELS: ${{ toJSON(github.event.issue.labels.*.name) }}
+        run: |
+          agent="general"
+          if echo "$LABELS" | grep -q 'Lead Platform Architect'; then agent=architect
+          elif echo "$LABELS" | grep -q 'Backend Specialist'; then agent=backend
+          elif echo "$LABELS" | grep -q 'Web Frontend Developer'; then agent=web-frontend
+          elif echo "$LABELS" | grep -q 'Offline PWA Engineer'; then agent=pwa-engineer
+          elif echo "$LABELS" | grep -q 'Quality Assurance & SDET'; then agent=qa
+          elif echo "$LABELS" | grep -q 'Technical Project Manager'; then agent=tpm
+          elif echo "$LABELS" | grep -q 'UI/UX Designer'; then agent=ui-ux
+          fi
+          echo "agent=$agent" >> "$GITHUB_OUTPUT"
+          echo "Resolved persona agent: $agent"
+
+      - name: Run OpenCode
+        uses: anomalyco/opencode/github@latest
+        env:
+          CROWLLM_API_KEY: ${{ secrets.CROWLLM_API_KEY }}
+          GITHUB_TOKEN: ${{ secrets.OPENCODE_GITHUB_TOKEN || github.token }}
+        with:
+          model: crowllm/glm-5.3-flash:free
+          agent: ${{ steps.persona.outputs.agent }}

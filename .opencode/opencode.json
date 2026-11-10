@@ -1,0 +1,26 @@
+{
+  "$schema": "https://opencode.ai/config.json",
+  "model": "omniroute/crw/glm-5.3-flash:free",
+  "provider": {
+    "crowllm": {
+      "npm": "@ai-sdk/openai-compatible",
+      "name": "CrowLLM",
+      "options": {
+        "baseURL": "https://crowllm.com/v1",
+        "apiKey": "{env:CROWLLM_API_KEY}"
+      },
+      "models": {
+        "glm-5.3-flash:free": { "name": "glm-5.3-flash:free" }
+      }
+    }
+  },
+  "agents": {
+    "architect": { "mode": "all" },
+    "backend": { "mode": "all" },
+    "web-frontend": { "mode": "all" },
+    "pwa-engineer": { "mode": "all" },
+    "qa": { "mode": "all" },
+    "tpm": { "mode": "all" },
+    "ui-ux": { "mode": "all" }
+  }
+}

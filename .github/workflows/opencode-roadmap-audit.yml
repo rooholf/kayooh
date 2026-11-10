@@ -1,0 +1,57 @@
+# Weekly scheduled audit by the Technical Project Manager persona: scans open
+# issues and PRs against the SRS §12 implementation order and posts a status
+# report on this issue (a tracker pinned to the repo). Read-mostly: it may edit
+# its own tracking issue but creates no branches or PRs.
+#
+# Requires: secret CROWLLM_API_KEY.
+# Requires: secret OPENCODE_GITHUB_TOKEN (PAT with repo scope).
+
+name: opencode-roadmap-audit
+
+on:
+  schedule:
+    - cron: "0 2 * * 1" # Mondays 02:00 UTC (09:00 WIB)
+  workflow_dispatch: {}
+
+jobs:
+  audit:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      issues: write
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 1
+          persist-credentials: false
+
+      - name: Run OpenCode roadmap audit
+        uses: anomalyco/opencode/github@latest
+        env:
+          CROWLLM_API_KEY: ${{ secrets.CROWLLM_API_KEY }}
+          GITHUB_TOKEN: ${{ secrets.OPENCODE_GITHUB_TOKEN }}
+        with:
+          model: crowllm/glm-5.3-flash:free
+          agent: tpm
+          use_github_token: true
+          prompt: |
+            You are the Technical Project Manager persona (AGENTS.md #6) running a
+            scheduled roadmap audit for the Jambi Bike Rental Platform.
+
+            1. List open issues and PRs (`gh issue list`, `gh pr list`).
+            2. Read ISSUE_SKILL_MAP.md and SRS_Jambi_Bike_Rental_Platform.md §12 to
+               place every open item on the 12-step implementation order.
+            3. Produce a short status report:
+               - progress per Phase 1 step (grounded in issue/PR state, cite numbers),
+               - the current critical path and blocked items,
+               - stalled issues with a concrete unblocking proposal,
+               - unresolved SRS §11.5 TBD decisions that block launch.
+            4. Post the report as a comment on the issue that triggered this run.
+
+            Rules:
+            - Every claim must cite an issue number, PR number, or file path.
+            - Do not implement anything; do not open branches or PRs.
+            - Do not close or reopen issues; report only.
+            - If ISSUE_SKILL_MAP.md is stale versus reality, say exactly what moved.
