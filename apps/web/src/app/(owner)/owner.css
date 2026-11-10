@@ -75,6 +75,7 @@ body {
   color: var(--tinta);
   display: flex;
   flex-direction: column;
+  padding-bottom: 72px;
 }
 
 /* 3px ink keylines flanking the sheet content */
@@ -146,6 +147,14 @@ body {
     font-size: 11px;
     padding: 8px 0 7px;
   }
+}
+
+/* ---- sticky header shell (top banner + top bar) ---- */
+.owner-header {
+  position: sticky;
+  top: 0;
+  z-index: 10;
+  background: var(--kertas);
 }
 
 /* ---- top bar (merek + date) ---- */
@@ -642,15 +651,19 @@ body {
 
 /* ---- footer ---- */
 .owner-foot {
-  margin-top: auto;
   background: var(--tinta);
   color: var(--kertas);
   padding: 12px clamp(22px, 4.5vw, 64px) 14px;
   display: flex;
   justify-content: space-between;
   align-items: center;
-  position: relative;
-  z-index: 4;
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  margin: 0 auto;
+  max-width: 1400px;
+  z-index: 10;
   border-top: 3px solid var(--kuning);
 }
 .owner-foot-summary {

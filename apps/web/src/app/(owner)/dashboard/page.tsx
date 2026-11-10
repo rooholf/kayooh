@@ -60,8 +60,10 @@ export default function OwnerDashboardPage() {
   if (isLoading) {
     return (
       <main className="owner-desk">
-        <OwnerBorder />
-        <OwnerTopBar />
+        <header className="owner-header">
+          <OwnerBorder />
+          <OwnerTopBar />
+        </header>
         <DashboardSkeleton />
       </main>
     );
@@ -70,8 +72,10 @@ export default function OwnerDashboardPage() {
   if (isError || !data) {
     return (
       <main className="owner-desk">
-        <OwnerBorder />
-        <OwnerTopBar />
+        <header className="owner-header">
+          <OwnerBorder />
+          <OwnerTopBar />
+        </header>
         <div className="owner-empty">Gagal memuat data dashboard.</div>
       </main>
     );
@@ -88,8 +92,10 @@ export default function OwnerDashboardPage() {
 
   return (
     <main className="owner-desk">
-      <OwnerBorder />
-      <OwnerTopBar />
+      <header className="owner-header">
+        <OwnerBorder />
+        <OwnerTopBar />
+      </header>
       {outlet && (
         <OutletStrip name={outlet.name} totalBikes={totalBikes} />
       )}
