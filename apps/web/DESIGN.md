@@ -307,3 +307,61 @@ Zero radii everywhere (`0px`). Outlines are 2–3 px solid ink (3 px on the plat
 - **Don't** claim a time-of-day affects stock; the waktu picker sets context, never a filter.
 - **Don't** apply these rules to owner or admin surfaces — they have their own worlds.
 - **Don't** fabricate prices, testimonials, or outlet metrics anywhere in the world.
+
+---
+
+# Design System: Kayooh Owner — Poster Solidaritas (Pemilik)
+
+**Scope: the owner dashboard only.** This document governs `apps/web/src/app/(owner)` — the daily oversight portal for outlet owners (`/owner/dashboard`). Visitor **mode: Operate** — the owner completes their daily oversight check and leaves.
+
+## Creative North Star: "Poster Solidaritas (Pemilik)"
+
+The owner's view reads as an official ledger sheet from the same silkscreen poster world as the renter: paper cream ground, flat ink fields, hard 3 px ink keylines, and stamped typography. But where the renter sheet is built for conversion, the owner sheet is built for **oversight**: precision, restraint, ruled tally rows, boxed accrual figures, and stamped status badges.
+
+The screen is phone-first: optimized for a single-column 390 × 844 viewport (360 px minimum width), with 3 px vertical ink keylines flanking the sheet content. Every figure is backed strictly by the server API (`GET /api/v1/owner/dashboard/summary`). The dashboard never fabricates a metric — P2 concepts (daily deltas, period switches, rhythm bands) are omitted until backend support exists.
+
+## Palette
+
+- **Kertas** (`#F0E3C4`): paper cream ground for the sheet and unselected states.
+- **Tinta** (`#171009`): dense ink black for 3 px keylines, text, outlet header bars, and the footer.
+- **Merah Cetak** (`#B81B0D`): deep print red for the accrual plate, top border banner, overdue alert stamps, and maintenance indicators. Clears WCAG AA 4.5:1 contrast against kertas.
+- **Kuning Matahari** (`#F2B300`): sun yellow pass for accent typography, separator diamonds, date stamps, and footer highlights.
+- **Biru Lapis** (`#12408C`): lapis blue for active rental indicators ("TERSEWA").
+- **Hijau Siap** (`#1F6B44`): solid green pass for ready-to-rent bike fleet bars ("SIAP").
+
+## Components
+
+### 1. Top Border Strip (`.owner-border`)
+- Repeating marching-text strip in Merah Cetak with paper cream text and Kuning diamonds: `KAYOOH JAMBI ◆ PEMILIK ◆ KAYOOH JAMBI ◆ PEMILIK`.
+- 9.5px uppercase, letter-spacing 0.22em.
+
+### 2. Header & Date Stamp (`.owner-top`)
+- Left: `KAYOOH` in Archivo Black 19px, with micro subtitle `PEMILIK` in Archivo 600 Merah Cetak.
+- Right: Inked stamp box (`.owner-tgl`) in Tinta with Kuning date and white uppercase day name computed in Asia/Jakarta (WIB) timezone.
+
+### 3. Outlet Banner (`.owner-strip`)
+- Solid Tinta bar with Kuning uppercase outlet name, centered diamond separator, and paper cream total fleet count (`TELANAIPURA HUB ◆ 45 UNIT`).
+
+### 4. Accrual Plate (`.owner-plate`)
+- Framed Merah Cetak box with 3 px Tinta keyline shadow.
+- Label: uppercase Kuning label `PENDAPATAN KOTOR PEKAN INI` (0.24em letter-spacing).
+- Amount: Archivo Black 31px integer IDR formatted currency (e.g. `Rp 0` or `Rp 18.240.000`).
+- Subtitle: `Sebelum potongan komisi · Senin–Minggu WIB` — honest labeling of gross accrual before commission, bounded Monday through Sunday WIB.
+
+### 5. Fleet State Breakdown (`.owner-fleet`)
+- Header: Archivo Black 8.5px Merah Cetak labels `ARMADA OUTLET` and `UNIT` with a 2.5px Tinta underline.
+- Proportional rows:
+  - `SIAP`: Hijau Siap (`#1F6B44`) bar, count of available bikes.
+  - `TERSEWA`: Biru Lapis (`#12408C`) bar, count of currently rented / held bikes.
+  - `SERVIS`: Merah Cetak (`#B81B0D`) bar, count of maintenance bikes.
+- Tabular numeric count in Archivo Black 16px right-aligned.
+
+### 6. Active Rentals & Late Alerts (`.owner-rental-row` / `.owner-late-alert`)
+- Ruled list showing active rentals: bike asset tag, masked renter phone (`081234****789`), and return time labeled in WIB.
+- Overdue alert banner appears in Merah Cetak with yellow count whenever overdue rentals exist.
+- Empty state: clean, honest copy (`Tidak ada sewa yang sedang aktif.`) in dimmed ink.
+
+### 7. Summary Footer (`.owner-foot`)
+- Sticky-bottom Tinta bar with 3 px Kuning top border.
+- Text: `${totalBikes} unit · ${ready} siap · ${rented} tersewa · ${maintenance} servis`.
+

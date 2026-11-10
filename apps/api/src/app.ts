@@ -37,6 +37,7 @@ import { registerOutboxSchedule, registerSweeperSchedule } from "./modules/jobs/
 import { registerSseRoutes, initSseBus, closeSseBus } from "./modules/sse/index.js";
 import { registerWebhookRoutes } from "./modules/payments/webhook-routes.js";
 import { registerDevRoutes } from "./modules/payments/dev-routes.js";
+import { registerDevOwnerRoutes } from "./modules/owner/dev-routes.js";
 
 declare module "fastify" {
   interface FastifyRequest {
@@ -209,6 +210,7 @@ export async function buildApp(options: BuildAppOptions = {}): Promise<{
   registerWebhookRoutes(app, { nodeEnv: env.nodeEnv, webhookSecret: env.paymentWebhookSecret });
   // Dev-only payment auto-confirm (no-op in production).
   registerDevRoutes(app, { nodeEnv: env.nodeEnv, webhookSecret: env.paymentWebhookSecret });
+  registerDevOwnerRoutes(app, { nodeEnv: env.nodeEnv });
 
   /* Better Auth scoped mount (raw body preserved for the BA handler). */
   await app.register(async (scope) => {

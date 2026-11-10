@@ -1,0 +1,387 @@
+/* Kayooh — Poster Solidaritas (owner surface)
+   Same ink-on-kertas world as the renter poster but the job is oversight,
+   not conversion: ruled tally rows, boxed figures, stamped status.
+   Operate mode: precision and restraint. */
+
+@font-face {
+  font-family: "Archivo";
+  font-style: normal;
+  font-weight: 100 900;
+  font-stretch: 100%;
+  font-display: swap;
+  src: url(/fonts/archivo-variable-latin.woff2) format("woff2");
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA,
+    U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193,
+    U+2212, U+2215, U+FEFF, U+FFFD;
+}
+@font-face {
+  font-family: "Archivo";
+  font-style: normal;
+  font-weight: 100 900;
+  font-stretch: 100%;
+  font-display: swap;
+  src: url(/fonts/archivo-variable-latin-ext.woff2) format("woff2");
+  unicode-range: U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF,
+    U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020,
+    U+20A0-20AB, U+20AD-20C4, U+2113, U+2C60-2C7F, U+A720-A7FF;
+}
+@font-face {
+  font-family: "Archivo Black";
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url(/fonts/archivo-black-latin.woff2) format("woff2");
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA,
+    U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193,
+    U+2212, U+2215, U+FEFF, U+FFFD;
+}
+@font-face {
+  font-family: "Archivo Black";
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url(/fonts/archivo-black-latin-ext.woff2) format("woff2");
+  unicode-range: U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF,
+    U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020,
+    U+20A0-20AB, U+20AD-20C4, U+2113, U+2C60-2C7F, U+A720-A7FF;
+}
+
+.owner-desk {
+  --kertas: #f0e3c4;
+  --kertas-deep: #e6d6ae;
+  --merah: #b81b0d; /* deepened from mock's #dc2110 for AA contrast */
+  --merah-hot: #dc2110; /* graphics-only, never behind text */
+  --kuning: #f2b300;
+  --tinta: #171009;
+  --biru: #12408c;
+  --hijau: #1f6b44;
+
+  min-height: 100dvh;
+  width: 100%;
+  max-width: 480px;
+  margin: 0 auto;
+  position: relative;
+  background: var(--kertas);
+  color: var(--tinta);
+  font-family: "Archivo", system-ui, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  display: flex;
+  flex-direction: column;
+}
+
+/* 3px ink keylines flanking the sheet content */
+.owner-desk::before {
+  content: "";
+  position: absolute;
+  left: 9px;
+  right: 9px;
+  top: 32px;
+  bottom: 0;
+  border-left: 3px solid var(--tinta);
+  border-right: 3px solid var(--tinta);
+  pointer-events: none;
+  z-index: 3;
+}
+
+.owner-desk ::selection {
+  background: var(--kuning);
+  color: var(--tinta);
+}
+
+.owner-desk :focus-visible {
+  outline: 2px solid var(--tinta);
+  outline-offset: 2px;
+  box-shadow: 0 0 0 4px var(--kuning);
+}
+
+/* ---- top border strip ---- */
+.owner-border {
+  background: var(--merah);
+  color: var(--kertas);
+  padding: 6px 0 5px;
+  white-space: nowrap;
+  overflow: hidden;
+  font-weight: 700;
+  font-size: 9.5px;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  text-align: center;
+  position: relative;
+  z-index: 4;
+}
+.owner-border .sep {
+  color: var(--kuning);
+  margin: 0 8px;
+}
+
+/* ---- top bar (merek + date) ---- */
+.owner-top {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 12px 22px 10px;
+  position: relative;
+  z-index: 4;
+}
+.owner-merek {
+  font-family: "Archivo Black", "Archivo", sans-serif;
+  font-size: 19px;
+  line-height: 1;
+}
+.owner-merek span {
+  display: block;
+  font-family: "Archivo", sans-serif;
+  font-weight: 600;
+  font-size: 7.5px;
+  letter-spacing: 0.3em;
+  color: var(--merah);
+  margin-top: 5px;
+  text-transform: uppercase;
+}
+.owner-tgl {
+  background: var(--tinta);
+  color: var(--kuning);
+  font-family: "Archivo Black", "Archivo", sans-serif;
+  font-size: 14px;
+  padding: 6px 9px;
+  text-align: center;
+  line-height: 1;
+}
+.owner-tgl b {
+  display: block;
+  font-size: 7.5px;
+  letter-spacing: 0.14em;
+  color: var(--kertas);
+  margin-bottom: 3px;
+}
+
+/* ---- outlet strip ---- */
+.owner-strip {
+  margin: 0 22px;
+  background: var(--tinta);
+  color: var(--kuning);
+  font-family: "Archivo Black", "Archivo", sans-serif;
+  font-size: 10px;
+  letter-spacing: 0.16em;
+  padding: 7px 10px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  text-transform: uppercase;
+  position: relative;
+  z-index: 4;
+}
+.owner-strip .sep {
+  color: var(--kertas);
+  margin: 0 5px;
+}
+.owner-strip .unit {
+  color: var(--kertas);
+}
+
+/* ---- gross accrual plate ---- */
+.owner-plate {
+  margin: 14px 22px 0;
+  background: var(--merah);
+  color: var(--kertas);
+  padding: 16px 16px 13px;
+  box-shadow: 0 0 0 3px var(--tinta);
+  position: relative;
+  z-index: 4;
+}
+.owner-plate-label {
+  font-weight: 700;
+  font-size: 8.5px;
+  letter-spacing: 0.24em;
+  color: var(--kuning);
+  text-transform: uppercase;
+}
+.owner-plate-amount {
+  font-family: "Archivo Black", "Archivo", sans-serif;
+  font-size: 31px;
+  line-height: 1;
+  margin-top: 8px;
+}
+.owner-plate-sub {
+  font-weight: 600;
+  font-size: 11px;
+  margin-top: 9px;
+  color: var(--kuning);
+}
+
+/* ---- fleet grid ---- */
+.owner-fleet {
+  margin: 16px 22px 0;
+  position: relative;
+  z-index: 4;
+}
+.owner-fleet-header {
+  display: flex;
+  justify-content: space-between;
+  font-family: "Archivo Black", "Archivo", sans-serif;
+  font-size: 8.5px;
+  letter-spacing: 0.2em;
+  color: var(--merah);
+  text-transform: uppercase;
+  padding-bottom: 6px;
+  border-bottom: 2.5px solid var(--tinta);
+}
+.owner-fleet-row {
+  display: grid;
+  grid-template-columns: 80px 1fr 38px;
+  gap: 10px;
+  align-items: center;
+  padding: 9px 0;
+  border-bottom: 1.5px solid rgba(23, 16, 9, 0.32);
+}
+.owner-fleet-row:last-child {
+  border-bottom: 0;
+}
+.owner-fleet-state {
+  font-family: "Archivo Black", "Archivo", sans-serif;
+  font-size: 11px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+.owner-fleet-bar {
+  height: 13px;
+  background: rgba(23, 16, 9, 0.12);
+  overflow: hidden;
+}
+.owner-fleet-bar-fill {
+  display: block;
+  height: 100%;
+}
+.owner-fleet-count {
+  font-family: "Archivo Black", "Archivo", sans-serif;
+  font-size: 16px;
+  text-align: right;
+}
+
+/* ---- open rentals / late strip ---- */
+.owner-section-title {
+  margin: 18px 22px 0;
+  font-family: "Archivo Black", "Archivo", sans-serif;
+  font-size: 8.5px;
+  letter-spacing: 0.2em;
+  color: var(--merah);
+  text-transform: uppercase;
+  padding-bottom: 6px;
+  border-bottom: 2.5px solid var(--tinta);
+  position: relative;
+  z-index: 4;
+}
+.owner-rental-list {
+  position: relative;
+  z-index: 4;
+}
+.owner-rental-row {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 6px;
+  padding: 8px 22px;
+  border-bottom: 1.5px solid rgba(23, 16, 9, 0.32);
+  font-size: 12px;
+}
+.owner-rental-row:last-child {
+  border-bottom: 0;
+}
+.owner-rental-bike {
+  font-family: "Archivo Black", "Archivo", sans-serif;
+  font-size: 12px;
+  letter-spacing: 0.04em;
+}
+.owner-rental-phone {
+  font-weight: 500;
+  font-size: 11px;
+  color: rgba(23, 16, 9, 0.64);
+  margin-top: 2px;
+}
+.owner-rental-time {
+  text-align: right;
+  font-weight: 600;
+  font-size: 11px;
+}
+.owner-rental-overdue {
+  color: var(--merah);
+  font-weight: 700;
+  font-size: 9px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  margin-top: 2px;
+}
+.owner-late-alert {
+  margin: 10px 22px 0;
+  background: var(--merah);
+  color: var(--kertas);
+  padding: 10px 12px;
+  font-weight: 700;
+  font-size: 11px;
+  letter-spacing: 0.06em;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  position: relative;
+  z-index: 4;
+}
+.owner-late-alert .count {
+  font-family: "Archivo Black", "Archivo", sans-serif;
+  font-size: 18px;
+  color: var(--kuning);
+}
+
+/* ---- empty state ---- */
+.owner-empty {
+  text-align: center;
+  padding: 24px 22px;
+  font-weight: 600;
+  font-size: 12px;
+  letter-spacing: 0.04em;
+  color: rgba(23, 16, 9, 0.5);
+  position: relative;
+  z-index: 4;
+}
+
+/* ---- footer ---- */
+.owner-foot {
+  margin-top: auto;
+  background: var(--tinta);
+  color: var(--kertas);
+  padding: 12px 22px 14px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  position: relative;
+  z-index: 4;
+  border-top: 3px solid var(--kuning);
+}
+.owner-foot-summary {
+  font-weight: 600;
+  font-size: 10px;
+  letter-spacing: 0.04em;
+}
+.owner-foot-summary b {
+  color: var(--kuning);
+}
+
+/* ---- ink frame on wider viewports ---- */
+@media (min-width: 520px) {
+  .owner-desk {
+    max-width: 520px;
+    margin: 0 auto;
+    border-left: 3px solid var(--tinta);
+    border-right: 3px solid var(--tinta);
+  }
+}
+
+/* ---- loading skeleton ---- */
+@keyframes owner-shimmer {
+  0% { opacity: 0.4; }
+  50% { opacity: 0.7; }
+  100% { opacity: 0.4; }
+}
+.owner-skeleton {
+  background: rgba(23, 16, 9, 0.12);
+  animation: owner-shimmer 1.5s ease-in-out infinite;
+  border-radius: 2px;
+}
