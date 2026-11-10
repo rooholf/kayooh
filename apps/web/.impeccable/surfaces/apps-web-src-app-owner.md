@@ -11,7 +11,7 @@ related_targets: []
 
 `apps/web` `(owner)` route group — the **owner dashboard**, reached after the owner signs in. Today the group holds one route: `/owner/dashboard` (currently a `<main>` stub). Visitor **mode: Operate** — the visitor completes the daily oversight task and leaves. It shares the Next.js app and stack with the `(renter)` and `(admin)` groups but carries a **different shape**: it is not the campaign-poster renter surface (that world's rules explicitly do not apply here) and not the desktop admin console; it is a phone-screen conviction read.
 
-**Device truth:** the anchored mock is a **390 × 844 phone frame**. Phone-first: minimum viewport 360 px, single column, nothing that needs a pointer. A desktop layout may exist later but is not the design target for this round.
+**Device truth:** Responsive layout from phone (minimum viewport 360 px) through tablet and desktop (1200 px container width), matching `apps/web/.impeccable/mocks/decision/grounded-poster-solidaritas.html`. On desktop, arranges as a balanced two-column dashboard.
 
 ## Audience, job, task
 

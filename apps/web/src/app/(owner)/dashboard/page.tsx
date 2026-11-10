@@ -3,20 +3,22 @@
 /**
  * /owner/dashboard — Poster Solidaritas (Pemilik) overview.
  *
- * Phone-first (390×844 target, 360 px min), Operate mode.
+ * Fully responsive: phone-first (390×844 target, 360 px min) adapting
+ * seamlessly to tablet and desktop viewports, matching
+ * apps/web/.impeccable/mocks/decision/grounded-poster-solidaritas.html.
+ *
  * Backed by GET /api/v1/owner/dashboard/summary (prod, requires owner session)
  * or GET /api/v1/dev/owner/dashboard/summary?ownerId=<uuid> (dev).
- *
- * P1 scope: gross week accrual, fleet state counts, open rentals, late count.
- * P2 over-claims (daily delta, period switch, rhythm bands) are cut — the
- * dashboard never fabricates a figure.
  */
+import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { OwnerBorder } from "./_components/Border";
 import { OwnerTopBar } from "./_components/TopBar";
 import { OutletStrip } from "./_components/OutletStrip";
+import { PeriodTabs, type PeriodTab } from "./_components/PeriodTabs";
 import { AccrualPlate } from "./_components/AccrualPlate";
 import { FleetGrid } from "./_components/FleetGrid";
+import { RhythmBands } from "./_components/RhythmBands";
 import { OpenRentals } from "./_components/OpenRentals";
 import { LateAlert } from "./_components/LateAlert";
 import { OwnerFooter } from "./_components/Footer";
@@ -48,6 +50,7 @@ async function fetchSummary(): Promise<DashboardSummary> {
 }
 
 export default function OwnerDashboardPage() {
+  const [period, setPeriod] = useState<PeriodTab>("PEKAN");
   const { data, isLoading, isError } = useQuery({
     queryKey: ["owner", "dashboard", "summary"],
     queryFn: fetchSummary,
@@ -90,10 +93,24 @@ export default function OwnerDashboardPage() {
       {outlet && (
         <OutletStrip name={outlet.name} totalBikes={totalBikes} />
       )}
-      <AccrualPlate grossIdr={data.grossAccruedIdr} />
-      <FleetGrid counts={fleetCounts} totalBikes={totalBikes} />
-      {totalLate > 0 && <LateAlert count={totalLate} />}
-      <OpenRentals rentals={allRentals} />
+      <PeriodTabs activeTab={period} onChange={setPeriod} />
+
+      <div className="owner-main-grid">
+        <div className="owner-grid-plate">
+          <AccrualPlate grossIdr={data.grossAccruedIdr} period={period} />
+        </div>
+        <div className="owner-grid-fleet">
+          <FleetGrid counts={fleetCounts} totalBikes={totalBikes} />
+        </div>
+        <div className="owner-grid-bands">
+          <RhythmBands />
+        </div>
+        <div className="owner-grid-rentals">
+          {totalLate > 0 && <LateAlert count={totalLate} />}
+          <OpenRentals rentals={allRentals} />
+        </div>
+      </div>
+
       <OwnerFooter counts={fleetCounts} totalBikes={totalBikes} />
     </main>
   );

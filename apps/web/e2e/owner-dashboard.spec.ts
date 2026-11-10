@@ -1,11 +1,14 @@
 /**
  * Owner Dashboard E2E — Poster Solidaritas (Pemilik) oversight.
  *
- * Checks phone-first frame (390×844) and desktop, verifying honest P1 data:
- * - Gross accrual plate (IDR integer)
+ * Checks phone-first frame (390×844) and desktop (1440×900), verifying:
+ * - Responsive layout matching grounded-poster-solidaritas.html mock
+ * - Period tabs (HARI / PEKAN / BULAN)
+ * - Saldo berjalan / Gross accrual plate (IDR integer)
  * - Fleet state breakdown (SIAP / TERSEWA / SERVIS)
+ * - Rhythm bands (Ritme pendapatan pekan ini)
  * - Open rentals / late alert honest representation
- * - No fake or hallucinated figures
+ * - Footer with fleet summary and BUKA ARMADA CTA
  */
 import { test, expect, type Page } from "@playwright/test";
 import { mkdir } from "node:fs/promises";
@@ -32,10 +35,18 @@ for (const [profile, viewport] of Object.entries(VIEWPORTS)) {
     await expect(page.getByText("KAYOOH JAMBI").first()).toBeVisible();
     await expect(page.getByText("PEMILIK").first()).toBeVisible();
 
+    // Outlet strip
+    await expect(page.getByText(/TELANAIPURA/i).first()).toBeVisible();
+    await expect(page.getByText("45 UNIT", { exact: true })).toBeVisible();
+
+    // Period tabs
+    await expect(page.getByRole("tab", { name: "HARI" })).toBeVisible();
+    await expect(page.getByRole("tab", { name: "PEKAN" })).toBeVisible();
+    await expect(page.getByRole("tab", { name: "BULAN" })).toBeVisible();
+
     // Accrual plate
-    await expect(
-      page.getByText("Pendapatan Kotor Pekan Ini")
-    ).toBeVisible();
+    await expect(page.getByText(/Saldo Berjalan/i)).toBeVisible();
+    await expect(page.getByText("Pendapatan Kotor Pekan Ini")).toBeVisible();
     await expect(page.getByText("Rp 0")).toBeVisible();
 
     // Fleet breakdown
@@ -44,8 +55,12 @@ for (const [profile, viewport] of Object.entries(VIEWPORTS)) {
     await expect(page.getByText("TERSEWA", { exact: true })).toBeVisible();
     await expect(page.getByText("SERVIS", { exact: true })).toBeVisible();
 
-    // Summary footer
+    // Rhythm bands
+    await expect(page.getByText("Ritme pendapatan pekan ini")).toBeVisible();
+
+    // Summary footer & CTA
     await expect(page.getByText(/unit · .* siap/)).toBeVisible();
+    await expect(page.getByRole("button", { name: "BUKA ARMADA" })).toBeVisible();
 
     await shot(page, `owner-dashboard-${profile}.png`);
   });

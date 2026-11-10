@@ -1,6 +1,6 @@
-/* Kayooh — Poster Solidaritas (owner surface)
-   Same ink-on-kertas world as the renter poster but the job is oversight,
-   not conversion: ruled tally rows, boxed figures, stamped status.
+/* Kayooh — Poster Solidaritas (Pemilik)
+   Responsive owner dashboard console matching
+   apps/web/.impeccable/mocks/decision/grounded-poster-solidaritas.html.
    Operate mode: precision and restraint. */
 
 @font-face {
@@ -46,25 +46,33 @@
     U+20A0-20AB, U+20AD-20C4, U+2113, U+2C60-2C7F, U+A720-A7FF;
 }
 
-.owner-desk {
+:root {
   --kertas: #f0e3c4;
   --kertas-deep: #e6d6ae;
-  --merah: #b81b0d; /* deepened from mock's #dc2110 for AA contrast */
-  --merah-hot: #dc2110; /* graphics-only, never behind text */
+  --merah: #b81b0d; /* text accents on kertas */
+  --merah-hot: #dc2110; /* the poster red — banner, plate, tabs, bar fills */
   --kuning: #f2b300;
+  --kuning-teks: #ffd25c; /* lightened pass for text sitting on hot red */
   --tinta: #171009;
   --biru: #12408c;
   --hijau: #1f6b44;
+}
 
+body {
+  background-color: var(--kertas);
+  color: var(--tinta);
+  font-family: "Archivo", system-ui, sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+
+.owner-desk {
   min-height: 100dvh;
   width: 100%;
-  max-width: 480px;
+  max-width: 1400px;
   margin: 0 auto;
   position: relative;
   background: var(--kertas);
   color: var(--tinta);
-  font-family: "Archivo", system-ui, sans-serif;
-  -webkit-font-smoothing: antialiased;
   display: flex;
   flex-direction: column;
 }
@@ -73,14 +81,21 @@
 .owner-desk::before {
   content: "";
   position: absolute;
-  left: 9px;
-  right: 9px;
-  top: 32px;
+  left: clamp(9px, 1.6vw, 22px);
+  right: clamp(9px, 1.6vw, 22px);
+  top: 36px;
   bottom: 0;
   border-left: 3px solid var(--tinta);
   border-right: 3px solid var(--tinta);
   pointer-events: none;
   z-index: 3;
+}
+
+@media (min-width: 1200px) {
+  .owner-desk {
+    border-left: 3px solid var(--tinta);
+    border-right: 3px solid var(--tinta);
+  }
 }
 
 .owner-desk ::selection {
@@ -94,9 +109,9 @@
   box-shadow: 0 0 0 4px var(--kuning);
 }
 
-/* ---- top border strip ---- */
+/* ---- top border strip (marching marquee, one authored motion moment) ---- */
 .owner-border {
-  background: var(--merah);
+  background: var(--merah-hot);
   color: var(--kertas);
   padding: 6px 0 5px;
   white-space: nowrap;
@@ -105,13 +120,32 @@
   font-size: 9.5px;
   letter-spacing: 0.22em;
   text-transform: uppercase;
-  text-align: center;
   position: relative;
   z-index: 4;
+}
+.owner-border-track {
+  display: inline-flex;
+  width: max-content;
+  animation: owner-drift 40s linear infinite;
 }
 .owner-border .sep {
   color: var(--kuning);
   margin: 0 8px;
+}
+@keyframes owner-drift {
+  from { transform: translateX(0); }
+  to { transform: translateX(-50%); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .owner-border-track {
+    animation: none;
+  }
+}
+@media (min-width: 768px) {
+  .owner-border {
+    font-size: 11px;
+    padding: 8px 0 7px;
+  }
 }
 
 /* ---- top bar (merek + date) ---- */
@@ -119,7 +153,7 @@
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding: 12px 22px 10px;
+  padding: 12px clamp(22px, 4.5vw, 64px) 10px;
   position: relative;
   z-index: 4;
 }
@@ -154,10 +188,26 @@
   color: var(--kertas);
   margin-bottom: 3px;
 }
+@media (min-width: 768px) {
+  .owner-merek {
+    font-size: 24px;
+  }
+  .owner-merek span {
+    font-size: 9px;
+    margin-top: 6px;
+  }
+  .owner-tgl {
+    font-size: 16px;
+    padding: 7px 12px;
+  }
+  .owner-tgl b {
+    font-size: 8.5px;
+  }
+}
 
 /* ---- outlet strip ---- */
 .owner-strip {
-  margin: 0 22px;
+  margin: 0 clamp(22px, 4.5vw, 64px);
   background: var(--tinta);
   color: var(--kuning);
   font-family: "Archivo Black", "Archivo", sans-serif;
@@ -178,40 +228,228 @@
 .owner-strip .unit {
   color: var(--kertas);
 }
+@media (min-width: 768px) {
+  .owner-strip {
+    font-size: 13px;
+    letter-spacing: 0.18em;
+    padding: 10px 16px;
+  }
+}
+
+/* ---- period tabs ---- */
+.owner-tabs {
+  margin: 10px clamp(22px, 4.5vw, 64px) 0;
+  display: flex;
+  border: 2.5px solid var(--tinta);
+  position: relative;
+  z-index: 4;
+  background: var(--kertas);
+}
+.owner-tab {
+  flex: 1;
+  text-align: center;
+  padding: 8px 0;
+  font-family: "Archivo", sans-serif;
+  font-weight: 700;
+  font-size: 8.5px;
+  letter-spacing: 0.16em;
+  border: 0;
+  border-right: 2.5px solid var(--tinta);
+  background: transparent;
+  color: var(--tinta);
+  cursor: pointer;
+  text-transform: uppercase;
+  transition: background 0.15s;
+}
+.owner-tab:last-child {
+  border-right: 0;
+}
+.owner-tab.on {
+  background: var(--merah-hot);
+  color: var(--kertas);
+}
+.owner-tab:hover:not(.on):not(:disabled) {
+  background: rgba(23, 16, 9, 0.08);
+}
+.owner-tab:disabled,
+.owner-tab.owner-tab--p2 {
+  cursor: not-allowed;
+  opacity: 0.42;
+  background: rgba(23, 16, 9, 0.04);
+}
+.owner-tab:disabled:hover {
+  background: rgba(23, 16, 9, 0.04);
+}
+@media (min-width: 768px) {
+  .owner-tab {
+    font-size: 11.5px;
+    padding: 12px 0;
+    letter-spacing: 0.18em;
+  }
+}
+
+/* ---- responsive main grid ---- */
+/* Poster column at every width: the sheet is one full-bleed stack
+   (plate → armada → ritme → sewa), scale grows with the viewport. */
+.owner-main-grid {
+  display: flex;
+  flex-direction: column;
+  margin: 0 clamp(22px, 3.5vw, 44px);
+  position: relative;
+  z-index: 4;
+  flex: 1;
+}
+.owner-grid-plate {
+  order: 1;
+  margin-top: 14px;
+}
+.owner-grid-fleet {
+  order: 2;
+  margin-top: 18px;
+}
+.owner-grid-bands {
+  order: 3;
+  margin-top: 16px;
+}
+.owner-grid-rentals {
+  order: 4;
+  margin-top: 18px;
+  margin-bottom: 20px;
+}
+
+@media (min-width: 768px) {
+  .owner-main-grid {
+    margin: 0 clamp(22px, 4.5vw, 64px);
+  }
+  .owner-grid-plate {
+    margin-top: 18px;
+  }
+  .owner-grid-fleet {
+    margin-top: 26px;
+  }
+  .owner-grid-bands {
+    margin-top: 22px;
+  }
+  .owner-grid-rentals {
+    margin-top: 26px;
+    margin-bottom: 28px;
+  }
+}
 
 /* ---- gross accrual plate ---- */
 .owner-plate {
-  margin: 14px 22px 0;
-  background: var(--merah);
+  background: var(--merah-hot);
   color: var(--kertas);
   padding: 16px 16px 13px;
   box-shadow: 0 0 0 3px var(--tinta);
   position: relative;
   z-index: 4;
 }
+.owner-plate-cols {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 18px;
+}
 .owner-plate-label {
   font-weight: 700;
   font-size: 8.5px;
   letter-spacing: 0.24em;
-  color: var(--kuning);
+  color: var(--kuning-teks);
   text-transform: uppercase;
 }
 .owner-plate-amount {
   font-family: "Archivo Black", "Archivo", sans-serif;
-  font-size: 31px;
+  font-size: clamp(31px, 8.2vw, 68px);
   line-height: 1;
   margin-top: 8px;
+  font-variant-numeric: tabular-nums;
 }
 .owner-plate-sub {
   font-weight: 600;
   font-size: 11px;
   margin-top: 9px;
-  color: var(--kuning);
+  color: var(--kuning-teks);
+}
+.owner-plate-chip {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: clamp(38px, 4.6vw, 64px);
+  aspect-ratio: 1;
+  background: var(--tinta);
+  border-radius: 50%;
+  color: var(--kertas);
+}
+.owner-plate-chip svg {
+  width: 54%;
+  height: 54%;
+}
+@media (min-width: 768px) {
+  .owner-plate {
+    padding: clamp(20px, 2.4vw, 30px) clamp(20px, 2.4vw, 30px)
+      clamp(18px, 2.2vw, 26px);
+  }
+  .owner-plate-label {
+    font-size: 11px;
+  }
+  .owner-plate-sub {
+    font-size: 13px;
+    margin-top: 12px;
+  }
+}
+
+/* ---- rhythm bands ---- */
+.owner-bands {
+  position: relative;
+  z-index: 4;
+}
+.owner-bands-title {
+  font-family: "Archivo Black", "Archivo", sans-serif;
+  font-size: 8.5px;
+  letter-spacing: 0.2em;
+  color: var(--merah);
+  text-transform: uppercase;
+  margin-bottom: 7px;
+}
+.owner-bands-list {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.owner-bands-empty {
+  font-family: "Archivo", sans-serif;
+  font-weight: 600;
+  font-size: 10px;
+  letter-spacing: 0.04em;
+  color: var(--tinta);
+  opacity: 0.62;
+  padding: 8px 0;
+  border-top: 1.5px dashed rgba(23, 16, 9, 0.32);
+}
+.owner-band {
+  height: 13px;
+  background: var(--tinta);
+}
+.owner-band.on {
+  background: var(--biru);
+  box-shadow: inset 0 0 0 3px var(--kuning);
+}
+@media (min-width: 768px) {
+  .owner-bands-title {
+    font-size: 11px;
+    margin-bottom: 10px;
+  }
+  .owner-band {
+    height: clamp(14px, 1.5vw, 22px);
+  }
+  .owner-bands-list {
+    gap: 6px;
+  }
 }
 
 /* ---- fleet grid ---- */
 .owner-fleet {
-  margin: 16px 22px 0;
   position: relative;
   z-index: 4;
 }
@@ -225,6 +463,10 @@
   text-transform: uppercase;
   padding-bottom: 6px;
   border-bottom: 2.5px solid var(--tinta);
+}
+.owner-fleet-rows {
+  display: flex;
+  flex-direction: column;
 }
 .owner-fleet-row {
   display: grid;
@@ -256,11 +498,34 @@
   font-family: "Archivo Black", "Archivo", sans-serif;
   font-size: 16px;
   text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+@media (min-width: 768px) {
+  .owner-fleet-header {
+    font-size: 11px;
+  }
+  .owner-fleet-row {
+    padding: 14px 0;
+    grid-template-columns: clamp(90px, 9vw, 130px) 1fr clamp(48px, 4.4vw, 64px);
+    gap: 16px;
+  }
+  .owner-fleet-state {
+    font-size: 14px;
+  }
+  .owner-fleet-bar {
+    height: clamp(14px, 1.5vw, 22px);
+  }
+  .owner-fleet-count {
+    font-size: clamp(20px, 2.1vw, 30px);
+  }
 }
 
 /* ---- open rentals / late strip ---- */
+.owner-rentals {
+  position: relative;
+  z-index: 4;
+}
 .owner-section-title {
-  margin: 18px 22px 0;
   font-family: "Archivo Black", "Archivo", sans-serif;
   font-size: 8.5px;
   letter-spacing: 0.2em;
@@ -279,7 +544,7 @@
   display: grid;
   grid-template-columns: 1fr auto;
   gap: 6px;
-  padding: 8px 22px;
+  padding: 9px 0;
   border-bottom: 1.5px solid rgba(23, 16, 9, 0.32);
   font-size: 12px;
 }
@@ -311,8 +576,7 @@
   margin-top: 2px;
 }
 .owner-late-alert {
-  margin: 10px 22px 0;
-  background: var(--merah);
+  background: var(--merah-hot);
   color: var(--kertas);
   padding: 10px 12px;
   font-weight: 700;
@@ -323,17 +587,51 @@
   align-items: center;
   position: relative;
   z-index: 4;
+  margin-bottom: 10px;
+  box-shadow: 0 0 0 2px var(--tinta);
 }
 .owner-late-alert .count {
   font-family: "Archivo Black", "Archivo", sans-serif;
   font-size: 18px;
-  color: var(--kuning);
+  color: var(--kuning-teks);
+}
+@media (min-width: 768px) {
+  .owner-section-title {
+    font-size: 11px;
+  }
+  .owner-late-alert {
+    font-size: 13px;
+    padding: 12px 16px;
+  }
+  .owner-late-alert .count {
+    font-size: 22px;
+  }
+  .owner-rental-row {
+    padding: 12px 0;
+    gap: 10px;
+  }
+  .owner-rental-bike {
+    font-size: 15px;
+  }
+  .owner-rental-phone {
+    font-size: 13px;
+  }
+  .owner-rental-time {
+    font-size: 13px;
+  }
+  .owner-rental-overdue {
+    font-size: 10.5px;
+  }
+  .owner-empty {
+    font-size: 14px;
+    padding: 32px 0;
+  }
 }
 
 /* ---- empty state ---- */
 .owner-empty {
   text-align: center;
-  padding: 24px 22px;
+  padding: 24px 0;
   font-weight: 600;
   font-size: 12px;
   letter-spacing: 0.04em;
@@ -347,7 +645,7 @@
   margin-top: auto;
   background: var(--tinta);
   color: var(--kertas);
-  padding: 12px 22px 14px;
+  padding: 12px clamp(22px, 4.5vw, 64px) 14px;
   display: flex;
   justify-content: space-between;
   align-items: center;
@@ -363,14 +661,35 @@
 .owner-foot-summary b {
   color: var(--kuning);
 }
-
-/* ---- ink frame on wider viewports ---- */
-@media (min-width: 520px) {
-  .owner-desk {
-    max-width: 520px;
-    margin: 0 auto;
-    border-left: 3px solid var(--tinta);
-    border-right: 3px solid var(--tinta);
+.owner-foot-cta {
+  background: var(--kuning);
+  color: var(--tinta);
+  font-family: "Archivo Black", "Archivo", sans-serif;
+  font-size: 11px;
+  padding: 9px 12px;
+  border: 0;
+  cursor: pointer;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  transition: transform 0.12s ease, opacity 0.12s ease;
+}
+.owner-foot-cta:hover {
+  opacity: 0.92;
+  transform: translateY(-1px);
+}
+.owner-foot-cta:active {
+  transform: translateY(0);
+}
+@media (min-width: 768px) {
+  .owner-foot {
+    padding: 14px clamp(22px, 4.5vw, 64px) 16px;
+  }
+  .owner-foot-summary {
+    font-size: 12px;
+  }
+  .owner-foot-cta {
+    font-size: 12px;
+    padding: 10px 16px;
   }
 }
 
@@ -383,5 +702,4 @@
 .owner-skeleton {
   background: rgba(23, 16, 9, 0.12);
   animation: owner-shimmer 1.5s ease-in-out infinite;
-  border-radius: 2px;
 }

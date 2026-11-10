@@ -1,9 +1,9 @@
 /**
  * (owner) route group layout — Poster Solidaritas (pemilik) world.
  *
- * Operate mode, phone-first: 360 px minimum, single column, no pointer
- * required. Same ink-on-kertas tokens as the renter but a different read —
- * oversight, not conversion. No slogan marquee, no desk frame.
+ * Operate mode: responsive oversight console, from phone (360px min) to
+ * wide desktop displays. Ink-on-kertas tokens, 3px keylines, and solidarist
+ * typography matching grounded-poster-solidaritas.html.
  */
 import type { Viewport } from "next";
 import { OwnerQueryProvider } from "./providers";

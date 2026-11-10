@@ -7,11 +7,13 @@ import type { OpenRentalRow } from "../_lib/types";
 function formatWibTime(iso: string): string {
   try {
     const d = new Date(iso);
-    return d.toLocaleTimeString("id-ID", {
-      hour: "2-digit",
-      minute: "2-digit",
-      timeZone: "Asia/Jakarta",
-    }) + " WIB";
+    return (
+      d.toLocaleTimeString("id-ID", {
+        hour: "2-digit",
+        minute: "2-digit",
+        timeZone: "Asia/Jakarta",
+      }) + " WIB"
+    );
   } catch {
     return iso;
   }
@@ -20,7 +22,7 @@ function formatWibTime(iso: string): string {
 export function OpenRentals({ rentals }: { rentals: OpenRentalRow[] }) {
   if (rentals.length === 0) {
     return (
-      <section aria-label="Sewa berjalan">
+      <section className="owner-rentals" aria-label="Sewa berjalan">
         <div className="owner-section-title">Sewa Berjalan</div>
         <div className="owner-empty">Tidak ada sewa yang sedang aktif.</div>
       </section>
@@ -28,11 +30,11 @@ export function OpenRentals({ rentals }: { rentals: OpenRentalRow[] }) {
   }
 
   return (
-    <section aria-label="Sewa berjalan">
+    <section className="owner-rentals" aria-label="Sewa berjalan">
       <div className="owner-section-title">
         <span>Sewa Berjalan ({rentals.length})</span>
       </div>
-      <div>
+      <div className="owner-rental-list">
         {rentals.map((r, i) => (
           <div key={i} className="owner-rental-row">
             <div>
