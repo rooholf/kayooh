@@ -5,7 +5,12 @@
 # routes to the right project agent (architect, backend, web-frontend,
 # pwa-engineer, qa, tpm, ui-ux) via the label → agent map below.
 #
+# Model failover: the primary run uses crowllm/glm-5.3-flash:free. If that run
+# fails (503s, provider outage, ...), an Agnes fallback job retries the same
+# task on agnes/agnes-3.0-flash instead of letting the run fail outright.
+#
 # Requires: secret CROWLLM_API_KEY (https://crowllm.com — hosted, free tier).
+# Requires: secret AGNES_API_KEY (https://apihub.agnes-ai.com — fallback).
 # Requires: secret OPENCODE_GITHUB_TOKEN (PAT with repo scope). This workflow
 # uses use_github_token mode (no OpenCode GitHub App needed): the PAT powers
 # API calls, branch pushes and PRs, so it needs contents/issues/PR write.
@@ -66,5 +71,58 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.OPENCODE_GITHUB_TOKEN }}
         with:
           model: crowllm/glm-5.3-flash:free
+          agent: ${{ steps.persona.outputs.agent }}
+          use_github_token: true
+
+  opencode-fallback:
+    if: needs.opencode.result == 'failure'
+    needs: opencode
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      issues: write
+      pull-requests: write
+
+    steps:
+      - name: Announce fallback
+        run: |
+          echo "## Fallback run" >> "$GITHUB_STEP_SUMMARY"
+          echo "The primary run (crowllm/glm-5.3-flash:free) failed. Retrying the" >> "$GITHUB_STEP_SUMMARY"
+          echo "same task on the Agnes fallback model (agnes/agnes-3.0-flash)." >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Checkout repository
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 1
+
+      - name: Configure git identity
+        run: |
+          git config user.name "${{ github.actor }}"
+          git config user.email "${{ github.actor_id }}+${{ github.actor }}@users.noreply.github.com"
+
+      - name: Resolve persona from issue label
+        id: persona
+        env:
+          LABELS: ${{ toJSON(github.event.issue.labels.*.name) }}
+        run: |
+          agent="general"
+          if echo "$LABELS" | grep -q 'Lead Platform Architect'; then agent=architect
+          elif echo "$LABELS" | grep -q 'Backend Specialist'; then agent=backend
+          elif echo "$LABELS" | grep -q 'Web Frontend Developer'; then agent=web-frontend
+          elif echo "$LABELS" | grep -q 'Offline PWA Engineer'; then agent=pwa-engineer
+          elif echo "$LABELS" | grep -q 'Quality Assurance & SDET'; then agent=qa
+          elif echo "$LABELS" | grep -q 'Technical Project Manager'; then agent=tpm
+          elif echo "$LABELS" | grep -q 'UI/UX Designer'; then agent=ui-ux
+          fi
+          echo "agent=$agent" >> "$GITHUB_OUTPUT"
+          echo "Resolved persona agent: $agent"
+
+      - name: Run OpenCode (Agnes fallback)
+        uses: anomalyco/opencode/github@latest
+        env:
+          AGNES_API_KEY: ${{ secrets.AGNES_API_KEY }}
+          GITHUB_TOKEN: ${{ secrets.OPENCODE_GITHUB_TOKEN }}
+        with:
+          model: agnes/agnes-3.0-flash
           agent: ${{ steps.persona.outputs.agent }}
           use_github_token: true

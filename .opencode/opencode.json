@@ -12,6 +12,17 @@
       "models": {
         "glm-5.3-flash:free": { "name": "glm-5.3-flash:free" }
       }
+    },
+    "agnes": {
+      "npm": "@ai-sdk/openai-compatible",
+      "name": "Agnes",
+      "options": {
+        "baseURL": "https://apihub.agnes-ai.com/v1",
+        "apiKey": "{env:AGNES_API_KEY}"
+      },
+      "models": {
+        "agnes-3.0-flash": { "name": "agnes-3.0-flash" }
+      }
     }
   },
   "agents": {
