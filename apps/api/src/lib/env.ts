@@ -12,6 +12,12 @@ export interface Env {
   paymentWebhookSecret: string;
   /** Dev convenience ONLY: never set in production (OTP codes must not be logged). */
   devLogOtp: boolean;
+  /**
+   * Object storage (V-PHOTO-KEY, FR-RNT-01): when set, event photoKeys are
+   * HEAD-verified (must exist, <= 5 MiB). Unset = dev/test floor — keys are
+   * format-checked only (the S3 adapter plugs in behind StorageProvider).
+   */
+  storageBaseUrl?: string;
 }
 
 export function loadEnv(overrides: Partial<Record<string, string | undefined>> = {}): Env {
@@ -28,6 +34,7 @@ export function loadEnv(overrides: Partial<Record<string, string | undefined>> =
     logLevel: get("LOG_LEVEL") ?? "info",
     paymentWebhookSecret: get("PAYMENT_WEBHOOK_SECRET") ?? "dev-fake-webhook-secret",
     devLogOtp: get("DEV_LOG_OTP") === "true",
+    storageBaseUrl: get("STORAGE_BASE_URL"),
   };
   if (nodeEnv === "production") {
     const missing: string[] = [];

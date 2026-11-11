@@ -153,6 +153,9 @@ export const vChecklist = z
   })
   .strict();
 
+/* V-DATE: calendar day `YYYY-MM-DD` (WIB dates in staff reads, reports). */
+export const vDate = z.string().regex(/^\d{4}-(0[1-9]|1[0-2])-(0[1-9]|[12]\d|3[01])$/, "V-DATE");
+
 /* V-LIMIT / V-CURSOR (list convention SRS 3.2). */
 export const vLimit = z.coerce.number().int().min(1).max(100).default(25);
 export const vCursor = z.string().max(256).optional();

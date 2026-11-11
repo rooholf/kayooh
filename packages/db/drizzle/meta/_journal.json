@@ -57,6 +57,13 @@
       "when": 1793992901292,
       "tag": "0007_flippant_wasp",
       "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1794407358244,
+      "tag": "0008_eager_blackheart",
+      "breakpoints": true
     }
   ]
 }
