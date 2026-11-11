@@ -89,7 +89,10 @@ jobs:
             --body-file .github/roadmap-audit-report.md
 
   audit-fallback:
-    if: ${{ needs.audit.result == 'failure' || needs.audit.result == 'cancelled' }}
+    # Bare `.result == 'failure'` never fires: if: conditions without a
+    # status-check function get success() auto-prepended. !cancelled() opts
+    # in; .result selects failure/cancelled. Verified empirically via fb-test.
+    if: ${{ !cancelled() && (needs.audit.result == 'failure' || needs.audit.result == 'cancelled') }}
     needs: audit
     runs-on: ubuntu-latest
     permissions:
