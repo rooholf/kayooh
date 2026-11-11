@@ -4,9 +4,21 @@
  * Center" — added for the e2e specs, which anchor on that outlet.
  *
  * Re-running is a no-op once the outlets (by code) already exist.
+ *
+ * C.4 (issue #42) adds, on the same canonical entry point, the §4 rows the
+ * network seed (#9) does not own:
+ *   - app_config: booking.max_active_reservations_per_phone (A-19) + the
+ *     commission defaults (1800 bps, pre_discount) — inserted only when
+ *     missing, so an admin PATCHed value is never clobbered.
+ *   - users + Better Auth credential accounts: one owner user + one staff
+ *     user per outlet, plus a single platform admin, so the admin console
+ *     (#13) and staff PWA (#35) are testable. Idempotent by email.
  */
+import { hashPassword } from "better-auth/crypto";
 import { db, eq } from "./src/index.js";
 import {
+  accounts,
+  appConfig,
   categories,
   owners,
   outlets,
@@ -14,6 +26,7 @@ import {
   bikes,
   bikeEvents,
   pricingRules,
+  users,
 } from "./src/schema.js";
 
 const NETWORK = [
@@ -47,6 +60,128 @@ const BIKE_PREFIX: Record<string, string> = {
   mtb: "MTB",
   fixie: "FIX",
 };
+
+/* ------------------------------------------------------------------ */
+/* C.4.1 + C.4.3 — §4 app_config rows                                  */
+/* ------------------------------------------------------------------ */
+
+/**
+ * §4 values this seed owns explicitly (values mirror CONFIG_DEFAULTS in
+ * apps/api/src/modules/app-config/index.ts). Inserted ONLY when the key is
+ * missing — a value an admin changed via PATCH /admin/config must survive
+ * a seed re-run (issue #42 AC: "re-run changes nothing beyond fixes").
+ */
+const CONFIG_SEED: Array<[string, unknown]> = [
+  // A-19 anti-spam backstop for guest checkout (SRS §4: seed 3).
+  ["booking.max_active_reservations_per_phone", 3],
+  // Commission defaults (SRS §4 FIXED: 1800 bps on the pre-discount base;
+  // read through getConfig by the P2 ledger leg, FR-LED-02).
+  ["commission.default_rate_bps", 1800],
+  ["commission.default_base", "pre_discount"],
+];
+
+async function seedConfig(): Promise<void> {
+  for (const [key, value] of CONFIG_SEED) {
+    await db
+      .insert(appConfig)
+      .values({ key, value })
+      .onConflictDoNothing({ target: appConfig.key });
+    console.log(`config: ensured ${key} = ${JSON.stringify(value)}`);
+  }
+}
+
+/* ------------------------------------------------------------------ */
+/* C.4.2 — owner/staff/admin users + Better Auth credential accounts  */
+/* ------------------------------------------------------------------ */
+
+const ADMIN_EMAIL = "admin@kayooh.dev";
+const ADMIN_PASSWORD = "Kayooh-admin-0001!";
+
+interface SeededUserSpec {
+  email: string;
+  name: string;
+  password: string;
+  role: "owner" | "staff" | "admin";
+  ownerId?: string | null;
+  outletId?: string | null;
+}
+
+/**
+ * Creates a dev user + its Better Auth credential account, idempotent by
+ * email. Same convention as POST /admin/users (identity/service.ts):
+ * account_id = user id, provider_id = 'credential', emailVerified = true.
+ */
+async function seedSeededUser(spec: SeededUserSpec): Promise<"created" | "skipped"> {
+  const existing = await db
+    .select({ id: users.id })
+    .from(users)
+    .where(eq(users.email, spec.email))
+    .limit(1);
+  if (existing.length > 0) return "skipped";
+
+  const [user] = await db
+    .insert(users)
+    .values({
+      email: spec.email,
+      name: spec.name,
+      emailVerified: true, // admin-provisioned dev identity; email known-good
+      role: spec.role,
+      ownerId: spec.ownerId ?? null,
+      outletId: spec.outletId ?? null,
+    })
+    .returning({ id: users.id });
+  if (!user) throw new Error(`user insert returned no row: ${spec.email}`);
+
+  await db
+    .insert(accounts)
+    .values({
+      userId: user.id,
+      accountId: user.id,
+      providerId: "credential",
+      password: await hashPassword(spec.password),
+    });
+  return "created";
+}
+
+async function seedUsers(): Promise<void> {
+  // One owner user + one staff user per seeded outlet. The issue AC says
+  // "4 outlets/owners"; that predates the JMB-005 e2e outlet — seed covers
+  // every outlet in NETWORK (5), keeping one canonical entry point.
+  for (const net of NETWORK) {
+    const outletRows = await db
+      .select({ id: outlets.id, ownerId: outlets.ownerId })
+      .from(outlets)
+      .where(eq(outlets.code, net.code))
+      .limit(1);
+    if (outletRows.length === 0) continue; // outlet not present in this DB
+    const { id: outletId, ownerId } = outletRows[0];
+
+    const suffix = net.code.replace("JMB-", "");
+    const owner = await seedSeededUser({
+      email: `owner.jmb-${suffix}@kayooh.dev`,
+      name: net.owner,
+      password: `Kayooh-owner-${suffix}!`,
+      role: "owner",
+      ownerId,
+    });
+    const staff = await seedSeededUser({
+      email: `staff.jmb-${suffix}@kayooh.dev`,
+      name: `${net.name} staff`,
+      password: `Kayooh-staff-${suffix}!`,
+      role: "staff",
+      outletId,
+    });
+    console.log(`users: ${net.code} owner ${owner}, staff ${staff}`);
+  }
+
+  const admin = await seedSeededUser({
+    email: ADMIN_EMAIL,
+    name: "Platform Admin",
+    password: ADMIN_PASSWORD,
+    role: "admin",
+  });
+  console.log(`users: admin ${admin} (${ADMIN_EMAIL})`);
+}
 
 async function main() {
   // Categories.
@@ -131,7 +266,6 @@ async function main() {
         category: cat,
         dayType: "weekday",
         rateIdr: rates[cat].weekday,
-        unitMinutes: 60,
         effectiveFrom: new Date("2020-01-01T00:00:00Z"),
       });
       await db.insert(pricingRules).values({
@@ -139,13 +273,17 @@ async function main() {
         category: cat,
         dayType: "weekend",
         rateIdr: rates[cat].weekend,
-        unitMinutes: 60,
         effectiveFrom: new Date("2020-01-01T00:00:00Z"),
       });
     }
 
     console.log(`seeded ${net.code}: ${counts.commuter + counts.road + counts.mtb + counts.fixie} bikes`);
   }
+
+  // C.4.1 + C.4.3 (§4 config the network seed doesn't own).
+  await seedConfig();
+  // C.4.2 (owner/staff/admin users + Better Auth credential accounts).
+  await seedUsers();
 
   console.log("seed complete");
   process.exit(0);
