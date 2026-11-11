@@ -1,7 +1,8 @@
 # Weekly scheduled audit by the Technical Project Manager persona: scans open
-# issues and PRs against the SRS §12 implementation order and posts a status
-# report on this issue (a tracker pinned to the repo). Read-mostly: it may edit
-# its own tracking issue but creates no branches or PRs.
+# issues and PRs against the SRS §12 implementation order and produces a status
+# report. The report is written to the run summary (Actions tab → run →
+# Summary). To also post it as a comment on a pinned tracking issue, create
+# the issue and set the repo variable TRACKER_ISSUE_NUMBER to its number.
 #
 # Requires: secret CROWLLM_API_KEY.
 # Requires: secret OPENCODE_GITHUB_TOKEN (PAT with repo scope).
@@ -43,15 +44,33 @@ jobs:
             1. List open issues and PRs (`gh issue list`, `gh pr list`).
             2. Read ISSUE_SKILL_MAP.md and SRS_Jambi_Bike_Rental_Platform.md §12 to
                place every open item on the 12-step implementation order.
-            3. Produce a short status report:
+            3. Produce a status report:
                - progress per Phase 1 step (grounded in issue/PR state, cite numbers),
                - the current critical path and blocked items,
                - stalled issues with a concrete unblocking proposal,
                - unresolved SRS §11.5 TBD decisions that block launch.
-            4. Post the report as a comment on the issue that triggered this run.
+            4. Write the full report to the file .github/roadmap-audit-report.md.
 
             Rules:
             - Every claim must cite an issue number, PR number, or file path.
             - Do not implement anything; do not open branches or PRs.
             - Do not close or reopen issues; report only.
             - If ISSUE_SKILL_MAP.md is stale versus reality, say exactly what moved.
+
+      - name: Publish report to run summary
+        if: always()
+        run: |
+          if [ -f .github/roadmap-audit-report.md ]; then
+            cat .github/roadmap-audit-report.md >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "No report produced — check the OpenCode step logs." >> "$GITHUB_STEP_SUMMARY"
+          fi
+
+      - name: Post report to tracking issue (optional)
+        if: success() && env.TRACKER_ISSUE_NUMBER != ''
+        env:
+          GH_TOKEN: ${{ secrets.OPENCODE_GITHUB_TOKEN }}
+          TRACKER_ISSUE_NUMBER: ${{ vars.TRACKER_ISSUE_NUMBER }}
+        run: |
+          gh issue comment "$TRACKER_ISSUE_NUMBER" \
+            --body-file .github/roadmap-audit-report.md
