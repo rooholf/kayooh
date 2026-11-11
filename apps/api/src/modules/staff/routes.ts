@@ -14,14 +14,19 @@ import type { FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
 import {
   ERROR_STATUS,
   healthSyncSchema,
+  staffBikesQuerySchema,
   staffEventBatchSchema,
   staffEventEnvelopeSchema,
+  staffExpectedQuerySchema,
+  uploadUrlSchema,
 } from "@repo/contracts";
 import { db } from "@repo/db";
 import { AppError, validationError } from "../../lib/errors.js";
 import type { Principal } from "../identity/guards.js";
 import { requireRole } from "../identity/guards.js";
 import { applyStaffEvent, applyStaffEvents, type ScanVerdict, type StaffContext } from "./events.js";
+import { getStorageProvider } from "./photo-storage.js";
+import { listExpectedRentals, listOutletBikes, listOverdueRentals } from "./reads.js";
 import { runHealthSync } from "./health-sync.js";
 
 /** FR-ID-02.4: staff-role endpoint; staff operate from their own outlet. */
@@ -96,5 +101,39 @@ export function registerStaffRoutes(app: FastifyInstance): void {
       staffUserId: ctx.staffUserId,
     });
     return reply.code(200).send(result);
+  });
+
+  /* ---------------- Staff outlet reads (SRS 7.2, plan C.2.2) ----------- */
+
+  app.get("/api/v1/staff/outlet/bikes", { preHandler: requireRole("staff") }, async (request, reply) => {
+    const parsed = staffBikesQuerySchema.safeParse(request.query);
+    if (!parsed.success) throw validationError(parsed.error);
+    const ctx = staffContext(request);
+    const result = await listOutletBikes(ctx.staffOutletId, parsed.data);
+    return reply.code(200).send(result);
+  });
+
+  app.get("/api/v1/staff/outlet/expected", { preHandler: requireRole("staff") }, async (request, reply) => {
+    const parsed = staffExpectedQuerySchema.safeParse(request.query);
+    if (!parsed.success) throw validationError(parsed.error);
+    const ctx = staffContext(request);
+    const items = await listExpectedRentals(ctx.staffOutletId, parsed.data.date, 100);
+    return reply.code(200).send({ items });
+  });
+
+  app.get("/api/v1/staff/outlet/overdue", { preHandler: requireRole("staff") }, async (request, reply) => {
+    const ctx = staffContext(request);
+    const items = await listOverdueRentals(ctx.staffOutletId, 100);
+    return reply.code(200).send({ items });
+  });
+
+  /* --------------- Photo upload URL (SRS 7.2, plan C.2.3) -------------- */
+
+  app.post("/api/v1/staff/photos/upload-url", { preHandler: requireRole("staff") }, async (request, reply) => {
+    const parsed = uploadUrlSchema.safeParse(request.body);
+    if (!parsed.success) throw validationError(parsed.error);
+    const storage = getStorageProvider();
+    const upload = await storage.createUploadUrl(parsed.data.kind, parsed.data.contentType);
+    return reply.code(200).send(upload);
   });
 }

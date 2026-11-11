@@ -641,12 +641,16 @@ export const scanEvents = pgTable(
     receivedAt: timestamp("received_at", { withTimezone: true }).notNull().defaultNow(),
     status: text("status").notNull(),
     flagReason: text("flag_reason"),
+    /** FR-SEC-02.2 admin resolution (PATCH /admin/flagged-scans/{id}). */
+    resolution: text("resolution"),
+    resolutionNote: text("resolution_note"),
     resolvedBy: uuid("resolved_by").references(() => users.id),
     resolvedAt: timestamp("resolved_at", { withTimezone: true }),
   },
   (t) => [
     uniqueIndex("scan_events_client_event_id_uq").on(t.clientEventId),
     check("scan_events_status_check", sql`status IN ('applied','flagged','rejected')`),
+    check("scan_events_resolution_check", sql`resolution IN ('dismissed','corrected')`),
     index("scan_events_outlet_status_idx").on(t.outletId, t.status, t.receivedAt),
   ],
 );
