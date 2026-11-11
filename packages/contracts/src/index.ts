@@ -20,6 +20,8 @@ export {
   vIdempotencyKey,
   vHours,
   vIdr,
+  type JwkOkp,
+  vJwkOkp,
   vLat,
   vLng,
   vLimit,

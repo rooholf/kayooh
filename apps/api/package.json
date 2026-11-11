@@ -14,6 +14,8 @@
     "test:concurrency": "vitest run test/t-01-concurrency.test.ts"
   },
   "dependencies": {
+    "@noble/ed25519": "^3.2.0",
+    "@noble/hashes": "^2.4.0",
     "@repo/contracts": "workspace:*",
     "@repo/db": "workspace:*",
     "better-auth": "^1.7.15",

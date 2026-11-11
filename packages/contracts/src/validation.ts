@@ -96,6 +96,20 @@ export const vCollateral = z
   })
   .strict();
 
+/* V-JWK-OKP: one Ed25519 public-key entry of the voucher JWKS (FR-SEC-01.1).
+   `x` is the 32-byte public key, base64url-encoded without padding (JWK).
+   Public keys are bundled in the staff app for the offline pre-check; only
+   the secret signing seed lives in server environment (FR-SEC-01.4). */
+export const vJwkOkp = z
+  .object({
+    kid: z.string().min(1).max(64),
+    kty: z.literal("OKP"),
+    crv: z.literal("Ed25519"),
+    x: z.string().regex(/^[A-Za-z0-9_-]{43}$/, "V-JWK-OKP"),
+  })
+  .strict();
+export type JwkOkp = z.infer<typeof vJwkOkp>;
+
 /* V-HOURS: object keys mon..sun, each an array of 0-2 intervals {open,close}
    "HH:MM" (24 h, minutes multiples of 15), open < close, no overlaps. */
 const vInterval = z

@@ -206,7 +206,8 @@ describe("T-16 (RNT-01.3): flagged scans leave state unchanged", () => {
     await assertUnchanged(ctx, "confirmed");
   });
 
-  it("reject VOUCHER_INVALID (bad HMAC) — the bike state stays untouched", async () => {
+  it("reject VOUCHER_INVALID (legacy v1. HMAC token) — the bike state stays untouched", async () => {
+    // The pre-EdDSA wire format must no longer verify (FR-SEC-01.1).
     const ctx = await setupCase();
     const { res } = await postCheckout(ctx, { voucherToken: "v1.not-a-reservation.99999999.deadbeef" });
     expect(res.statusCode).toBe(422);
