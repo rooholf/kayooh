@@ -77,12 +77,14 @@ jobs:
   opencode-fallback:
     if: needs.opencode.result == 'failure'
     needs: opencode
-    # Cap concurrent Agnes fallbacks so a burst of failing primaries (e.g. a
-    # parallel /oc batch all hitting CrowLLM's 5 req/min) doesn't pile up on
-    # Agnes and hit its own limits. Excess fallbacks queue, they don't cancel.
+    # Job-level concurrency: at most ONE Agnes fallback runs per group at a
+    # time; the rest queue (cancel-in-progress: false = never cancel). This
+    # prevents a parallel /oc batch (all primaries 429 on CrowLLM's 5 req/min)
+    # from piling up on Agnes at the same second. NOTE: `max-concurrent` is
+    # only valid at the *workflow* level, so it must not be added here.
     concurrency:
       group: opencode-agnes-fallback
-      max-concurrent: 2
+      cancel-in-progress: false
     runs-on: ubuntu-latest
     permissions:
       contents: write
