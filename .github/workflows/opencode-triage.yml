@@ -2,7 +2,15 @@
 # applies the matching persona label (mirroring AGENTS.md), and posts a short
 # routing note with the relevant SRS sections.
 #
-# Requires: secret CROWLLM_API_KEY.
+# Trigger: issues:opened only — every new issue is triaged exactly once.
+# (An "edited" trigger would re-run triage on every edit of any issue.)
+# Re-triage manually via workflow_dispatch (enter the issue number) or by
+# commenting `/oc @tpm re-triage this` on the issue itself.
+#
+# Model failover: if the primary CrowLLM run fails, an Agnes fallback job
+# retries the same triage on agnes/agnes-3.0-flash.
+#
+# Requires: secrets CROWLLM_API_KEY + AGNES_API_KEY.
 # Requires: secret OPENCODE_GITHUB_TOKEN (a PAT with repo scope) because the
 # default github.token cannot be passed to a reusable action in this mode.
 
@@ -10,7 +18,13 @@ name: opencode-triage
 
 on:
   issues:
-    types: [opened, edited]
+    types: [opened]
+  workflow_dispatch:
+    inputs:
+      issue_number:
+        description: "Number of the issue to triage"
+        required: true
+        type: string
 
 jobs:
   triage:
@@ -23,8 +37,14 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v6
         with:
+          token: ${{ secrets.OPENCODE_GITHUB_TOKEN }}
+          persist-credentials: true
           fetch-depth: 1
-          persist-credentials: false
+
+      - name: Configure git identity
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
 
       - name: Run OpenCode triage
         uses: anomalyco/opencode/github@latest
@@ -37,7 +57,11 @@ jobs:
           use_github_token: true
           prompt: |
             You are the Technical Project Manager persona (AGENTS.md #6) triaging a
-            newly opened GitHub issue for the Jambi Bike Rental Platform.
+            GitHub issue for the Jambi Bike Rental Platform.
+
+            Target issue: #${{ github.event.issue.number || github.event.inputs.issue_number }}
+            When triggered manually, read it first with
+            `gh issue view ${{ github.event.inputs.issue_number }}`.
 
             Do exactly this, then stop:
             1. Read the issue title and body.
@@ -53,7 +77,78 @@ jobs:
                - UI/UX Designer — flows, polish, accessibility audits.
                If scope is mixed, label the dominant owner and say so in the comment.
             3. Also apply 'enhancement' for features or 'bug' for defects when clear.
-            4. Post ONE short comment containing:
+            4. Post ONE short comment on the target issue containing:
+               - the assigned persona and one-line reason,
+               - the SRS sections/FRs that govern it (e.g. "FR-INV-02, §3.3"),
+               - the phase per SRS §12 and any blockers you can see from labels.
+
+            Rules:
+            - Reference SRS_Jambi_Bike_Rental_Platform.md for any requirement claim.
+            - Do not implement anything; do not open PRs or branches.
+            - If the issue re-introduces something SRS §11.4 excludes (renter
+              cancellation, GPS/bike tracking, digital deposits, digital ID
+              verification, dockless), label it wontfix and explain which rule
+              excludes it.
+
+  triage-fallback:
+    if: needs.triage.result == 'failure'
+    needs: triage
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      issues: write
+
+    steps:
+      - name: Announce fallback
+        run: |
+          echo "## Fallback run" >> "$GITHUB_STEP_SUMMARY"
+          echo "The primary triage run (crowllm/glm-5.3-flash:free) failed. Retrying" >> "$GITHUB_STEP_SUMMARY"
+          echo "on the Agnes fallback model (agnes/agnes-3.0-flash)." >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Checkout repository
+        uses: actions/checkout@v6
+        with:
+          token: ${{ secrets.OPENCODE_GITHUB_TOKEN }}
+          persist-credentials: true
+          fetch-depth: 1
+
+      - name: Configure git identity
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+      - name: Run OpenCode triage (Agnes fallback)
+        uses: anomalyco/opencode/github@latest
+        env:
+          AGNES_API_KEY: ${{ secrets.AGNES_API_KEY }}
+          GITHUB_TOKEN: ${{ secrets.OPENCODE_GITHUB_TOKEN }}
+        with:
+          model: agnes/agnes-3.0-flash
+          agent: tpm
+          use_github_token: true
+          prompt: |
+            You are the Technical Project Manager persona (AGENTS.md #6) triaging a
+            GitHub issue for the Jambi Bike Rental Platform.
+
+            Target issue: #${{ github.event.issue.number || github.event.inputs.issue_number }}
+            When triggered manually, read it first with
+            `gh issue view ${{ github.event.inputs.issue_number }}`.
+
+            Do exactly this, then stop:
+            1. Read the issue title and body.
+            2. Decide which project persona owns the work and apply exactly one
+               persona label (they mirror AGENTS.md):
+               - Lead Platform Architect — cross-cutting scope, invariants INV-1..6,
+                 module boundaries, NEG-1..8, repo-wide refactors.
+               - Backend Specialist — apps/api, packages/db, packages/contracts.
+               - Web Frontend Developer — apps/web.
+               - Offline PWA Engineer — apps/staff.
+               - Quality Assurance & SDET — tests, T-01..T-16, coverage gates.
+               - Technical Project Manager — planning, roadmap, backlog grooming.
+               - UI/UX Designer — flows, polish, accessibility audits.
+               If scope is mixed, label the dominant owner and say so in the comment.
+            3. Also apply 'enhancement' for features or 'bug' for defects when clear.
+            4. Post ONE short comment on the target issue containing:
                - the assigned persona and one-line reason,
                - the SRS sections/FRs that govern it (e.g. "FR-INV-02, §3.3"),
                - the phase per SRS §12 and any blockers you can see from labels.
