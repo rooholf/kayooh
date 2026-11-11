@@ -5,9 +5,10 @@
  * WhatsApp. The token grants `GET /reservations/{id}` and the voucher endpoint
  * for that reservation only (a guest token is not a session and never lists).
  *
- * Wire format mirrors lib/voucher.ts (FR-SEC-01): `v1.<reservationId>.<expUnix>.<hex(hmacSha256(secret, first 3)>)`.
- * Unlike the short-lived QR voucher, a guest token must outlive the rental, so
- * it carries a long TTL (30 days) and is verified against the server clock.
+ * Wire format (separate from the FR-SEC-01.1 EdDSA voucher JWT — a guest token
+ * is a long-lived access token, not a scan-time QR): `v1.<reservationId>.<expUnix>.<hex(hmacSha256(secret, first 3)>)`.
+ * A guest token must outlive the rental, so it carries a long TTL (30 days)
+ * and is verified against the server clock.
  */
 import { createHmac, timingSafeEqual } from "node:crypto";
 

@@ -2,6 +2,14 @@ import { vAssetTag, vPhotoKey } from "@repo/contracts";
 import { useEffect, useMemo, useState, type ReactNode } from "react";
 import type { BikeState, ChecklistStatus, EventType } from "../db/scan-events";
 import { staffConfig } from "../lib/config";
+import { tagHmacPrecheck, verifyVoucherOffline, type TagHmacConfig } from "../lib/voucher";
+
+/** FR-SEC-01.3: tag HMAC pre-check key material (build-time env, see config). */
+const TAG_HMAC_CFG: TagHmacConfig = {
+  keyId: staffConfig.tagHmac.keyId,
+  secret: staffConfig.tagHmac.secret,
+  revokedKeyIds: staffConfig.tagHmac.revokedKeyIds,
+};
 
 export type ScanMode = "checkout" | "checkin" | "incident" | "bike_status_change";
 
@@ -107,6 +115,20 @@ export function ScanSheet({ mode, focus = "voucher", blocked, onClose, onSubmit 
     checklistOk &&
     photoKeysOk &&
     !blocked;
+
+  /* Offline pre-checks (FR-SEC-01, plan A.3): advisory only — the queue
+     records the event regardless; the server re-verifies on sync. */
+  const voucherPrecheck = useMemo(() => {
+    const token = voucher.trim();
+    if (current !== "checkout" || token.length < 8) return null;
+    return verifyVoucherOffline(token, Date.now());
+  }, [voucher, current]);
+  const tagPrechecks =
+    current === "checkout" ? cleanedAssetTags.map((tag) => tagHmacPrecheck(tag, TAG_HMAC_CFG)) : [];
+  const tagsVerified = tagPrechecks.filter((v) => v.ok).length;
+  const tagsProblem = tagPrechecks.filter(
+    (v) => !v.ok && (v.code === "TAG_HMAC_MISMATCH" || v.code === "TAG_REVOKED_KEY"),
+  ).length;
 
   const reason = useMemo(() => {
     if (blocked) return "Antrean penuh — pindaian baru diblokir.";
@@ -234,18 +256,35 @@ export function ScanSheet({ mode, focus = "voucher", blocked, onClose, onSubmit 
           </div>
 
           {current === "checkout" && (
-            <Labelled label="Token voucher renter" hint="Dari QR milik renter">
-              <input
-                name="voucherToken"
-                value={voucher}
-                onChange={(e) => setVoucher(e.target.value)}
-                autoFocus={focus === "voucher"}
-                autoComplete="off"
-                spellCheck={false}
-                placeholder="vch_••••••"
-                className="w-full border-b-2 border-line bg-transparent py-[10px] font-mono text-[14px] outline-none focus:border-rule"
-              />
-            </Labelled>
+            <div>
+              <Labelled label="Token voucher renter" hint="Dari QR milik renter">
+                <input
+                  name="voucherToken"
+                  value={voucher}
+                  onChange={(e) => setVoucher(e.target.value)}
+                  autoFocus={focus === "voucher"}
+                  autoComplete="off"
+                  spellCheck={false}
+                  placeholder="eyJhbGci…EdDSA"
+                  className="w-full border-b-2 border-line bg-transparent py-[10px] font-mono text-[14px] outline-none focus:border-rule"
+                />
+              </Labelled>
+              {voucherPrecheck && (
+                <p
+                  role="status"
+                  aria-live="polite"
+                  className={`mt-1 font-mono text-[9px] font-medium uppercase tracking-[0.12em] ${
+                    voucherPrecheck.ok ? "text-rule" : "text-signal"
+                  }`}
+                >
+                  {voucherPrecheck.ok
+                    ? "Voucher valid · pratek lokal"
+                    : voucherPrecheck.code === "VOUCHER_EXPIRED"
+                      ? "Voucher kedaluwarsa · akan ditolak saat sinkron"
+                      : "Voucher tak valid · periksa token"}
+                </p>
+              )}
+            </div>
           )}
 
           {current === "checkout" ? (
@@ -291,6 +330,20 @@ export function ScanSheet({ mode, focus = "voucher", blocked, onClose, onSubmit 
               >
                 Tambah sepeda
               </button>
+              {tagsProblem > 0 && (
+                <p
+                  role="status"
+                  aria-live="polite"
+                  className="mt-2 font-mono text-[9px] font-medium uppercase tracking-[0.12em] text-signal"
+                >
+                  {tagsProblem} tag tak cocok · periksa stiker
+                </p>
+              )}
+              {tagsProblem === 0 && tagsVerified > 0 && (
+                <p className="mt-2 font-mono text-[9px] font-medium uppercase tracking-[0.12em] text-rule">
+                  {tagsVerified} tag terverifikasi · pratek lokal
+                </p>
+              )}
             </fieldset>
           ) : (
             <Labelled label="Kode sepeda" hint="Pindai tag atau ketik kodenya">
