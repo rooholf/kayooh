@@ -29,6 +29,7 @@ import { registerReservationRoutes } from "./modules/reservations/create-reserva
 import { registerReservationReadRoutes } from "./modules/reservations/get-reservation.js";
 import { registerReallocationRoutes } from "./modules/reservations/reallocation-routes.js";
 import { registerStaffRoutes } from "./modules/staff/routes.js";
+import { registerDevStorageRoutes } from "./modules/staff/dev-routes.js";
 import { registerAdminRoutes } from "./modules/admin/index.js";
 import { registerCatalogRoutes } from "./modules/catalog/index.js";
 import { registerPricingRoutes } from "./modules/pricing/index.js";
@@ -211,6 +212,8 @@ export async function buildApp(options: BuildAppOptions = {}): Promise<{
   // Dev-only payment auto-confirm (no-op in production).
   registerDevRoutes(app, { nodeEnv: env.nodeEnv, webhookSecret: env.paymentWebhookSecret });
   registerDevOwnerRoutes(app, { nodeEnv: env.nodeEnv });
+  // Dev-only fixture storage PUT sink (V-PHOTO-KEY; no-op in production).
+  registerDevStorageRoutes(app, { nodeEnv: env.nodeEnv });
 
   /* Better Auth scoped mount (raw body preserved for the BA handler). */
   await app.register(async (scope) => {

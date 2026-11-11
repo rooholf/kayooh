@@ -16,13 +16,20 @@
  */
 import { z } from "zod";
 import {
+  bikeStateSchema,
+} from "./admin";
+import {
   vAssetTag,
   vCategoryCode,
   vChecklist,
   vClientEventId,
   vCollateral,
+  vDate,
   vIdr,
+  vLimit,
+  vCursor,
   vPhotoKey,
+  vQty,
   vTextL,
   vTs,
   vUuid,
@@ -230,3 +237,69 @@ export const uploadUrlSchema = z
   .strict();
 
 export type UploadUrlInput = z.infer<typeof uploadUrlSchema>;
+
+/** POST /staff/photos/upload-url response (SRS 7.2): presigned PUT + the
+ * V-PHOTO-KEY object key the PWA must attach to the event. */
+export const uploadUrlResponseSchema = z
+  .object({
+    uploadUrl: z.string().url(),
+    key: vPhotoKey,
+    expiresAt: vTs,
+  })
+  .strict();
+export type UploadUrlResponse = z.infer<typeof uploadUrlResponseSchema>;
+
+/* ------------------------------------------------------------------ */
+/* Staff outlet reads (SRS 7.2 — plan C.2.2, issue #41)                 */
+/* ------------------------------------------------------------------ */
+
+/** GET /staff/outlet/bikes — filter by state/category, cursor pagination. */
+export const staffBikesQuerySchema = z
+  .object({
+    state: bikeStateSchema.optional(),
+    category: vCategoryCode.optional(),
+    limit: vLimit,
+    cursor: vCursor,
+  })
+  .strict();
+export type StaffBikesQuery = z.infer<typeof staffBikesQuerySchema>;
+
+/** One bike in the staff outlet list (SRS 7.2 response shape). */
+export const staffBikeItemSchema = z
+  .object({
+    bikeId: vUuid,
+    assetTag: vAssetTag,
+    category: vCategoryCode,
+    state: bikeStateSchema,
+  })
+  .strict();
+
+/** GET /staff/outlet/expected?date= — WIB calendar day (V-DATE). */
+export const staffExpectedQuerySchema = z.object({ date: vDate }).strict();
+export type StaffExpectedQuery = z.infer<typeof staffExpectedQuerySchema>;
+
+/** One reservation starting that day; the renter phone is MASKED (SRS 7.2). */
+export const staffExpectedItemSchema = z
+  .object({
+    reservationId: vUuid,
+    category: vCategoryCode,
+    quantity: vQty,
+    status: z.string(),
+    startsAt: vTs,
+    endsAt: vTs,
+    renterPhoneMasked: z.string(),
+  })
+  .strict();
+
+/** GET /staff/outlet/overdue — open rentals past expected_end_at. */
+export const staffOverdueItemSchema = z
+  .object({
+    rentalId: vUuid,
+    bikeAssetTag: vAssetTag,
+    renterPhoneMasked: z.string(),
+    checkedOutAt: vTs,
+    expectedEndAt: vTs,
+    escalationStage: z.number().int().min(0).max(4),
+  })
+  .strict();
+

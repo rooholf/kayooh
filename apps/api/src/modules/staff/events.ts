@@ -48,6 +48,7 @@ import { DEFAULT_CHANNEL_BY_TEMPLATE } from "../../lib/notifications.js";
 import { verifyVoucher } from "../../lib/voucher.js";
 import { AppError } from "../../lib/errors.js";
 import { getConfig } from "../app-config/index.js";
+import { verifyPhotoKeys } from "./photo-storage.js";
 import { flagReallocationCandidates } from "../reallocation/index.js";
 import { publishAvailability, pushOwnerEvent } from "../sse/index.js";
 
@@ -230,6 +231,8 @@ async function applyCheckout(tx: TxOrDb, event: StaffEventInput, ctx: StaffConte
   const photoCount = payload.data.photoKeys.length;
   const [minPhotos, maxPhotos] = await Promise.all([getConfig("condition.min_photos"), getConfig("condition.max_photos")]);
   if (photoCount < minPhotos || photoCount > maxPhotos) return rejected("VALIDATION_ERROR");
+  // V-PHOTO-KEY: HEAD existence + <= 5 MiB (only with storage configured).
+  if (!(await verifyPhotoKeys(payload.data.photoKeys))) return rejected("VALIDATION_ERROR");
 
   // Collateral is physically collected and logged (masked reference).
   if (!payload.data.collateral) return rejected("COLLATERAL_REQUIRED");
@@ -456,6 +459,8 @@ async function applyInspection(tx: TxOrDb, event: StaffEventInput, ctx: StaffCon
   if (payload.data.photoKeys.length < minPhotos || payload.data.photoKeys.length > maxPhotos) {
     return rejected("VALIDATION_ERROR");
   }
+  // V-PHOTO-KEY: HEAD existence + <= 5 MiB (only with storage configured).
+  if (!(await verifyPhotoKeys(payload.data.photoKeys))) return rejected("VALIDATION_ERROR");
   if (rental.mechanicalFailure && payload.data.result === "pass") {
     return flagged("RESULT_MISMATCH");
   }

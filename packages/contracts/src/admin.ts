@@ -95,7 +95,9 @@ export const patchOutletSchema = z
     lat: vLat.optional(),
     lng: vLng.optional(),
     hours: vHours.optional(),
-    status: ownerStatusSchema.optional(),
+    /** Postgres `outlets_status_check` allows active|inactive (owners use
+     * active|suspended — see patchOwnerSchema). */
+    status: z.enum(["active", "inactive"]).optional(),
   })
   .strict()
   .refine(
@@ -233,6 +235,17 @@ export const flaggedScanResolveSchema = z
   .object({ resolution: z.enum(["dismissed", "corrected"]), note: vTextL })
   .strict();
 export type FlaggedScanResolveBody = z.infer<typeof flaggedScanResolveSchema>;
+
+/** GET /admin/flagged-scans — paging over scan_events status='flagged'. */
+export const flaggedScanQuerySchema = z
+  .object({
+    /** Include already-resolved rows (default: unresolved queue only). */
+    includeResolved: z.enum(["true", "false"]).optional(),
+    limit: vLimit,
+    cursor: vCursor,
+  })
+  .strict();
+export type FlaggedScanQuery = z.infer<typeof flaggedScanQuerySchema>;
 
 /** GET /admin/audit-log filters (SRS 7.4). */
 export const auditLogQuerySchema = z

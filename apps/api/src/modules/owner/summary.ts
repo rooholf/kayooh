@@ -1,5 +1,6 @@
 import { eq, sql } from "@repo/db";
 import { outlets } from "@repo/db";
+import { maskPhone } from "../../lib/mask.js";
 import { withOwnerContext } from "./context.js";
 
 export interface BikeStateCounts {
@@ -36,11 +37,6 @@ export interface DashboardSummary {
   grossAccruedIdr: string;
 }
 
-function maskPhone(phone: string | null): string {
-  if (!phone) return "";
-  if (phone.length <= 8) return phone;
-  return phone.slice(0, 6) + "****" + phone.slice(-3);
-}
 
 function wibWeekBounds(now: Date): { start: Date; end: Date } {
   const off = 7 * 60 * 60 * 1000;
