@@ -1,4 +1,4 @@
-import { postEventBatch, type WireEvent } from "../api/client";
+import { postEventBatch, postHealthSync, type WireEvent } from "../api/client";
 import {
   BATCH_LIMIT,
   claimBatch,
@@ -15,6 +15,9 @@ import {
 export const BACKOFF_MS = [5_000, 15_000, 60_000, 300_000] as const;
 export const BACKOFF_CAP_MS = 300_000;
 
+/** A.2.7 — drift alert threshold; the server config `sync.drift_max_pct` wins. */
+export const DEFAULT_DRIFT_MAX_PCT = 1;
+
 export interface SyncSnapshot {
   online: boolean;
   running: boolean;
@@ -25,6 +28,8 @@ export interface SyncSnapshot {
   /** True when the last send failed on the network. */
   offlinePending: boolean;
   lastError: string | null;
+  /** A.2.7 — last health-sync drift above threshold, shown as an alert. */
+  driftAlert: { driftPct: number; at: string } | null;
 }
 
 type Listener = () => void;
@@ -56,6 +61,7 @@ class SyncEngine {
     nextRetryAt: null,
     offlinePending: false,
     lastError: null,
+    driftAlert: null,
   };
 
   subscribe = (listener: Listener): (() => void) => {
@@ -85,6 +91,45 @@ class SyncEngine {
   kick(): void {
     this.backoffIndex = 0;
     this.schedule(0);
+  }
+
+  /**
+   * A.2.5 (FR-INV-05.1) — drain the whole queue, batch by batch, before the
+   * caller posts `POST /staff/health-sync`, so the server's expected counts
+   * are computed AFTER the staff's physical events have landed.
+   * Resolves when the queue is empty or the send fails (backoff scheduled).
+   */
+  async flushQueue(): Promise<void> {
+    this.backoffIndex = 0;
+    for (;;) {
+      await this.drain();
+      if ((await queuedCount()) === 0 || this.state.offlinePending) return;
+    }
+  }
+
+  /**
+   * A.2.7 — post the health sync. `physicalCounts` is included when the staff
+   * member entered them; a returned `driftPct` above the configured
+   * `sync.drift_max_pct` (default 1) raises the visible drift alert.
+   */
+  async runHealthSync(physicalCounts?: Record<string, number>): Promise<void> {
+    try {
+      const result = await postHealthSync(new Date().toISOString(), physicalCounts);
+      if (
+        result.driftPct !== undefined &&
+        result.driftPct > DEFAULT_DRIFT_MAX_PCT
+      ) {
+        this.emit({
+          driftAlert: { driftPct: result.driftPct, at: new Date().toISOString() },
+        });
+      } else {
+        this.emit({ driftAlert: null });
+      }
+    } catch (error) {
+      this.emit({
+        lastError: error instanceof Error ? error.message : String(error),
+      });
+    }
   }
 
   private handleOnline = (): void => {
