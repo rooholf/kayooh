@@ -26,7 +26,7 @@ import { DashboardSkeleton } from "./_components/Skeleton";
 import type { DashboardSummary } from "./_lib/types";
 
 /** First seeded owner — dev convenience. */
-const DEV_OWNER_ID = "860d31d5-3233-4889-8c34-5818fddb55a5";
+const DEV_OWNER_ID = "e3eb7518-04b9-40fd-8d08-4ef63cd50a60";
 
 const API_BASE =
   process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:3001";
