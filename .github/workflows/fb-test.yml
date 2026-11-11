@@ -1,0 +1,26 @@
+# TEMPORARY controlled test: which if-conditions actually fire when a
+# dependent job's upstream job fails? Delete after running.
+name: fb-test
+
+on:
+  workflow_dispatch:
+
+jobs:
+  primary:
+    runs-on: ubuntu-latest
+    steps:
+      - run: exit 1
+
+  fallback-bare-result:
+    if: ${{ needs.primary.result == 'failure' }}
+    needs: primary
+    runs-on: ubuntu-latest
+    steps:
+      - run: echo "bare .result fired"
+
+  fallback-not-cancelled-and-result:
+    if: ${{ !cancelled() && (needs.primary.result == 'failure' || needs.primary.result == 'cancelled') }}
+    needs: primary
+    runs-on: ubuntu-latest
+    steps:
+      - run: echo "!cancelled() && .result fired"
