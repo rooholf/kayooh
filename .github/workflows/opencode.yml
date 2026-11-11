@@ -14,6 +14,9 @@
 # Requires: secret OPENCODE_GITHUB_TOKEN (PAT with repo scope). This workflow
 # uses use_github_token mode (no OpenCode GitHub App needed): the PAT powers
 # API calls, branch pushes and PRs, so it needs contents/issues/PR write.
+#
+# Branching (AGENTS.md §8): all runs branch from and PR into `staging`.
+# `main` is promotion-only and must never be used as a PR base by any agent.
 
 name: opencode
 
@@ -38,6 +41,7 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v6
         with:
+          ref: staging
           fetch-depth: 1
           # default persist-credentials: true — the checkout token stays in
           # .git/config so OpenCode can push the implementation branch.
@@ -46,6 +50,17 @@ jobs:
         run: |
           git config user.name "${{ github.actor }}"
           git config user.email "${{ github.actor_id }}+${{ github.actor }}@users.noreply.github.com"
+
+      - name: Branching rules for this run (AGENTS.md §8)
+        run: |
+          {
+            echo "## Branching rules"
+            echo "- Work on `staging`. Create your branch from the current `staging` HEAD."
+            echo "- Open your PR with **base `staging`** — never `main`."
+            echo "- Never push to or open a PR against `main` (promotion-only branch)."
+            echo "- If a review happens on a PR that targets `main`, open the fix"
+            echo "  as a new branch from `staging` with base `staging` instead."
+          } >> "$GITHUB_STEP_SUMMARY"
 
       - name: Resolve persona from issue label
         id: persona
@@ -93,12 +108,21 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v6
         with:
+          ref: staging
           fetch-depth: 1
 
       - name: Configure git identity
         run: |
           git config user.name "${{ github.actor }}"
           git config user.email "${{ github.actor_id }}+${{ github.actor }}@users.noreply.github.com"
+
+      - name: Branching rules for this run (AGENTS.md §8)
+        run: |
+          {
+            echo "## Branching rules (fallback run)"
+            echo "- Work on `staging`. Create your branch from the current `staging` HEAD."
+            echo "- Open your PR with **base `staging`** — never `main`."
+          } >> "$GITHUB_STEP_SUMMARY"
 
       - name: Resolve persona from issue label
         id: persona
