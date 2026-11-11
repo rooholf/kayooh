@@ -91,7 +91,7 @@ jobs:
               excludes it.
 
   triage-fallback:
-    if: needs.triage.result == 'failure'
+    if: ${{ needs.triage.result == 'failure' || needs.triage.result == 'cancelled' }}
     needs: triage
     runs-on: ubuntu-latest
     permissions:

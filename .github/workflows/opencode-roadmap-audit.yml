@@ -89,7 +89,7 @@ jobs:
             --body-file .github/roadmap-audit-report.md
 
   audit-fallback:
-    if: needs.audit.result == 'failure'
+    if: ${{ needs.audit.result == 'failure' || needs.audit.result == 'cancelled' }}
     needs: audit
     runs-on: ubuntu-latest
     permissions:
