@@ -1,0 +1,66 @@
+# Promote `staging` to `main` (AGENTS.md §8: main is promotion-only).
+#
+# On every push to staging, open (or keep) a staging -> main PR when staging
+# is ahead and no such PR is open. The PR is a fast-forward promotion: merge
+# it after the NFR-09 gates pass on staging. Never push to main directly.
+#
+# Requires: secret OPENCODE_GITHUB_TOKEN (PAT with repo scope, incl. PR write).
+# If the secret is not set, the run exits cleanly with an advisory — it must
+# not break staging pushes.
+
+name: sync-main
+
+on:
+  push:
+    branches: [staging]
+  workflow_dispatch: {}
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+
+    steps:
+      - name: Checkout staging
+        uses: actions/checkout@v6
+        with:
+          ref: staging
+          fetch-depth: 0
+
+      - name: Check promotion state
+        id: check
+        run: |
+          git fetch origin main --depth=1
+          if git merge-base --is-ancestor origin/main HEAD; then
+            echo "ahead=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "::warning::main is not an ancestor of staging — reconcile (merge main into staging) before opening a fast-forward PR."
+            echo "ahead=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Open or confirm staging -> main PR
+        if: steps.check.outputs.ahead == 'true'
+        env:
+          GH_TOKEN: ${{ secrets.OPENCODE_GITHUB_TOKEN }}
+        run: |
+          if [ -z "${GH_TOKEN:-}" ]; then
+            echo "::warning::OPENCODE_GITHUB_TOKEN is not set; skipping PR sync."
+            exit 0
+          fi
+          if gh pr list --base main --head staging --state open --json number --jq 'length' | grep -q '^0$'; then
+            base=$(git merge-base origin/main HEAD)
+            log=$(git log --oneline "${base}..HEAD" | head -20)
+            gh pr create --base main --head staging \
+              --title "Promote staging -> main (fast-forward)" \
+              --body "Automatic promotion from \`.github/workflows/sync-main.yml\` (AGENTS.md §8: main is promotion-only).
+
+            Merge this after the NFR-09 gates (lint, tsc, integration tests) pass on staging.
+
+            Commits:
+
+            ${log}"
+            echo "Opened staging -> main promotion PR."
+          else
+            echo "An open staging -> main PR already exists; nothing to do."
+          fi
