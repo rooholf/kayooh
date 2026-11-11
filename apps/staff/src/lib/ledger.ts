@@ -27,9 +27,9 @@ export function movement(event: ScanEvent): { masuk: number; keluar: number } {
     case "checkout":
       return { masuk: 0, keluar: 1 };
     case "bike_status_change": {
-      const to = event.payload.toState;
+      const to = event.payload.to;
       if (to === "available") return { masuk: 1, keluar: 0 };
-      if (to === "maintenance" || to === "unavailable" || to === "charging") {
+      if (to === "maintenance" || to === "unavailable") {
         return { masuk: 0, keluar: 1 };
       }
       return { masuk: 0, keluar: 0 };
@@ -41,25 +41,29 @@ export function movement(event: ScanEvent): { masuk: number; keluar: number } {
 
 function title(event: ScanEvent): string {
   if (event.type === "incident") return "INSIDEN";
-  return event.payload.bikeAssetTag ?? "—";
+  return event.payload.bikeAssetTag ?? event.payload.bikeAssetTags?.[0] ?? "—";
 }
 
 function detail(event: ScanEvent): string {
-  const phone = event.payload.renterPhoneMasked;
-  const note = event.payload.note;
   switch (event.type) {
-    case "checkout":
-      return phone ? `Serah terima · ${phone}` : "Serah terima";
+    case "checkout": {
+      const count = event.payload.bikeAssetTags?.length ?? 0;
+      return count > 1 ? `Serah terima · ${count} sepeda` : "Serah terima";
+    }
     case "checkin":
-      return phone ? `Pengembalian · ${phone}` : "Pengembalian";
+      return "Pengembalian";
     case "bike_status_change":
-      return event.payload.toState === "available"
-        ? `Kembali siap · ${note ?? "tanpa catatan"}`
-        : `Masuk perawatan · ${note ?? "tanpa catatan"}`;
+      return event.payload.to === "available"
+        ? `Kembali siap · ${event.payload.reason ?? "tanpa catatan"}`
+        : `Masuk ${event.payload.to === "unavailable" ? "tidak tersedia" : "perawatan"} · ${
+            event.payload.reason ?? "tanpa catatan"
+          }`;
     case "inspection":
-      return `Pemeriksaan · ${note ?? "kondisi dicatat"}`;
+      return event.payload.result === "pass"
+        ? "Pemeriksaan · lolos"
+        : `Pemeriksaan · ${event.payload.result === "damage_found" ? "ada kerusakan" : "butuh perawatan"}`;
     case "incident":
-      return `Laporan · ${note ?? "perlu tindak lanjut"}`;
+      return `Laporan · ${event.payload.notes ?? "perlu tindak lanjut"}`;
   }
 }
 

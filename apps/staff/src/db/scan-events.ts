@@ -23,17 +23,52 @@ export type BikeState =
   | "unavailable"
   | "charging";
 
+/**
+ * The local mirror of the wire payload (packages/contracts staff.ts). The
+ * server parses each type's payload with a `.strict()` schema, so a queued
+ * event may only carry the keys of its own type — extra keys are rejected
+ * `VALIDATION_ERROR` at sync (FR-OFF-01.3).
+ */
 export interface ScanEventPayload {
+  /** checkout: the tags of the bikes the renter takes; length =
+   * `reservation.quantity`, distinct (V-QTY, server-verified against the
+   * reservation row). */
   bikeAssetTags?: string[];
+  /** checkin / bike_status_change / incident: one bike tag. */
   bikeAssetTag?: string;
+  /** checkout: the signed voucher JWT (FR-SEC-01, max 2048 chars). */
   voucherToken?: string;
-  renterPhoneMasked?: string;
-  note?: string;
-  toState?: BikeState;
+  /** checkout + inspection: the fixed six-item condition checklist
+   * (V-CHECKLIST). */
   checklist?: Record<string, ChecklistStatus>;
+  /** checkout: 1 to 8 photos; inspection: 0 to 8 (>=1 when damage_found);
+   * incident: optional. */
   photoKeys?: string[];
+  /** checkout: physical collateral collected offline (V-COLLATERAL,
+   * REQUIRED — missing -> `COLLATERAL_REQUIRED`). */
   collateral?: { type: "ktp" | "sim" | "vehicle"; reference: string };
+  /** checkout: the offline 50% balance (final_idr - dp_idr; method
+   * cash|qris — wrong amount -> `BALANCE_MISMATCH`). */
   balanceCollection?: { amountIdr: number; method: "cash" | "qris" };
+  /** inspection: the `returned` rental being inspected (V-UUID; else
+   * `NOT_RETURNED`). */
+  rentalId?: string;
+  /** inspection: pass -> bike available; damage_found /
+   * maintenance_required -> maintenance. */
+  result?: "pass" | "damage_found" | "maintenance_required";
+  /** inspection: required when `damage_found` (V-TEXT-L); damage settles
+   * offline against the logged collateral (rev 1.1 — no claim amount). */
+  damageDescription?: string;
+  /** bike_status_change: target state (staff-legal only — else flagged
+   * `ILLEGAL_TRANSITION` / `ROLE_NOT_ALLOWED`). */
+  to?: "available" | "maintenance" | "unavailable";
+  /** bike_status_change: reason (V-TEXT-L). */
+  reason?: string;
+  /** incident: mechanical_failure (needs an open rental -> full DP refund),
+   * bike_missing / bike_damaged (FR-INV-04 reallocation). */
+  incidentType?: "mechanical_failure" | "bike_missing" | "bike_damaged";
+  /** incident: notes (V-TEXT-L). */
+  notes?: string;
 }
 
 /**

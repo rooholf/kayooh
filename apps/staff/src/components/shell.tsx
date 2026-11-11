@@ -4,6 +4,8 @@ import type { TabId } from "../lib/nav";
 const TABS: Array<{ id: TabId; label: string }> = [
   { id: "antrean", label: "Antrean" },
   { id: "sepeda", label: "Sepeda" },
+  { id: "lambat", label: "Lewat" },
+  { id: "terjadwal", label: "Terjadwal" },
   { id: "periksa", label: "Periksa" },
   { id: "akun", label: "Akun" },
 ];
@@ -35,10 +37,12 @@ interface TabBarProps {
 }
 
 export function TabBar({ active, onChange, queueBadge }: TabBarProps) {
+  const columns = TABS.length;
   return (
     <nav
       aria-label="Bagian aplikasi"
-      className="grid h-[68px] flex-none grid-cols-4 border-t-2 border-ink"
+      className="grid h-[68px] flex-none border-t-2 border-ink"
+      style={{ gridTemplateColumns: `repeat(${columns}, minmax(0, 1fr))` }}
     >
       {TABS.map((tab) => {
         const selected = tab.id === active;
@@ -48,7 +52,7 @@ export function TabBar({ active, onChange, queueBadge }: TabBarProps) {
             type="button"
             aria-current={selected ? "page" : undefined}
             onClick={() => onChange(tab.id)}
-            className={`relative flex items-center justify-center gap-1.5 border-l border-line/60 font-sans text-[10px] tracking-[0.06em] first:border-l-0 ${
+            className={`relative flex items-center justify-center gap-1.5 border-l border-line/60 px-[2px] font-sans text-[10px] tracking-[0.04em] first:border-l-0 ${
               selected ? "font-bold text-rule" : "font-medium text-ink/70"
             }`}
           >

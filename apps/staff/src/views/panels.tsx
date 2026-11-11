@@ -14,7 +14,7 @@ export function PanelHeader({ title, note }: { title: string; note: string }) {
   );
 }
 
-function Empty({ children }: { children: ReactNode }) {
+export function Empty({ children }: { children: ReactNode }) {
   return (
     <div className="px-[14px] py-6">
       <p className="border-2 border-dashed border-line px-3 py-6 text-center font-sans text-[12px] leading-snug text-ink/70">
@@ -89,7 +89,7 @@ export function QueueView({
             <li key={event.clientEventId} className="border-b border-line px-[14px] py-[10px]">
               <div className="flex items-baseline justify-between gap-3">
                 <b className="font-mono text-[12px] font-semibold">
-                  {event.payload.bikeAssetTag ?? event.type}
+                  {event.payload.bikeAssetTag ?? event.payload.bikeAssetTags?.[0] ?? event.type}
                 </b>
                 <span className="font-mono text-[10px] text-ink/70">
                   {formatTime(event.occurredAt)}
@@ -137,7 +137,9 @@ function inspectionsOf(events: ScanEvent[]): Inspection[] {
       open.set(tag, { assetTag: tag, at: event.occurredAt, note: "Baru kembali dari rental" });
     } else if (event.type === "checkout" || event.type === "inspection") {
       open.delete(tag);
-    } else if (event.type === "bike_status_change" && event.payload.toState !== "pending_inspection") {
+    } else if (event.type === "bike_status_change") {
+      // Any applied staff status move (available/maintenance/unavailable)
+      // clears the pending-inspection hold.
       open.delete(tag);
     }
   }
