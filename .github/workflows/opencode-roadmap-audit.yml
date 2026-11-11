@@ -53,6 +53,9 @@ jobs:
 
             Rules:
             - Every claim must cite an issue number, PR number, or file path.
+            - Do NOT run git commit, git push, git checkout or any branch
+              operation. Only write the report file — later workflow steps deliver
+              it (run summary + tracker issue comment). There is nothing to commit.
             - Do not implement anything; do not open branches or PRs.
             - Do not close or reopen issues; report only.
             - If ISSUE_SKILL_MAP.md is stale versus reality, say exactly what moved.
@@ -66,8 +69,8 @@ jobs:
             echo "No report produced — check the OpenCode step logs." >> "$GITHUB_STEP_SUMMARY"
           fi
 
-      - name: Post report to tracking issue (optional)
-        if: success() && env.TRACKER_ISSUE_NUMBER != ''
+      - name: Post report to tracking issue
+        if: success() && vars.TRACKER_ISSUE_NUMBER != ''
         env:
           GH_TOKEN: ${{ secrets.OPENCODE_GITHUB_TOKEN }}
           TRACKER_ISSUE_NUMBER: ${{ vars.TRACKER_ISSUE_NUMBER }}
