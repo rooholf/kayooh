@@ -77,19 +77,26 @@ function Field({ label, value, mono = false }: { label: string; value: string; m
   );
 }
 
-/** FR-OFF-01.1 — past 500 queued events, new scans are blocked with a warning. */
-export function CapNotice({ queued }: { queued: number }) {
-  if (queued < QUEUE_CAPACITY) return null;
+/**
+ * FR-OFF-01.1 / A.2.2 — past 500 queued events, new scans are blocked with a
+ * visible warning. `forced` mirrors a live `QueueFullError` from the enqueue
+ * path (capacity reached between renders): the same unmistakable alert shows
+ * even if the queued counter has not caught up yet.
+ */
+export function CapNotice({ queued, forced = false }: { queued: number; forced?: boolean }) {
+  if (queued < QUEUE_CAPACITY && !forced) return null;
   return (
     <div
       role="alert"
       className="flex-none border-y-2 border-signal bg-[var(--signal-tint)] px-[14px] py-2"
     >
       <p className="font-sans text-[11px] font-semibold leading-snug text-signal">
-        Antrean penuh — {queued} dari {QUEUE_CAPACITY} gerakan belum tersinkron.
+        Antrean penuh — {Math.max(queued, QUEUE_CAPACITY)} dari {QUEUE_CAPACITY} gerakan belum
+        tersinkron.
       </p>
       <p className="mt-0.5 font-sans text-[11px] leading-snug text-signal">
-        Pindaian baru diblokir sampai antrean terkirim. Jangan tutup aplikasi.
+        Pindaian baru diblokir sampai antrean terkirim. Gerakan ini TIDAK disimpan — jangan
+        tutup aplikasi.
       </p>
     </div>
   );

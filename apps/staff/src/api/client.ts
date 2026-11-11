@@ -26,3 +26,30 @@ export async function postEventBatch(events: WireEvent[]): Promise<ServerVerdict
   const body = (await res.json()) as { results?: ServerVerdict[] };
   return body.results ?? [];
 }
+
+/**
+ * FR-INV-05 / A.2.7 — `POST /staff/health-sync`. `physicalCounts` is sent
+ * when the staff member entered them; the server answers with `driftPct?`,
+ * and the client raises a drift alert above `sync.drift_max_pct`.
+ */
+export interface HealthSyncResult {
+  driftPct?: number;
+}
+
+export async function postHealthSync(
+  sentAt: string,
+  physicalCounts?: Record<string, number>,
+): Promise<HealthSyncResult> {
+  const res = await fetch(`${API_BASE}/staff/health-sync`, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({
+      sentAt,
+      ...(physicalCounts ? { physicalCounts } : {}),
+    }),
+    signal: AbortSignal.timeout(TIMEOUT_MS),
+  });
+  if (!res.ok) throw new Error(`Health-sync gagal (HTTP ${res.status})`);
+  const body = (await res.json()) as HealthSyncResult;
+  return { driftPct: body.driftPct };
+}
