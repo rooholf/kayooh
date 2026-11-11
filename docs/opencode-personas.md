@@ -93,6 +93,11 @@ checkout, 1.3 link-in-bio direct entry) and the currently open issues
 - The fallback job runs on *any* primary-job failure, not only model errors.
   If the primary failed for a non-model reason (e.g. a bad PAT), the fallback
   will fail the same way — read the primary job's logs first.
+- The fallback `if:` must keep its leading status-check function
+  (`!cancelled() &&`). GitHub auto-prepends `success()` to any `if:` that
+  contains no status-check function, so a bare `needs.<job>.result == 'failure'`
+  check silently evaluates to false and the fallback never fires (verified with
+  a controlled test, 2026-11-11 — do not "simplify" this condition).
 - The workflows run with broad write permissions on issues/PRs. Tighten
   `permissions:` per workflow if that concerns you.
 - `opencode-triage.yml` triggers on `issues: opened` only, so each issue is
