@@ -157,6 +157,10 @@ export const vChecklist = z
 export const vLimit = z.coerce.number().int().min(1).max(100).default(25);
 export const vCursor = z.string().max(256).optional();
 
+/* V-WEEK: ISO week key ^[0-9]{4}-W(0[1-9]|[1-4][0-9]|5[0-3])$ (settlements,
+ * statements, payouts — SRS 3.4 / 7.4). */
+export const vWeekKey = z.string().regex(/^[0-9]{4}-W(0[1-9]|[1-4][0-9]|5[0-3])$/, "V-WEEK");
+
 /* Idempotency-Key header (SRS 3.2): required on the marked POST routes. */
 export const vIdempotencyKey = z
   .string()

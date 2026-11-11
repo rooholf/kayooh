@@ -22,6 +22,7 @@
  */
 import { EventEmitter } from "node:events";
 import IORedis, { type Redis } from "ioredis";
+import type { AvailabilityEvent, BikeStateStreamEvent, RentalStreamEvent } from "@repo/contracts";
 import { availableNow, type QueryExecutor } from "../inventory/availability.js";
 
 const PUBLIC_CHANNEL = "sse:public";
@@ -29,26 +30,9 @@ const PUBLIC_CHANNEL = "sse:public";
 /** Owner-scoped channel: the server-side owner filter (FR-REP-02.2). */
 export const ownerChannel = (ownerId: string): string => `sse:owner:${ownerId}`;
 
-export type AvailabilityEvent = {
-  type: "availability";
-  outletId: string;
-  category: string;
-  availableNow: number;
-};
+export type { AvailabilityEvent };
 
-export type OwnerEvent =
-  | {
-      type: "rental";
-      outletId: string;
-      rentalId: string;
-      state: string;
-    }
-  | {
-      type: "bike_state";
-      outletId: string;
-      bikeAssetTag: string;
-      state: string;
-    };
+export type OwnerEvent = RentalStreamEvent | BikeStateStreamEvent;
 
 export type SseOutboundEvent = AvailabilityEvent | OwnerEvent;
 
