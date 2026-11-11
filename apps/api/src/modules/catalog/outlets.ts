@@ -45,17 +45,6 @@ interface OfferingRow {
  * `code` or by `id`. Returns the same item shape as the list (counts per
  * category only — NEG-2); `null` when inactive or unknown.
  */
-interface OutletRow {
-  id: string;
-  code: string;
-  name: string;
-  description: string | null;
-  address: string;
-  lat: string;
-  lng: string;
-  hours: unknown;
-}
-
 async function resolveOutletItem(
   where: { column: typeof outlets.code | typeof outlets.id; value: string },
   now: Date,

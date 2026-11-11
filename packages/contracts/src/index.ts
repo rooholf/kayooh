@@ -33,6 +33,7 @@ export {
   vTextS,
   vTs,
   vUuid,
+  vWeekKey,
   isValidNominalPhone,
   normalizeEmail,
   normalizePhone,
@@ -40,6 +41,10 @@ export {
 
 export * from "./reservations";
 export * from "./catalog";
+export * from "./staff";
+export * from "./admin";
+export * from "./owner";
+export * from "./sse";
 
 import * as v from "./validation";
 
@@ -53,7 +58,7 @@ export const categoryCodeSchema = v.vCategoryCode;
 export const assetTagSchema = v.vAssetTag;
 export const outletCodeSchema = v.vOutletCode;
 export const timestampSchema = z.string().datetime({ offset: false });
-export const weekKeySchema = z.string().regex(/^[0-9]{4}-W(0[1-9]|[1-4][0-9]|5[0-3])$/);
+export const weekKeySchema = v.vWeekKey;
 
 export type Uuid = z.infer<typeof uuidSchema>;
 export type Idr = z.infer<typeof idrSchema>;

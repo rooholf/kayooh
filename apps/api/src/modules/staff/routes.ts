@@ -11,44 +11,18 @@
  * arrival order, and `occurredAt` — not receivedAt — drives time rules.
  */
 import type { FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
-import { z } from "zod";
-import { ERROR_STATUS, vClientEventId, vTs } from "@repo/contracts";
+import {
+  ERROR_STATUS,
+  healthSyncSchema,
+  staffEventBatchSchema,
+  staffEventEnvelopeSchema,
+} from "@repo/contracts";
 import { db } from "@repo/db";
 import { AppError, validationError } from "../../lib/errors.js";
 import type { Principal } from "../identity/guards.js";
 import { requireRole } from "../identity/guards.js";
-import { applyStaffEvent, applyStaffEvents, type ScanVerdict, type StaffContext, type StaffEventType } from "./events.js";
+import { applyStaffEvent, applyStaffEvents, type ScanVerdict, type StaffContext } from "./events.js";
 import { runHealthSync } from "./health-sync.js";
-
-const STAFF_EVENT_TYPES: readonly StaffEventType[] = [
-  "checkout",
-  "checkin",
-  "inspection",
-  "bike_status_change",
-  "incident",
-];
-
-const staffEventSchema = z
-  .object({
-    clientEventId: vClientEventId,
-    occurredAt: vTs,
-    type: z.enum(["checkout", "checkin", "inspection", "bike_status_change", "incident"]),
-    payload: z.record(z.string().min(1), z.unknown()).default({}),
-  })
-  .strict();
-
-const batchSchema = z
-  .object({
-    events: z.array(staffEventSchema).min(1).max(50),
-  })
-  .strict();
-
-const healthSyncSchema = z
-  .object({
-    sentAt: vTs,
-    physicalCounts: z.record(z.string(), z.number().int().min(0)).optional(),
-  })
-  .strict();
 
 /** FR-ID-02.4: staff-role endpoint; staff operate from their own outlet. */
 function staffContext(request: FastifyRequest): StaffContext {
@@ -95,7 +69,7 @@ function respondVerdict(reply: FastifyReply, verdict: ScanVerdict): FastifyReply
 
 export function registerStaffRoutes(app: FastifyInstance): void {
   app.post("/api/v1/staff/events", { preHandler: requireRole("staff") }, async (request, reply) => {
-    const parsed = staffEventSchema.safeParse(request.body);
+    const parsed = staffEventEnvelopeSchema.safeParse(request.body);
     if (!parsed.success) throw validationError(parsed.error);
     const ctx = staffContext(request);
     const verdict = await applyStaffEvent(db, parsed.data, ctx);
@@ -103,7 +77,7 @@ export function registerStaffRoutes(app: FastifyInstance): void {
   });
 
   app.post("/api/v1/staff/events/batch", { preHandler: requireRole("staff") }, async (request, reply) => {
-    const parsed = batchSchema.safeParse(request.body);
+    const parsed = staffEventBatchSchema.safeParse(request.body);
     if (!parsed.success) throw validationError(parsed.error);
     const ctx = staffContext(request);
     // Ascending occurredAt application happens INSIDE the service call.
@@ -124,5 +98,3 @@ export function registerStaffRoutes(app: FastifyInstance): void {
     return reply.code(200).send(result);
   });
 }
-
-export { STAFF_EVENT_TYPES };

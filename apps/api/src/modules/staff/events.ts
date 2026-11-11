@@ -17,7 +17,6 @@
  * ascending `occurredAt` regardless of the arrival order, and every
  * time-based rule reads `occurredAt`, not receipt time.
  */
-import { z } from "zod";
 import { randomUUID } from "node:crypto";
 import { and, eq, sql } from "@repo/db";
 import {
@@ -34,15 +33,15 @@ import {
   type TxOrDb,
 } from "@repo/db";
 import {
-  vAssetTag,
-  vChecklist,
-  vCollateral,
-  vIdr,
-  vClientEventId,
-  vPhotoKey,
-  vTextL,
-  vTs,
-  vUuid,
+  checkinPayloadSchema,
+  checkoutPayloadSchema,
+  bikeStatusChangePayloadSchema,
+  incidentPayloadSchema,
+  inspectionPayloadSchema,
+  staffEventEnvelopeSchema,
+  type BikeState,
+  type RentalStatus,
+  type StaffEventType,
 } from "@repo/contracts";
 import { enqueueNotification } from "../notifications/index.js";
 import { DEFAULT_CHANNEL_BY_TEMPLATE } from "../../lib/notifications.js";
@@ -52,12 +51,7 @@ import { getConfig } from "../app-config/index.js";
 import { flagReallocationCandidates } from "../reallocation/index.js";
 import { publishAvailability, pushOwnerEvent } from "../sse/index.js";
 
-export type StaffEventType =
-  | "checkout"
-  | "checkin"
-  | "inspection"
-  | "bike_status_change"
-  | "incident";
+export type { StaffEventType };
 
 export type ScanStatus = "applied" | "flagged" | "rejected";
 
@@ -90,83 +84,13 @@ export interface StaffContext {
 interface StaffEffects {
   ownerId: string;
   category: string;
-  bikes?: Array<{ assetTag: string; state: string }>;
-  rentals?: Array<{ rentalId: string; state: string }>;
+  bikes?: Array<{ assetTag: string; state: BikeState }>;
+  rentals?: Array<{ rentalId: string; state: RentalStatus }>;
 }
 
 type ClassifyingVerdict =
   | { status: Exclude<ScanStatus, "applied">; reason: string }
   | { status: "applied"; effects?: StaffEffects };
-
-/* ------------------------------------------------------------------ */
-/* Wire schemas (strict, so unknown fields are rejected)               */
-/* ------------------------------------------------------------------ */
-
-const staffEventBaseSchema = z
-  .object({
-    clientEventId: vClientEventId,
-    occurredAt: vTs,
-    type: z.enum(["checkout", "checkin", "inspection", "bike_status_change", "incident"]),
-    payload: z.record(z.string().min(1), z.unknown()).default({}),
-  })
-  .strict();
-
-const checkoutPayloadSchema = z
-  .object({
-    voucherToken: z.string().min(8).max(2048),
-    bikeAssetTags: z.array(vAssetTag).min(1).max(64),
-    checklist: vChecklist,
-    photoKeys: z.array(vPhotoKey).max(64),
-    collateral: vCollateral.optional(),
-    balanceCollection: z
-      .object({
-        amountIdr: vIdr,
-        method: z.enum(["cash", "qris"]),
-      })
-      .optional(),
-  })
-  .strict();
-
-const checkinPayloadSchema = z.object({ bikeAssetTag: vAssetTag }).strict();
-
-const inspectionPayloadSchema = z
-  .object({
-    rentalId: vUuid,
-    result: z.enum(["pass", "damage_found", "maintenance_required"]),
-    checklist: vChecklist,
-    photoKeys: z.array(vPhotoKey).max(64),
-    damageDescription: vTextL.optional(),
-  })
-  .strict()
-  .superRefine((val, ctx) => {
-    if (
-      val.result === "damage_found" &&
-      (val.damageDescription === undefined || val.photoKeys.length < 1)
-    ) {
-      ctx.addIssue({
-        code: z.ZodIssueCode.custom,
-        message: "damage_found requires damageDescription and at least one photo",
-      });
-    }
-  });
-
-const bikeStatusPayloadSchema = z
-  .object({
-    bikeAssetTag: vAssetTag,
-    to: z.enum(["available", "maintenance", "unavailable"]),
-    reason: vTextL,
-  })
-  .strict();
-
-const incidentPayloadSchema = z
-  .object({
-    incidentType: z.enum(["mechanical_failure", "bike_missing", "bike_damaged"]),
-    bikeAssetTag: vAssetTag,
-    rentalId: vUuid.optional(),
-    notes: vTextL,
-    photoKeys: z.array(vPhotoKey).max(64).optional(),
-  })
-  .strict();
 
 /* ------------------------------------------------------------------ */
 /* Shared helpers                                                      */
@@ -364,8 +288,8 @@ async function applyCheckout(tx: TxOrDb, event: StaffEventInput, ctx: StaffConte
     .where(sql`${bikes.id} IN (${sql.join(orderedBikes.map((b) => sql`${b.id}::uuid`), sql`, `)})`);
 
   const collateral = payload.data.collateral;
-  const bikeEffects: Array<{ assetTag: string; state: string }> = [];
-  const rentalEffects: Array<{ rentalId: string; state: string }> = [];
+  const bikeEffects: Array<{ assetTag: string; state: BikeState }> = [];
+  const rentalEffects: Array<{ rentalId: string; state: RentalStatus }> = [];
 
   for (const [i, bike] of orderedBikes.entries()) {
     const rental = (await tx
@@ -582,7 +506,6 @@ async function applyInspection(tx: TxOrDb, event: StaffEventInput, ctx: StaffCon
 /* bike_status_change (section 5.1 transition table)                   */
 /* ------------------------------------------------------------------ */
 
-type BikeState = (typeof bikes.$inferSelect)["state"];
 
 function transitionAllowed(from: BikeState, to: Exclude<BikeState, "in_rental" | "pending_inspection" | "reserved" | "held" | "charging">): { ok: boolean; adminOnly?: boolean } {
   if (from === "available" && (to === "maintenance" || to === "unavailable")) return { ok: true };
@@ -592,7 +515,7 @@ function transitionAllowed(from: BikeState, to: Exclude<BikeState, "in_rental" |
 }
 
 async function applyBikeStatusChange(tx: TxOrDb, event: StaffEventInput, ctx: StaffContext): Promise<ClassifyingVerdict> {
-  const payload = bikeStatusPayloadSchema.safeParse(event.payload);
+  const payload = bikeStatusChangePayloadSchema.safeParse(event.payload);
   if (!payload.success) return rejected("VALIDATION_ERROR");
 
   const bike = (
@@ -769,7 +692,7 @@ export async function applyStaffEvents(db: Database, rawEvents: unknown[], ctx: 
   const events = [...rawEvents];
   type Work = StaffEventInput;
   const parsed = events.map((raw, index) => {
-    const base = staffEventBaseSchema.safeParse(raw);
+    const base = staffEventEnvelopeSchema.safeParse(raw);
     if (!base.success) {
       return {
         index,

@@ -5,7 +5,7 @@
  *
  * Re-running is a no-op once the outlets (by code) already exist.
  */
-import { db, eq, sql } from "./src/index.js";
+import { db, eq } from "./src/index.js";
 import {
   categories,
   owners,
@@ -83,7 +83,7 @@ async function main() {
       })
       .returning({ id: outlets.id });
 
-    const cats = (["commuter", "road", "mtb", "fixie"] as const).filter((c) => (net as any)[c] > 0);
+    const cats = (["commuter", "road", "mtb", "fixie"] as const).filter((c) => (net as Record<string, number>)[c] > 0);
     await db.insert(outletCategories).values(
       cats.map((c) => ({ outletId: outlet.id, category: c, ownerId: owner.id, safetyBuffer: 0 })),
     );

@@ -1,47 +1,16 @@
 import type { FastifyInstance } from "fastify";
-import { z } from "zod";
 import {
-  vCategoryCode,
-  vTs,
-  vUuid,
+  ownerBikesQuerySchema,
+  ownerCategoryParamsSchema,
+  ownerCategoryPatchSchema,
+  ownerRentalsQuerySchema,
+  ownerSettingsPatchSchema,
 } from "@repo/contracts";
 import { and, eq, sql, outletCategories, owners } from "@repo/db";
 import { AppError, validationError } from "../../lib/errors.js";
 import { requireRole } from "../identity/guards.js";
 import { withOwnerContext } from "./context.js";
 import { getDashboardSummary } from "./summary.js";
-
-const rentalsQuerySchema = z
-  .object({
-    status: z.enum(["open", "returned", "completed"]).optional(),
-    from: vTs.optional(),
-    to: vTs.optional(),
-    limit: z.coerce.number().int().min(1).max(100).default(20),
-    cursor: z.string().optional(),
-  })
-  .strict();
-
-const bikesQuerySchema = z
-  .object({
-    outletId: vUuid.optional(),
-    state: z.string().optional(),
-    category: vCategoryCode.optional(),
-    limit: z.coerce.number().int().min(1).max(100).default(20),
-    cursor: z.string().optional(),
-  })
-  .strict();
-
-const categoryPatchSchema = z
-  .object({
-    safetyBuffer: z.union([z.literal(0), z.literal(1)]),
-  })
-  .strict();
-
-const settingsPatchSchema = z
-  .object({
-    promoOptOut: z.boolean(),
-  })
-  .strict();
 
 export function registerOwnerRoutes(app: FastifyInstance): void {
   // GET /owner/dashboard/summary
@@ -56,7 +25,7 @@ export function registerOwnerRoutes(app: FastifyInstance): void {
   app.get("/api/v1/owner/rentals", { preHandler: requireRole("owner") }, async (request, reply) => {
     const principal = request.principal!;
     if (!principal.ownerId) throw new AppError("FORBIDDEN");
-    const parsed = rentalsQuerySchema.safeParse(request.query);
+    const parsed = ownerRentalsQuerySchema.safeParse(request.query);
     if (!parsed.success) throw validationError(parsed.error);
     const q = parsed.data;
     const rows = await withOwnerContext(principal.ownerId, async (tx) => {
@@ -85,7 +54,7 @@ export function registerOwnerRoutes(app: FastifyInstance): void {
   app.get("/api/v1/owner/bikes", { preHandler: requireRole("owner") }, async (request, reply) => {
     const principal = request.principal!;
     if (!principal.ownerId) throw new AppError("FORBIDDEN");
-    const parsed = bikesQuerySchema.safeParse(request.query);
+    const parsed = ownerBikesQuerySchema.safeParse(request.query);
     if (!parsed.success) throw validationError(parsed.error);
     const q = parsed.data;
     const rows = await withOwnerContext(principal.ownerId, async (tx) => {
@@ -110,9 +79,9 @@ export function registerOwnerRoutes(app: FastifyInstance): void {
 
   // PATCH /owner/outlets/:outletId/categories/:category
   app.patch("/api/v1/owner/outlets/:outletId/categories/:category", { preHandler: requireRole("owner") }, async (request, reply) => {
-    const params = z.object({ outletId: vUuid, category: vCategoryCode }).safeParse(request.params);
+    const params = ownerCategoryParamsSchema.safeParse(request.params);
     if (!params.success) throw validationError(params.error);
-    const body = categoryPatchSchema.safeParse(request.body);
+    const body = ownerCategoryPatchSchema.safeParse(request.body);
     if (!body.success) throw validationError(body.error);
     const principal = request.principal!;
     if (!principal.ownerId) throw new AppError("FORBIDDEN");
@@ -133,7 +102,7 @@ export function registerOwnerRoutes(app: FastifyInstance): void {
 
   // PATCH /owner/settings
   app.patch("/api/v1/owner/settings", { preHandler: requireRole("owner") }, async (request, reply) => {
-    const parsed = settingsPatchSchema.safeParse(request.body);
+    const parsed = ownerSettingsPatchSchema.safeParse(request.body);
     if (!parsed.success) throw validationError(parsed.error);
     const principal = request.principal!;
     if (!principal.ownerId) throw new AppError("FORBIDDEN");

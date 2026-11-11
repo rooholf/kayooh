@@ -1,61 +1,20 @@
 import type { FastifyInstance } from "fastify";
-import { z } from "zod";
 import {
-  vAssetTag,
-  vCategoryCode,
-  vHours,
-  vLat,
-  vLng,
-  vOutletCode,
-  vTextL,
-  vTextS,
-  vUuid,
+  bikeStateChangeSchema,
+  createBikeSchema,
+  createOutletSchema,
+  createOwnerSchema,
+  bulkBikesSchema,
+  idParamSchema,
 } from "@repo/contracts";
 import { AppError, validationError } from "../../lib/errors.js";
 import { requireRole } from "../identity/guards.js";
 import { db, bikes, bikeEvents, eq } from "@repo/db";
 import { createOwner, createOutlet, createBike, createBikesBulk } from "./onboarding.js";
 
-const ownerSchema = z
-  .object({
-    name: vTextS,
-    bankCode: vTextS,
-    bankAccountNumber: z.string().regex(/^[0-9]{6,20}$/),
-    bankAccountName: vTextS,
-  })
-  .strict();
-
-const outletSchema = z
-  .object({
-    ownerId: vUuid,
-    code: vOutletCode,
-    name: vTextS,
-    address: vTextS,
-    description: vTextL.optional(),
-    lat: vLat,
-    lng: vLng,
-    hours: vHours,
-    categories: z.array(vCategoryCode).min(1),
-  })
-  .strict();
-
-const bikeSchema = z
-  .object({
-    assetTag: vAssetTag,
-    category: vCategoryCode,
-    homeOutletId: vUuid,
-  })
-  .strict();
-
-const bulkSchema = z
-  .object({
-    items: z.array(bikeSchema).min(1).max(200),
-  })
-  .strict();
-
 export function registerAdminRoutes(app: FastifyInstance): void {
   app.post("/api/v1/admin/owners", { preHandler: requireRole("admin") }, async (request, reply) => {
-    const parsed = ownerSchema.safeParse(request.body);
+    const parsed = createOwnerSchema.safeParse(request.body);
     if (!parsed.success) throw validationError(parsed.error);
     const principal = request.principal!;
     const { id } = await createOwner({ ...parsed.data, actorId: principal.userId });
@@ -63,7 +22,7 @@ export function registerAdminRoutes(app: FastifyInstance): void {
   });
 
   app.post("/api/v1/admin/outlets", { preHandler: requireRole("admin") }, async (request, reply) => {
-    const parsed = outletSchema.safeParse(request.body);
+    const parsed = createOutletSchema.safeParse(request.body);
     if (!parsed.success) throw validationError(parsed.error);
     const principal = request.principal!;
     try {
@@ -76,7 +35,7 @@ export function registerAdminRoutes(app: FastifyInstance): void {
   });
 
   app.post("/api/v1/admin/bikes", { preHandler: requireRole("admin") }, async (request, reply) => {
-    const parsed = bikeSchema.safeParse(request.body);
+    const parsed = createBikeSchema.safeParse(request.body);
     if (!parsed.success) throw validationError(parsed.error);
     const principal = request.principal!;
     const { id } = await createBike({ ...parsed.data, actorId: principal.userId });
@@ -84,7 +43,7 @@ export function registerAdminRoutes(app: FastifyInstance): void {
   });
 
   app.post("/api/v1/admin/bikes/bulk", { preHandler: requireRole("admin") }, async (request, reply) => {
-    const parsed = bulkSchema.safeParse(request.body);
+    const parsed = bulkBikesSchema.safeParse(request.body);
     if (!parsed.success) throw validationError(parsed.error);
     const principal = request.principal!;
     const result = await createBikesBulk(parsed.data.items, principal.userId);
@@ -95,12 +54,9 @@ export function registerAdminRoutes(app: FastifyInstance): void {
   // Illegal transitions -> 409 STATE_CONFLICT; allowed ones write exactly one
   // bike_events row (INV-4).
   app.patch("/api/v1/admin/bikes/:id/state", { preHandler: requireRole("admin") }, async (request, reply) => {
-    const params = z.object({ id: vUuid }).safeParse(request.params);
+    const params = idParamSchema.safeParse(request.params);
     if (!params.success) throw validationError(params.error);
-    const body = z
-      .object({ to: z.enum(["available", "held", "reserved", "in_rental", "pending_inspection", "maintenance", "unavailable", "charging"]), reason: vTextL })
-      .strict()
-      .safeParse(request.body);
+    const body = bikeStateChangeSchema.safeParse(request.body);
     if (!body.success) throw validationError(body.error);
 
     const principal = request.principal!;

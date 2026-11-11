@@ -12,9 +12,8 @@
  *     database (skill directive): all delivery is push.
  */
 import type { FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
-import { z } from "zod";
 import { db } from "@repo/db";
-import { vCategoryCode, vTs, vUuid } from "@repo/contracts";
+import { outletStreamQuerySchema, type OutletStreamQuery } from "@repo/contracts";
 import { AppError, validationError } from "../../lib/errors.js";
 import { computeAvailability } from "../inventory/availability.js";
 import { requireRole, type Principal } from "../identity/guards.js";
@@ -100,18 +99,9 @@ export function registerSseRoutes(app: FastifyInstance): void {
   // and emits it — push-on-trigger, never a poll loop. Without a query the
   // stream broadcasts the raw SRS `availability` {…, availableNow} events for
   // every offering (instant window semantics).
-  const slotQuerySchema = z
-    .object({
-      outletId: vUuid,
-      category: vCategoryCode,
-      startsAt: vTs,
-      endsAt: vTs,
-    })
-    .strict();
-
   app.get("/api/v1/outlets/stream", async (request: FastifyRequest, reply: FastifyReply) => {
     const rawQuery = request.query as Record<string, string | undefined>;
-    const slotParse = slotQuerySchema.safeParse(
+    const slotParse = outletStreamQuerySchema.safeParse(
       rawQuery.outletId
         ? {
             outletId: rawQuery.outletId,
@@ -125,7 +115,7 @@ export function registerSseRoutes(app: FastifyInstance): void {
     if (rawQuery.outletId || rawQuery.startsAt || rawQuery.endsAt || rawQuery.category) {
       if (!slotParse.success) throw validationError(slotParse.error);
     }
-    const slot = slotParse.success ? (slotParse.data as z.infer<typeof slotQuerySchema> | null) : null;
+    const slot = slotParse.success ? (slotParse.data as OutletStreamQuery | null) : null;
     if (slot) {
       const s = new Date(slot.startsAt);
       const e = new Date(slot.endsAt);
