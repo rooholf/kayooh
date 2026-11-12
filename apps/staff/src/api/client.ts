@@ -2,9 +2,11 @@ import {
   staffBikeItemSchema,
   staffExpectedItemSchema,
   staffOverdueItemSchema,
+  uploadUrlResponseSchema,
   type StaffBikeItem,
   type StaffExpectedItem,
   type StaffOverdueItem,
+  type UploadUrlResponse,
 } from "@repo/contracts";
 import { cacheOutletRead, getCachedOutletRead } from "../db/outlet-reads";
 import type { EventType, ServerVerdict } from "../db/scan-events";
@@ -188,4 +190,42 @@ export async function postHealthSync(
   if (!res.ok) throw new Error(`Health-sync gagal (HTTP ${res.status})`);
   const body = (await res.json()) as HealthSyncResult;
   return { driftPct: body.driftPct };
+}
+
+/* ------------------------------------------------------------------ */
+/* Photo upload (SRS 7.2 — plan A.5, V-PHOTO-KEY)                      */
+/* ------------------------------------------------------------------ */
+
+/**
+ * A.5.2 — presign one photo upload (`POST /staff/photos/upload-url`).
+ * The response is schema-checked so a malformed `key` can never enter the
+ * event payload (V-PHOTO-KEY is re-verified server-side at sync).
+ */
+export async function postPhotoUploadUrl(
+  kind: "checklist" | "damage",
+  contentType: string,
+  sizeBytes: number,
+): Promise<UploadUrlResponse> {
+  const res = await fetch(`${API_BASE}/staff/photos/upload-url`, {
+    method: "POST",
+    headers: { "content-type": "application/json", ...staffHeaders() },
+    body: JSON.stringify({ kind, contentType, sizeBytes }),
+    signal: AbortSignal.timeout(TIMEOUT_MS),
+  });
+  if (!res.ok) throw new Error(`Presign gagal (HTTP ${res.status})`);
+  return uploadUrlResponseSchema.parse(await res.json());
+}
+
+/**
+ * A.5.2 — upload the object bytes DIRECTLY to storage (the presigned-style
+ * PUT; the API is not in the byte path). `application/octet-stream` is the
+ * contract of the presigned URL regardless of the image's own type.
+ */
+export async function putPhotoObject(uploadUrl: string, file: Blob): Promise<void> {
+  const res = await fetch(uploadUrl, {
+    method: "PUT",
+    headers: { "content-type": "application/octet-stream" },
+    body: file,
+  });
+  if (!res.ok) throw new Error(`Unggah foto gagal (HTTP ${res.status})`);
 }

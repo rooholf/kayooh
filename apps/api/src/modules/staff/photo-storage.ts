@@ -13,14 +13,15 @@
  * format-level V-PHOTO-KEY check applies.
  */
 import { randomUUID } from "node:crypto";
+import { MAX_PHOTO_BYTES, PHOTO_CONTENT_TYPES } from "@repo/contracts";
 
-export const MAX_PHOTO_BYTES = 5_242_880; // 5 MiB (SRS V-PHOTO-KEY)
+// Re-exported for the dev storage sink (single source: @repo/contracts).
+export { MAX_PHOTO_BYTES };
 
-const EXT_BY_CONTENT_TYPE: Record<string, string> = {
-  "image/jpeg": "jpg",
-  "image/png": "png",
-  "image/webp": "webp",
-};
+/** image/jpeg -> jpg, image/png -> png, image/webp -> webp. */
+const EXT_BY_CONTENT_TYPE: Record<string, string> = Object.fromEntries(
+  PHOTO_CONTENT_TYPES.map((type) => [type, type.slice("image/".length).replace("jpeg", "jpg")]),
+);
 
 export interface PhotoUpload {
   uploadUrl: string;

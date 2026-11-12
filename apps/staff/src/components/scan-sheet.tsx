@@ -1,6 +1,7 @@
-import { vAssetTag, vPhotoKey, vUuid } from "@repo/contracts";
-import { useEffect, useMemo, useState, type ReactNode } from "react";
+import { vAssetTag, vUuid } from "@repo/contracts";
+import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { formatIdr, estimateLateFeeIdr } from "../lib/late-fee";
+import { PHOTO_ACCEPT, uploadStaffPhoto, type PhotoKind } from "../lib/photos";
 import type { ChecklistStatus, EventType } from "../db/scan-events";
 import { staffConfig } from "../lib/config";
 import { tagHmacPrecheck, verifyVoucherOffline, type TagHmacConfig } from "../lib/voucher";
@@ -20,6 +21,18 @@ export type StaffToState = "available" | "maintenance" | "unavailable";
 
 export type InspectionResult = "pass" | "damage_found" | "maintenance_required";
 export type IncidentType = "mechanical_failure" | "bike_missing" | "bike_damaged";
+
+/**
+ * One photo slot of the A.5.2 upload flow: pick -> presign -> direct PUT ->
+ * the returned key sits in the slot until the draft is queued.
+ */
+interface PhotoSlot {
+  id: number;
+  status: "empty" | "uploading" | "done" | "error";
+  /** V-PHOTO-KEY issued by the server (status "done"). */
+  key?: string;
+  error?: string;
+}
 
 /**
  * One scan as composed by the sheet. `App` maps this to the per-type wire
@@ -108,7 +121,11 @@ export function ScanSheet({ mode, focus = "voucher", blocked, onClose, onSubmit 
   const [checklist, setChecklist] = useState<Record<string, ChecklistStatus>>(() =>
     Object.fromEntries(staffConfig.checklistItems.map((item) => [item, "ok" as ChecklistStatus])),
   );
-  const [photoKeys, setPhotoKeys] = useState<string[]>([""]);
+  const [photos, setPhotos] = useState<PhotoSlot[]>(() => [{ id: 0, status: "empty" }]);
+  const nextSlotId = useRef(1);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  /** The slot the open picker will fill (set right before input.click()). */
+  const pickTargetRef = useRef(0);
 
   useEffect(() => {
     const onKey = (event: KeyboardEvent) => {
@@ -149,7 +166,11 @@ export function ScanSheet({ mode, focus = "voucher", blocked, onClose, onSubmit 
       const v = checklist[item];
       return v === "ok" || v === "minor_issue" || v === "damaged";
     });
-  const cleanedPhotoKeys = photoKeys.map((k) => k.trim()).filter((k) => k.length > 0);
+  /** Keys that finished uploading — the only ones allowed into the payload. */
+  const uploadedPhotoKeys = photos.flatMap((slot) =>
+    slot.status === "done" && slot.key ? [slot.key] : [],
+  );
+  const uploadingPhotos = photos.some((slot) => slot.status === "uploading");
   /** Photos: checkout 1–8; inspection 0–8 (>=1 when damage_found); incident optional. */
   const minPhotos =
     current === "checkout"
@@ -160,9 +181,7 @@ export function ScanSheet({ mode, focus = "voucher", blocked, onClose, onSubmit 
   const photosVisible = current === "checkout" || current === "inspection" || current === "incident";
   const photoKeysOk =
     !photosVisible ||
-    (cleanedPhotoKeys.length >= minPhotos &&
-      cleanedPhotoKeys.length <= staffConfig.maxPhotos &&
-      cleanedPhotoKeys.every((k) => vPhotoKey.safeParse(k).success));
+    (uploadedPhotoKeys.length >= minPhotos && uploadedPhotoKeys.length <= staffConfig.maxPhotos);
   const lateMinutes = lateMinutesRaw.trim() === "" ? 0 : Number(lateMinutesRaw.trim());
   const lateMinutesOk =
     current !== "checkin" ||
@@ -182,6 +201,7 @@ export function ScanSheet({ mode, focus = "voucher", blocked, onClose, onSubmit 
     checklistOk &&
     photoKeysOk &&
     lateMinutesOk &&
+    !uploadingPhotos &&
     !blocked;
 
   /* Offline pre-checks (FR-SEC-01, plan A.3): advisory only — the queue
@@ -216,10 +236,10 @@ export function ScanSheet({ mode, focus = "voucher", blocked, onClose, onSubmit 
     if (current === "checkout" && !collateralOk) return "Isi referensi jaminan (KTP/SIM/kendaraan).";
     if (current === "checkout" && !balanceOk) return "Isi nominal saldo yang dikumpulkan.";
     if (current === "checkout" && !checklistOk) return "Lengkapi semua 6 item pemeriksaan.";
+    if (uploadingPhotos) return "Tunggu unggahan foto selesai.";
     if (current === "checkout" && !photoKeysOk) {
-      if (cleanedPhotoKeys.length < staffConfig.minPhotos) return `Minimal ${staffConfig.minPhotos} foto.`;
-      if (cleanedPhotoKeys.length > staffConfig.maxPhotos) return `Maksimal ${staffConfig.maxPhotos} foto.`;
-      return "Kunci foto tidak valid.";
+      if (uploadedPhotoKeys.length < staffConfig.minPhotos) return `Minimal ${staffConfig.minPhotos} foto.`;
+      return `Maksimal ${staffConfig.maxPhotos} foto.`;
     }
     if (current === "inspection" && !rentalIdOk)
       return "Isi ID rental (UUID) dari daftar Lewat / log pengembalian.";
@@ -241,7 +261,8 @@ export function ScanSheet({ mode, focus = "voucher", blocked, onClose, onSubmit 
     balanceOk,
     checklistOk,
     photoKeysOk,
-    cleanedPhotoKeys.length,
+    uploadingPhotos,
+    uploadedPhotoKeys.length,
     rentalIdOk,
     damageDescOk,
     notesOk,
@@ -272,7 +293,7 @@ export function ScanSheet({ mode, focus = "voucher", blocked, onClose, onSubmit 
               },
               {},
             ),
-            photoKeys: cleanedPhotoKeys,
+            photoKeys: uploadedPhotoKeys,
             collateral: { type: collateralType, reference: collateralRef.trim() },
             balanceCollection: { amountIdr: Number(balanceAmount.trim()), method: balanceMethod },
           }
@@ -289,7 +310,7 @@ export function ScanSheet({ mode, focus = "voucher", blocked, onClose, onSubmit 
               },
               {},
             ),
-            photoKeys: cleanedPhotoKeys,
+            photoKeys: uploadedPhotoKeys,
             ...(result === "damage_found" ? { damageDescription: note.trim() } : {}),
           }
         : {}),
@@ -297,27 +318,55 @@ export function ScanSheet({ mode, focus = "voucher", blocked, onClose, onSubmit 
         ? {
             incidentType,
             notes: note.trim(),
-            ...(cleanedPhotoKeys.length > 0 ? { photoKeys: cleanedPhotoKeys } : {}),
+            ...(uploadedPhotoKeys.length > 0 ? { photoKeys: uploadedPhotoKeys } : {}),
           }
         : {}),
       ...(current === "bike_status_change" ? { to: toState, reason: note.trim() } : {}),
     });
   }
 
-  function updatePhotoKey(index: number, value: string) {
-    setPhotoKeys((prev) => {
-      const next = [...prev];
-      next[index] = value;
-      return next;
+  /** Checklist photos document the condition; damage photos document defects. */
+  function photoKind(): PhotoKind {
+    if (current === "inspection") return result === "damage_found" ? "damage" : "checklist";
+    if (current === "incident") return "damage";
+    return "checklist";
+  }
+
+  function patchSlot(slotId: number, patch: Partial<PhotoSlot>): void {
+    setPhotos((prev) => prev.map((slot) => (slot.id === slotId ? { ...slot, ...patch } : slot)));
+  }
+
+  function openPicker(slotId: number): void {
+    pickTargetRef.current = slotId;
+    fileInputRef.current?.click();
+  }
+
+  /** A.5.2: presign + direct upload; the slot tracks the attempt's outcome. */
+  async function uploadToSlot(slotId: number, file: File): Promise<void> {
+    patchSlot(slotId, { status: "uploading", key: undefined, error: undefined });
+    try {
+      const key = await uploadStaffPhoto(file, photoKind());
+      patchSlot(slotId, { status: "done", key, error: undefined });
+    } catch (error) {
+      patchSlot(slotId, {
+        status: "error",
+        key: undefined,
+        error: error instanceof Error ? error.message : String(error),
+      });
+    }
+  }
+
+  function removeSlot(slotId: number): void {
+    const replacementId = nextSlotId.current++;
+    setPhotos((prev) => {
+      const next = prev.filter((slot) => slot.id !== slotId);
+      return next.length === 0 ? [{ id: replacementId, status: "empty" }] : next;
     });
   }
 
-  function addPhotoKey() {
-    setPhotoKeys((prev) => [...prev, ""]);
-  }
-
-  function removePhotoKey(index: number) {
-    setPhotoKeys((prev) => (prev.length <= 1 ? [""] : prev.filter((_, i) => i !== index)));
+  function addSlot(): void {
+    const id = nextSlotId.current++;
+    setPhotos((prev) => [...prev, { id, status: "empty" }]);
   }
 
   const singleTagInput =
@@ -752,35 +801,80 @@ export function ScanSheet({ mode, focus = "voucher", blocked, onClose, onSubmit 
                       ? `Foto kondisi · 0–${staffConfig.maxPhotos}`
                       : `Foto · opsional, maksimal ${staffConfig.maxPhotos}`}
               </legend>
-              {photoKeys.map((key, index) => (
-                <div key={index} className="flex items-center gap-2 border-b border-line py-[6px]">
-                  <input
-                    name="photoKeys"
-                    value={key}
-                    onChange={(e) => updatePhotoKey(index, e.target.value)}
-                    autoComplete="off"
-                    spellCheck={false}
-                    placeholder="uploads/checklist/••••.jpg"
-                    className="min-h-[44px] flex-1 border-b-2 border-line bg-transparent py-[6px] font-mono text-[12px] outline-none focus:border-rule"
-                  />
-                  <button
-                    type="button"
-                    onClick={() => removePhotoKey(index)}
-                    className="min-h-[44px] px-2 font-sans text-[12px] font-semibold text-rule"
-                    aria-label="Hapus foto"
-                  >
-                    Hapus
-                  </button>
+              {photos.map((slot) => (
+                <div
+                  key={slot.id}
+                  className="flex min-h-[44px] items-center justify-between gap-2 border-b border-line py-[6px]"
+                >
+                  {slot.status === "done" ? (
+                    <>
+                      <span
+                        className="min-w-0 flex-1 truncate font-mono text-[11px] text-ink"
+                        title={slot.key}
+                      >
+                        {slot.key}
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => removeSlot(slot.id)}
+                        className="min-h-[44px] px-2 font-sans text-[12px] font-semibold text-rule"
+                        aria-label="Hapus foto"
+                      >
+                        Hapus
+                      </button>
+                    </>
+                  ) : (
+                    <>
+                      <span
+                        role="status"
+                        aria-live="polite"
+                        className={`min-w-0 flex-1 truncate font-sans text-[12px] ${
+                          slot.status === "error" ? "text-signal" : "text-ink/60"
+                        }`}
+                      >
+                        {slot.status === "uploading"
+                          ? "Mengunggah…"
+                          : slot.status === "error"
+                            ? slot.error
+                            : "Belum ada foto"}
+                      </span>
+                      {slot.status !== "uploading" && (
+                        <button
+                          type="button"
+                          onClick={() => openPicker(slot.id)}
+                          className="min-h-[44px] border-2 border-ink px-3 font-sans text-[12px] font-semibold text-ink"
+                        >
+                          {slot.status === "error" ? "Ulangi" : "Ambil foto"}
+                        </button>
+                      )}
+                    </>
+                  )}
                 </div>
               ))}
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept={PHOTO_ACCEPT}
+                capture="environment"
+                className="hidden"
+                onChange={(event) => {
+                  const file = event.target.files?.[0];
+                  event.target.value = "";
+                  if (file) void uploadToSlot(pickTargetRef.current, file);
+                }}
+              />
               <button
                 type="button"
-                onClick={addPhotoKey}
-                disabled={photoKeys.length >= staffConfig.maxPhotos}
+                onClick={addSlot}
+                disabled={photos.length >= staffConfig.maxPhotos}
                 className="mt-2 min-h-[44px] w-full border-2 border-ink font-sans text-[12px] font-semibold text-ink disabled:cursor-not-allowed disabled:border-ink/30 disabled:text-ink/40"
               >
                 Tambah foto
               </button>
+              <p className="mt-2 font-sans text-[10px] leading-snug text-ink/70">
+                JPG, PNG, atau WebP hingga 5 MB. Foto diunggah langsung ke
+                penyimpanan; kuncinya yang disimpan bersama pindaian.
+              </p>
             </fieldset>
           )}
         </div>
