@@ -32,6 +32,10 @@ jobs:
       contains(github.event.comment.body, '/oc') ||
       contains(github.event.comment.body, '/opencode')
     runs-on: ubuntu-latest
+    # Cap a hung run (e.g. an unanswered permission prompt, or a stalled
+    # stream) so it can't burn a ~90-min runner. A healthy agent session on
+    # these tasks finishes well within 60 min; anything beyond is a hang.
+    timeout-minutes: 60
     permissions:
       contents: write
       issues: write
@@ -90,9 +94,24 @@ jobs:
           use_github_token: true
 
   opencode-fallback:
-    if: needs.opencode.result == 'failure'
+    # An if: with no status-check function gets success() auto-prepended by
+    # GitHub, so a bare `.result == 'failure'` check is ALWAYS false when the
+    # primary failed — that is why the fallback never fired. Prefixing
+    # !cancelled() (a status-check function) opts the job in. The .result
+    # clause then selects the outcomes we care about: failure, or cancelled
+    # (GitHub cancels the primary when a run is re-triggered / new commit
+    # lands). A fully cancelled run stays skipped (!cancelled() = false).
+    if: ${{ !cancelled() && (needs.opencode.result == 'failure' || needs.opencode.result == 'cancelled') }}
     needs: opencode
+    # No job-level concurrency group here: a queued fallback job gets CANCELLED
+    # when its own run completes while it waits on another run's slot, so a
+    # cross-run queue silently loses the fallback. Fallbacks therefore start
+    # concurrently (a parallel /oc batch can run N Agnes sessions at once —
+    # acceptable for a paid key) rather than being "serialized".
     runs-on: ubuntu-latest
+    # Same hang-cap as the primary job: a stalled permission prompt or stream
+    # must not burn a 90-min runner. 60 min is plenty for a real session.
+    timeout-minutes: 60
     permissions:
       contents: write
       issues: write
