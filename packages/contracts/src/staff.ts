@@ -227,12 +227,25 @@ export const healthSyncSchema = z
 
 export type HealthSyncInput = z.infer<typeof healthSyncSchema>;
 
+/**
+ * A.5.1 / FR-RNT-01 photo upload bounds (V-PHOTO-KEY): one source for the
+ * API (presign endpoint, HEAD size check) and the PWA (picker guard).
+ */
+export const MAX_PHOTO_BYTES = 5_242_880; // 5 MiB
+
+/** The image content types a photo may have; the accept list of the picker. */
+export const PHOTO_CONTENT_TYPES = ["image/jpeg", "image/png", "image/webp"] as const;
+
+const PHOTO_CONTENT_TYPE_PATTERN = new RegExp(
+  `^image\\/(?:${PHOTO_CONTENT_TYPES.map((t) => t.slice("image/".length)).join("|")})$`,
+);
+
 /** A.5.1 / FR-RNT-01 photo upload: presigned URL request, <= 5 MiB images. */
 export const uploadUrlSchema = z
   .object({
     kind: z.enum(["checklist", "damage"]),
-    contentType: z.string().regex(/^image\/(jpeg|png|webp)$/, "V-PHOTO-KEY"),
-    sizeBytes: z.number().int().min(1).max(5_242_880),
+    contentType: z.string().regex(PHOTO_CONTENT_TYPE_PATTERN, "V-PHOTO-KEY"),
+    sizeBytes: z.number().int().min(1).max(MAX_PHOTO_BYTES),
   })
   .strict();
 
