@@ -1,14 +1,12 @@
 /**
- * T-14 (NFR-11) — PR D: boundary values for owner, admin config, flagged
- * scans, and audit-log schemas. Each case sends n-1/n+1 (or a malformed
- * value) and asserts 400 `VALIDATION_ERROR` with `details[].path`.
- *
- * One auth session per test, re-seeded after each truncateAll.
+ * T-14 (NFR-11) — PR D: boundary values for owner, admin config,
+ * flagged-scans, and audit-log schemas. Each case sends n-1/n+1 (or a
+ * malformed value) and asserts 400 `VALIDATION_ERROR` with
+ * `details[].path` where the route parses the schema itself.
  */
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import { randomUUID } from "node:crypto";
-import { buildTestApp, seedAdmin, sessionCookie, truncateAll, type TestApp } from "./helpers.js";
-import { seedOwner } from "./helpers.js";
+import { buildTestApp, seedAdmin, seedOwner, sessionCookie, truncateAll, type TestApp } from "./helpers.js";
 
 let t: TestApp;
 
@@ -31,118 +29,193 @@ function expectBoundary(res: { statusCode: number; body: string }, path: string)
   expect(body.error.details?.some((d) => d.path === path || d.path?.endsWith(path))).toBe(true);
 }
 
+async function ownerCookie(): Promise<string> {
+  const owner = await seedOwner("owner-t14d@kayooh.test");
+  const login = await t.app.inject({
+    method: "POST",
+    url: "/api/auth/sign-in/email",
+    payload: { email: owner.email, password: owner.password },
+  });
+  expect(login.statusCode).toBe(200);
+  return sessionCookie(login.headers["set-cookie"]);
+}
+
 async function adminCookie(): Promise<string> {
   const admin = await seedAdmin();
-  const login = await t.app.inject({ method: "POST", url: "/api/auth/sign-in/email", payload: { email: admin.email, password: admin.password } });
+  const login = await t.app.inject({
+    method: "POST",
+    url: "/api/auth/sign-in/email",
+    payload: { email: admin.email, password: admin.password },
+  });
+  expect(login.statusCode).toBe(200);
   return sessionCookie(login.headers["set-cookie"]);
 }
 
-async function ownerCookie(email: string, password: string): Promise<string> {
-  const login = await t.app.inject({ method: "POST", url: "/api/auth/sign-in/email", payload: { email, password } });
-  return sessionCookie(login.headers["set-cookie"]);
-}
-
-describe("T-14 (PR D): owner boundary values", () => {
-  it("rentals/bikes query params + category + settings -> 400", async () => {
-    const owner = await seedOwner("owner-t14d@kayooh.test");
-    const cookie = await ownerCookie(owner.email, owner.password);
-
-    // GET /owner/rentals
+describe("T-14 (PR D): owner read/mutation boundary values", () => {
+  it("GET /owner/rentals query boundaries -> 400", async () => {
+    const cookie = await ownerCookie();
     const r1 = await t.app.inject({ method: "GET", url: "/api/v1/owner/rentals?status=foo", headers: { cookie } });
     expectBoundary(r1, "status");
     const r2 = await t.app.inject({ method: "GET", url: "/api/v1/owner/rentals?limit=0", headers: { cookie } });
     expectBoundary(r2, "limit");
-    const r2b = await t.app.inject({ method: "GET", url: "/api/v1/owner/rentals?limit=101", headers: { cookie } });
-    expectBoundary(r2b, "limit");
+    const r3 = await t.app.inject({ method: "GET", url: "/api/v1/owner/rentals?limit=101", headers: { cookie } });
+    expectBoundary(r3, "limit");
+    const r4 = await t.app.inject({ method: "GET", url: `/api/v1/owner/rentals?cursor=${"a".repeat(257)}`, headers: { cookie } });
+    expectBoundary(r4, "cursor");
+    const r5 = await t.app.inject({ method: "GET", url: "/api/v1/owner/rentals?from=not-a-ts", headers: { cookie } });
+    expectBoundary(r5, "from");
+    const r6 = await t.app.inject({ method: "GET", url: "/api/v1/owner/rentals?foo=bar", headers: { cookie } });
+    expect(r6.statusCode).toBe(400);
+    expect(JSON.parse(r6.body).error.code).toBe("VALIDATION_ERROR");
+  });
 
-    // GET /owner/bikes
-    const r3 = await t.app.inject({ method: "GET", url: "/api/v1/owner/bikes?outletId=zzz", headers: { cookie } });
-    expectBoundary(r3, "outletId");
-    const r4 = await t.app.inject({ method: "GET", url: "/api/v1/owner/bikes?state=foo", headers: { cookie } });
-    expectBoundary(r4, "state");
-    const r5 = await t.app.inject({ method: "GET", url: `/api/v1/owner/bikes?category=${"x".repeat(17)}`, headers: { cookie } });
-    expectBoundary(r5, "category");
+  it("GET /owner/bikes query boundaries -> 400", async () => {
+    const cookie = await ownerCookie();
+    const r1 = await t.app.inject({ method: "GET", url: "/api/v1/owner/bikes?outletId=zzz", headers: { cookie } });
+    expectBoundary(r1, "outletId");
+    const r2 = await t.app.inject({ method: "GET", url: "/api/v1/owner/bikes?state=bogus", headers: { cookie } });
+    expectBoundary(r2, "state");
+    // category: vCategoryCode is 2-16 chars
+    const r3 = await t.app.inject({ method: "GET", url: "/api/v1/owner/bikes?category=x", headers: { cookie } });
+    expectBoundary(r3, "category");
+    const r4 = await t.app.inject({ method: "GET", url: `/api/v1/owner/bikes?category=${"x".repeat(17)}`, headers: { cookie } });
+    expectBoundary(r4, "category");
+  });
 
-    // PATCH /owner/outlets/:outletId/categories/:category
-    const r6 = await t.app.inject({ method: "PATCH", url: "/api/v1/owner/outlets/not-a-uuid/categories/commuter", headers: { cookie }, payload: { safetyBuffer: 0 } });
-    expectBoundary(r6, "outletId");
-    const r7 = await t.app.inject({ method: "PATCH", url: `/api/v1/owner/outlets/${randomUUID()}/categories/commuter`, headers: { cookie }, payload: { safetyBuffer: 2 } });
-    expectBoundary(r7, "safetyBuffer");
+  it("PATCH /owner/outlets/:outletId/categories/:category -> 400", async () => {
+    const cookie = await ownerCookie();
+    const r1 = await t.app.inject({
+      method: "PATCH",
+      url: "/api/v1/owner/outlets/not-a-uuid/categories/commuter",
+      headers: { cookie },
+      payload: { safetyBuffer: 0 },
+    });
+    expectBoundary(r1, "outletId");
+    const r2 = await t.app.inject({
+      method: "PATCH",
+      url: `/api/v1/owner/outlets/${randomUUID()}/categories/${"x".repeat(17)}`,
+      headers: { cookie },
+      payload: { safetyBuffer: 0 },
+    });
+    expectBoundary(r2, "category");
+    const r3 = await t.app.inject({
+      method: "PATCH",
+      url: `/api/v1/owner/outlets/${randomUUID()}/categories/commuter`,
+      headers: { cookie },
+      payload: { safetyBuffer: 2 },
+    });
+    expectBoundary(r3, "safetyBuffer");
+  });
 
-    // PATCH /owner/settings
-    const r8 = await t.app.inject({ method: "PATCH", url: "/api/v1/owner/settings", headers: { cookie }, payload: { promoOptOut: "yes" } });
-    expectBoundary(r8, "promoOptOut");
-    const r9 = await t.app.inject({ method: "PATCH", url: "/api/v1/owner/settings", headers: { cookie }, payload: { promoOptOut: true, foo: "bar" } });
-    expect(r9.statusCode).toBe(400);
-    expect(JSON.parse(r9.body).error.code).toBe("VALIDATION_ERROR");
+  it("PATCH /owner/settings -> 400", async () => {
+    const cookie = await ownerCookie();
+    const r1 = await t.app.inject({
+      method: "PATCH",
+      url: "/api/v1/owner/settings",
+      headers: { cookie },
+      payload: { promoOptOut: "yes" },
+    });
+    expectBoundary(r1, "promoOptOut");
+    const r2 = await t.app.inject({
+      method: "PATCH",
+      url: "/api/v1/owner/settings",
+      headers: { cookie },
+      payload: { promoOptOut: true, foo: 1 },
+    });
+    expect(r2.statusCode).toBe(400);
+    expect(JSON.parse(r2.body).error.code).toBe("VALIDATION_ERROR");
   });
 });
 
 describe("T-14 (PR D): admin config boundary values", () => {
-  it("config patch key regex / value type / unknown key / strictness", async () => {
+  it("PATCH /admin/config key regex / value type / unknown key / strictness", async () => {
     const cookie = await adminCookie();
-
-    // key fails the registry key regex
-    const r1 = await t.app.inject({ method: "PATCH", url: "/api/v1/admin/config", headers: { cookie }, payload: { key: "BAD_KEY", value: 1 } });
+    // key fails the regex ^[a-z][a-z0-9_.]{1,99}$ (uppercase)
+    const r1 = await t.app.inject({
+      method: "PATCH",
+      url: "/api/v1/admin/config",
+      headers: { cookie },
+      payload: { key: "NOT_A_VALID_KEY", value: 1 },
+    });
     expectBoundary(r1, "key");
-
-    // value fails the key's registered schema (condition.min_photos is positiveInt)
-    const r2 = await t.app.inject({ method: "PATCH", url: "/api/v1/admin/config", headers: { cookie }, payload: { key: "condition.min_photos", value: 0 } });
+    // value type-checks against the key's registry schema (condition.min_photos is positiveInt)
+    const r2 = await t.app.inject({
+      method: "PATCH",
+      url: "/api/v1/admin/config",
+      headers: { cookie },
+      payload: { key: "condition.min_photos", value: 0 },
+    });
     expect(r2.statusCode).toBe(400);
     expect(JSON.parse(r2.body).error.code).toBe("VALIDATION_ERROR");
-
-    // unknown (but regex-valid) key -> 404 NOT_FOUND
-    const r3 = await t.app.inject({ method: "PATCH", url: "/api/v1/admin/config", headers: { cookie }, payload: { key: "nope.key", value: 1 } });
+    // unknown key -> 404 NOT_FOUND
+    const r3 = await t.app.inject({
+      method: "PATCH",
+      url: "/api/v1/admin/config",
+      headers: { cookie },
+      payload: { key: "nope.nope", value: 1 },
+    });
     expect(r3.statusCode).toBe(404);
     expect(JSON.parse(r3.body).error.code).toBe("NOT_FOUND");
-
-    // strictness: no extra fields
-    const r4 = await t.app.inject({ method: "PATCH", url: "/api/v1/admin/config", headers: { cookie }, payload: { key: "condition.min_photos", value: 5, foo: "bar" } });
+    // strictness
+    const r4 = await t.app.inject({
+      method: "PATCH",
+      url: "/api/v1/admin/config",
+      headers: { cookie },
+      payload: { key: "condition.min_photos", value: 5, foo: "bar" },
+    });
     expect(r4.statusCode).toBe(400);
     expect(JSON.parse(r4.body).error.code).toBe("VALIDATION_ERROR");
   });
 });
 
 describe("T-14 (PR D): flagged scans boundary values", () => {
-  it("list query + resolve id/body boundaries -> 400", async () => {
+  it("GET /admin/flagged-scans query boundaries -> 400", async () => {
     const cookie = await adminCookie();
-
     const r1 = await t.app.inject({ method: "GET", url: "/api/v1/admin/flagged-scans?limit=0", headers: { cookie } });
     expectBoundary(r1, "limit");
     const r2 = await t.app.inject({ method: "GET", url: "/api/v1/admin/flagged-scans?includeResolved=maybe", headers: { cookie } });
     expectBoundary(r2, "includeResolved");
+  });
 
-    const validNote = "note with enough length";
-    const r3 = await t.app.inject({
+  it("PATCH /admin/flagged-scans/:id boundaries -> 400", async () => {
+    const cookie = await adminCookie();
+    const r1 = await t.app.inject({
       method: "PATCH",
       url: "/api/v1/admin/flagged-scans/not-a-uuid",
       headers: { cookie },
-      payload: { resolution: "dismissed", note: validNote },
+      payload: { resolution: "dismissed", note: "a valid note 10+ chars" },
     });
-    expectBoundary(r3, "id");
-
-    const r4 = await t.app.inject({
+    expectBoundary(r1, "id");
+    const id = randomUUID();
+    // note: vTextL min 10
+    const r2 = await t.app.inject({
       method: "PATCH",
-      url: `/api/v1/admin/flagged-scans/${randomUUID()}`,
+      url: `/api/v1/admin/flagged-scans/${id}`,
       headers: { cookie },
       payload: { resolution: "dismissed", note: "short" },
     });
-    expectBoundary(r4, "note");
-
-    const r5 = await t.app.inject({
+    expectBoundary(r2, "note");
+    const r3 = await t.app.inject({
       method: "PATCH",
-      url: `/api/v1/admin/flagged-scans/${randomUUID()}`,
+      url: `/api/v1/admin/flagged-scans/${id}`,
       headers: { cookie },
-      payload: { resolution: "foo", note: validNote },
+      payload: { resolution: "foo", note: "a valid note 10+ chars" },
     });
-    expectBoundary(r5, "resolution");
+    expectBoundary(r3, "resolution");
+    const r4 = await t.app.inject({
+      method: "PATCH",
+      url: `/api/v1/admin/flagged-scans/${id}`,
+      headers: { cookie },
+      payload: { resolution: "dismissed", note: "a valid note 10+ chars", foo: 1 },
+    });
+    expect(r4.statusCode).toBe(400);
+    expect(JSON.parse(r4.body).error.code).toBe("VALIDATION_ERROR");
   });
 });
 
 describe("T-14 (PR D): audit log boundary values", () => {
-  it("query filter boundaries -> 400", async () => {
+  it("GET /admin/audit-log filter boundaries -> 400", async () => {
     const cookie = await adminCookie();
-
     const r1 = await t.app.inject({ method: "GET", url: `/api/v1/admin/audit-log?entity=${"a".repeat(65)}`, headers: { cookie } });
     expectBoundary(r1, "entity");
     const r2 = await t.app.inject({ method: "GET", url: "/api/v1/admin/audit-log?actorId=zzz", headers: { cookie } });
