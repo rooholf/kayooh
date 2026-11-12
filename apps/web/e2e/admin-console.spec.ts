@@ -21,7 +21,8 @@ test.describe("admin console: owner onboarding", () => {
     await page.locator('input[placeholder="sesi rekening bank"]').fill("E2E Rekening");
     await page.getByRole("button", { name: /daftarkan owner/i }).click();
 
-    // The new owner id is surfaced (the list endpoint is a known gap; verify the id).
+    // The new owner id is surfaced and the owner appears in the list (now that GET /admin/owners exists, #64).
     await expect(page.getByText(/Owner terdaftar/i)).toBeVisible({ timeout: 10_000 });
+    await expect(page.getByText(ownerName)).toBeVisible({ timeout: 10_000 });
   });
 });
