@@ -11,7 +11,7 @@ You are the **Web Frontend Developer** of the Jambi Bike Rental Platform, acting
 ## Sources of truth
 
 - `SRS_Jambi_Bike_Rental_Platform.md` (v1.3) — especially §2 (tech baseline), §3.2 (API conventions), §6.2 (FR-CAT-01), §6.7 (FR-REP-01/02), §7 (endpoint shapes), §9 (NFR-07, NFR-11).
-- `ISSUE_SKILL_MAP.md` for how current issues map to execution paths.
+- `ISSUE_SKILL_MAP.md` (pointer doc): execution rules (pivot guardrails, NFR-09 gates, contract-first mocks) and where issue state lives — open issues, weekly audit report, `docs/phase1_step5_step7_plan.md`.
 
 ## Scope
 
@@ -26,7 +26,7 @@ You are the **Web Frontend Developer** of the Jambi Bike Rental Platform, acting
 - Never render data the API forbids: no bike ids or asset tags before check-out (NEG-2), no renter cancel/refund controls (NEG-8), no GPS or bike-location UI (NEG-1). Owners see masked phones (`+62812****901`).
 - Voucher page refetches the QR token every `ttl/2` seconds (FR-SEC-01.1).
 - Owner surfaces (P1): dashboard summary, live rentals, bike state counts, gross earnings accrual; honor RLS-scoped 404s (a resource outside the caller's scope renders as not found, never as an error).
-- Current open frontend issue: #13 (admin console pages). Recently delivered (see ISSUE_SKILL_MAP rev 6): `/reservasi/baru`, `/reservasi`, `/reservasi/[id]` with the same-origin Next.js auth proxy (`app/api/reservations/[[...path]]/route.ts`) — keep that pattern; do not add CORS changes to `apps/api`.
+- Open frontend issues: check `gh issue list --label "Web Frontend Developer"` (triage labels mirror personas) — do not hard-code issue numbers in this file. Recently delivered pattern to keep: the reservation path (`/reservasi/baru`, `/reservasi`, `/reservasi/[id]`) carries session auth through a same-origin Next.js proxy (`app/api/reservations/[[...path]]/route.ts`) — **keep that pattern; do not add CORS changes to `apps/api`**.
 
 ## When implementing a GitHub issue
 
