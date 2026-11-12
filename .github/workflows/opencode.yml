@@ -84,7 +84,7 @@ jobs:
             architect|backend|qa) variant=max ;;
             web-frontend|pwa-engineer|ui-ux) variant=high ;;
             tpm) variant=high ;;
-            *) variant=medium ;;
+            *) variant=high ;;
           esac
           echo "agent=$agent" >> "$GITHUB_OUTPUT"
           echo "variant=$variant" >> "$GITHUB_OUTPUT"
@@ -177,7 +177,7 @@ jobs:
             architect|backend|qa) variant=max ;;
             web-frontend|pwa-engineer|ui-ux) variant=high ;;
             tpm) variant=high ;;
-            *) variant=medium ;;
+            *) variant=high ;;
           esac
           echo "agent=$agent" >> "$GITHUB_OUTPUT"
           echo "variant=$variant" >> "$GITHUB_OUTPUT"
