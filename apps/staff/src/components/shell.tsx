@@ -1,5 +1,6 @@
 import { outletContext } from "../lib/boot";
 import type { TabId } from "../lib/nav";
+import type { SyncSnapshot } from "../sync/engine";
 
 const TABS: Array<{ id: TabId; label: string }> = [
   { id: "antrean", label: "Antrean" },
@@ -8,7 +9,15 @@ const TABS: Array<{ id: TabId; label: string }> = [
   { id: "akun", label: "Akun" },
 ];
 
-export function AppBar() {
+function syncChipLabel(queued: number, running: boolean, online: boolean, offlinePending: boolean): string {
+  if (!online) return queued > 0 ? `${queued} menunggu · luring` : "Luring";
+  if (offlinePending) return "Gagal — mengulang";
+  if (running) return "Mengirim…";
+  if (queued > 0) return `${queued} menunggu`;
+  return "Tersinkron";
+}
+
+export function AppBar({ snapshot, queued }: { snapshot: SyncSnapshot; queued: number }) {
   const { shift } = outletContext;
   return (
     <header className="flex h-[54px] flex-none items-center justify-between border-b-2 border-ink px-[14px]">
@@ -22,6 +31,20 @@ export function AppBar() {
         <b className="block font-mono text-[12px] font-bold">{shift.name}</b>
         <span className="text-ink/75">
           {shift.start}–{shift.end} WIB
+        </span>
+        {/* A.1.5 — sync status chip: queued count, backoff step, next retry. */}
+        <span
+          role="status"
+          aria-live="polite"
+          className={`mt-[3px] inline-block rounded-[2px] border px-[6px] py-[3px] font-sans text-[10px] font-medium tracking-[0.04em] ${
+            snapshot.offlinePending ? "border-signal text-signal" : "border-rule text-rule"
+          }`}
+        >
+          {syncChipLabel(queued, snapshot.running, snapshot.online, snapshot.offlinePending)}
+          {snapshot.backoffStep !== null &&
+            ` · percobaan ${snapshot.backoffStep + 1}`}
+          {snapshot.nextRetryAt !== null &&
+            ` · ulang ${Math.max(1, Math.round((snapshot.nextRetryAt - Date.now()) / 1000))} dtk`}
         </span>
       </div>
     </header>
