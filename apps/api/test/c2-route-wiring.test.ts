@@ -400,6 +400,44 @@ describe("C.2.4 admin routes (SRS 7.4)", () => {
     expect(missing.statusCode).toBe(404);
   });
 
+  it("GET /admin/owners lists owners with the D.6 OwnerRow shape (403 for non-admin)", async () => {
+    const cookie = await adminCookie();
+    const [created] = await db
+      .insert(owners)
+      .values({ name: "owner-list-c2", bankCode: "021", bankAccountNumber: "1234567890", bankAccountName: "Owner List C2" })
+      .returning({ id: owners.id });
+
+    const res = await t.app.inject({ method: "GET", url: "/api/v1/admin/owners", headers: { cookie } });
+    expect(res.statusCode).toBe(200);
+    const body = res.json() as {
+      items: {
+        id: string;
+        name: string;
+        status: string;
+        bankCode: string | null;
+        bankAccountNumber: string | null;
+        bankAccountName: string | null;
+        createdAt: string;
+      }[];
+    };
+    expect(Array.isArray(body.items)).toBe(true);
+    const row = body.items.find((o) => o.id === created.id);
+    expect(row).toBeDefined();
+    expect(row!.name).toBe("owner-list-c2");
+    expect(row!.status).toBe("active");
+    expect(row!.bankCode).toBe("021");
+    expect(row!.bankAccountNumber).toBe("1234567890");
+    expect(row!.bankAccountName).toBe("Owner List C2");
+    expect(typeof row!.createdAt).toBe("string");
+
+    // Non-admin (staff) is 403 on admin routes.
+    const partner = await seedOffering(1);
+    const staff = await seedStaff(STAFF_EMAIL, STAFF_PASSWORD, partner.outletId);
+    const staffCookie = await staffSessionCookie(t, staff);
+    const denied = await t.app.inject({ method: "GET", url: "/api/v1/admin/owners", headers: { cookie: staffCookie } });
+    expect(denied.statusCode).toBe(403);
+  });
+
   it("PATCH /admin/outlets/{id} updates fields and writes audit; bad status -> 422", async () => {
     const cookie = await adminCookie();
     const partner = await seedOffering(1);

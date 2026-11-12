@@ -24,12 +24,20 @@ import {
   createPricingRule,
   listAuditLog,
   listFlaggedScans,
+  listOwners,
   patchOutlet,
   patchOwner,
   resolveFlaggedScan,
 } from "./ops.js";
 
 export function registerAdminRoutes(app: FastifyInstance): void {
+  // GET /admin/owners — FR-CAT-02 roster for the admin console list panel
+  // (issue #64; the D.6 page polls this to populate "Daftar owner").
+  app.get("/api/v1/admin/owners", { preHandler: requireRole("admin") }, async (_request, reply) => {
+    const items = await listOwners();
+    return reply.code(200).send({ items });
+  });
+
   app.post("/api/v1/admin/owners", { preHandler: requireRole("admin") }, async (request, reply) => {
     const parsed = createOwnerSchema.safeParse(request.body);
     if (!parsed.success) throw validationError(parsed.error);

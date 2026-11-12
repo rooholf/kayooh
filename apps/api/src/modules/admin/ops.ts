@@ -20,6 +20,37 @@ import type { PatchOutletBody } from "@repo/contracts";
 
 /* ------------------------------- owners -------------------------------- */
 
+/**
+ * GET /admin/owners roster item (admin-console D.6 list panel, issue #64).
+ * Bank fields are owner-private settlement data — visible to admin only
+ * (NFR-06); the web page's OwnerRow shape is the wire contract.
+ */
+export interface OwnerRow {
+  id: string;
+  name: string;
+  status: string;
+  bankCode: string | null;
+  bankAccountNumber: string | null;
+  bankAccountName: string | null;
+  createdAt: Date;
+}
+
+export async function listOwners(): Promise<OwnerRow[]> {
+  const rows = await db
+    .select({
+      id: owners.id,
+      name: owners.name,
+      status: owners.status,
+      bankCode: owners.bankCode,
+      bankAccountNumber: owners.bankAccountNumber,
+      bankAccountName: owners.bankAccountName,
+      createdAt: owners.createdAt,
+    })
+    .from(owners)
+    .orderBy(asc(owners.createdAt));
+  return rows;
+}
+
 export async function patchOwner(
   id: string,
   body: { status: "active" | "suspended" },
