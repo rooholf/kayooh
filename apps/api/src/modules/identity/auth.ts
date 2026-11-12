@@ -106,6 +106,10 @@ export function createAuthBundle(deps: AuthDeps): AuthBundle {
 
   const auth = betterAuth({
     baseURL: process.env.BETTER_AUTH_URL ?? "http://localhost:3001",
+    // The web app signs in through the same-origin pipe, so Better Auth sees
+    // the WEB origin on form endpoints (sign-in/email runs form-CSRF). The
+    // API's own origin (baseURL) is trusted by default; add the web one.
+    trustedOrigins: [process.env.BETTER_AUTH_WEB_ORIGIN ?? "http://localhost:3000"],
     secret: deps.authSecret,
     database: drizzleAdapter(db, {
       provider: "pg",

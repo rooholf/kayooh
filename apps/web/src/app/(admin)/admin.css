@@ -1,0 +1,589 @@
+/*
+ * Kayooh Admin — "Papan Harga Pasar" (DESIGN.md, admin section).
+ *
+ * A market price board: buff board panels ruled with 2px ink edges on a
+ * meja (table) surround, a 230px dark-wood rail on the left, a 56px top
+ * bar, dashed hairlines between data rows, and every numeral in tabular
+ * Roboto Mono. Flat — zero shadows, radii ≤ 2px. Words live in the
+ * grotesque (Inter), numbers in the mono — no numeral is ever set in
+ * the grotesque (The Two Voices Rule).
+ */
+
+/* ---- Faces: self-hosted, two voices only ------------------------------ */
+
+@font-face {
+  font-family: "Inter";
+  font-style: normal;
+  font-weight: 400 800;
+  font-display: swap;
+  src: url(/fonts/inter-variable-latin.woff2) format("woff2");
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA,
+    U+02DC, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF,
+    U+FFFD;
+}
+
+@font-face {
+  font-family: "Inter";
+  font-style: normal;
+  font-weight: 400 800;
+  font-display: swap;
+  src: url(/fonts/inter-variable-latin-ext.woff2) format("woff2");
+  unicode-range: U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF,
+    U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020,
+    U+20A0-20AB, U+20AD-20C4, U+2113, U+2C60-2C7F, U+A720-A7FF;
+}
+
+@font-face {
+  font-family: "Roboto Mono";
+  font-style: normal;
+  font-weight: 400 700;
+  font-display: swap;
+  src: url(/fonts/roboto-mono-variable-latin.woff2) format("woff2");
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA,
+    U+02DC, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF,
+    U+FFFD;
+}
+
+@font-face {
+  font-family: "Roboto Mono";
+  font-style: normal;
+  font-weight: 400 700;
+  font-display: swap;
+  src: url(/fonts/roboto-mono-variable-latin-ext.woff2) format("woff2");
+  unicode-range: U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF,
+    U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020,
+    U+20A0-20AB, U+20AD-20C4, U+2113, U+2C60-2C7F, U+A720-A7FF;
+}
+
+/* ---- Tokens ------------------------------------------------------------ */
+
+.k-admin {
+  --kayu: #2b1f14; /* dark wood — rail, frame edge          */
+  --papan: #f4efe2; /* buff board — panels, top bar, rail text */
+  --meja: #ede7d6; /* table surround                         */
+  --tinta: #1b1b18; /* market ink — rules, text               */
+  --hijau: #1d7a54; /* availability green — healthy totals    */
+  --kuning: #c77a00; /* highlight amber — fill only, never text on papan */
+  --merah: #b3271e; /* case red — badges, warnings, danger    */
+
+  --grotesk: "Inter", system-ui, sans-serif;
+  --mono: "Roboto Mono", ui-monospace, monospace;
+
+  --rule: 2px solid var(--tinta);
+  --hairline: 1px dashed var(--tinta);
+}
+
+/* ---- Browser surfaces: the board owns its chrome too ------------------- */
+
+.k-admin ::selection {
+  background: var(--kuning);
+  color: var(--tinta);
+}
+
+.k-admin :focus-visible {
+  outline: 2px solid var(--tinta);
+  outline-offset: 2px;
+}
+
+.k-admin input,
+.k-admin select,
+.k-admin textarea {
+  caret-color: var(--tinta);
+}
+
+.k-admin .k-scroll {
+  scrollbar-width: thin;
+  scrollbar-color: var(--kayu) var(--papan);
+}
+.k-admin .k-scroll::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+.k-admin .k-scroll::-webkit-scrollbar-track {
+  background: var(--papan);
+}
+.k-admin .k-scroll::-webkit-scrollbar-thumb {
+  background: var(--kayu);
+  border: 2px solid var(--papan);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .k-admin * {
+    animation: none !important;
+    transition: none !important;
+  }
+}
+
+/* ---- Frame ------------------------------------------------------------- */
+
+.k-admin {
+  min-height: 100vh;
+  background: var(--meja);
+  color: var(--tinta);
+  font-family: var(--grotesk);
+  display: grid;
+  grid-template-columns: 230px 1fr;
+}
+
+/* Below the desktop floor the board stacks; mobile is out of scope. */
+@media (max-width: 1279px) {
+  .k-admin {
+    grid-template-columns: 200px 1fr;
+  }
+}
+
+.k-admin-main {
+  display: grid;
+  grid-template-rows: auto 1fr;
+  min-width: 0;
+}
+
+.k-admin-content {
+  padding: 20px 24px 32px;
+}
+
+/* ---- Navigation rail (the dark wood edge) ------------------------------ */
+
+.k-rail {
+  background: var(--kayu);
+  color: var(--papan);
+  padding: 16px 12px 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  position: sticky;
+  top: 0;
+  height: 100vh;
+  overflow-y: auto;
+}
+
+.k-rail-brand {
+  font-weight: 800;
+  font-size: 14px;
+  letter-spacing: 0.06em;
+  padding: 8px 10px 10px;
+  border-bottom: 1px solid rgb(244 239 226 / 0.2);
+  margin-bottom: 6px;
+}
+
+.k-rail-sec {
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.16em;
+  opacity: 0.5;
+  padding: 12px 10px 4px;
+}
+
+.k-rail a {
+  color: inherit;
+  text-decoration: none;
+}
+
+.k-rail-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 10px;
+  font-size: 13px;
+  border-radius: 2px;
+}
+
+.k-rail-item:hover {
+  background: rgb(244 239 226 / 0.08);
+}
+
+.k-rail-item[data-active="true"] {
+  background: var(--kuning);
+  color: var(--tinta);
+  font-weight: 700;
+}
+
+/* ---- Top bar ----------------------------------------------------------- */
+
+.k-top {
+  background: var(--papan);
+  border-bottom: var(--rule);
+  min-height: 56px;
+  padding: 0 24px;
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.k-top-title {
+  font-weight: 800;
+  font-size: 15px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.k-top-meta {
+  margin-left: auto;
+  font-family: var(--mono);
+  font-size: 12px;
+  color: var(--tinta);
+  opacity: 0.7;
+  text-align: right;
+  white-space: nowrap;
+}
+
+/* ---- Board grid -------------------------------------------------------- */
+
+.k-board {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+}
+
+/* Single-panel pages span the full board width. */
+.k-board--single {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+@media (max-width: 1023px) {
+  .k-board {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* ---- Board panel -------------------------------------------------------- */
+
+.k-panel {
+  background: var(--papan);
+  border: var(--rule);
+  padding: 16px;
+  min-width: 0;
+}
+
+.k-panel-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 12px;
+  font-size: 11px;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.16em;
+  border-bottom: var(--rule);
+  padding-bottom: 6px;
+  margin-bottom: 10px;
+}
+
+.k-panel-n {
+  font-family: var(--mono);
+  font-weight: 700;
+  font-size: 11px;
+  letter-spacing: 0;
+  white-space: nowrap;
+}
+
+/* ---- Data rows ---------------------------------------------------------- */
+
+.k-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 12px;
+  border-bottom: var(--hairline);
+  padding: 5px 0;
+  font-size: 13px;
+}
+
+.k-row-label {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.k-row-val {
+  font-family: var(--mono);
+  font-weight: 700;
+  font-size: 13px;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.k-row-val.ok {
+  color: var(--hijau);
+}
+
+.k-row-val.warn {
+  color: var(--merah);
+}
+
+.k-row-sub {
+  font-family: var(--mono);
+  font-size: 10px;
+  opacity: 0.7;
+  margin-left: 6px;
+}
+
+/* ---- Queue entries (solid 1px ink boxes) -------------------------------- */
+
+.k-entry {
+  border: 1px solid var(--tinta);
+  padding: 6px 8px;
+  font-size: 12px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 10px;
+}
+
+.k-entry-label {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* ---- Painted total (the signature) -------------------------------------- */
+
+.k-total {
+  font-family: var(--mono);
+  font-size: 40px;
+  font-weight: 800;
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+  margin-top: 10px;
+  color: var(--tinta);
+}
+
+.k-total.ok {
+  color: var(--hijau);
+}
+
+.k-total.warn {
+  color: var(--merah);
+}
+
+.k-total-unit {
+  font-size: 14px;
+  font-weight: 700;
+  margin-left: 4px;
+}
+
+/* ---- Chips / tags (mono, square) ---------------------------------------- */
+
+.k-chip {
+  font-family: var(--mono);
+  font-size: 10px;
+  font-weight: 700;
+  padding: 1px 6px;
+  background: var(--tinta);
+  color: var(--papan);
+  white-space: nowrap;
+}
+
+.k-chip.alarm {
+  background: var(--merah);
+}
+
+.k-chip.quiet {
+  background: transparent;
+  color: var(--tinta);
+  border: 1px solid var(--tinta);
+}
+
+/* ---- Buttons ------------------------------------------------------------ */
+
+.k-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.k-btn {
+  font-family: var(--grotesk);
+  font-size: 12px;
+  font-weight: 700;
+  padding: 7px 12px;
+  border: none;
+  background: var(--hijau);
+  color: var(--papan);
+  cursor: pointer;
+  text-decoration: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.k-btn:hover {
+  background: #16603f; /* one ink pass darker — still AA on papan text */
+}
+
+.k-btn:disabled,
+.k-btn[aria-disabled="true"] {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.k-btn.ghost {
+  background: transparent;
+  border: 2px solid var(--tinta);
+  color: var(--tinta);
+}
+
+.k-btn.ghost:hover {
+  background: var(--tinta);
+  color: var(--papan);
+}
+
+.k-btn.danger {
+  background: var(--merah);
+}
+
+.k-btn.danger:hover {
+  background: #8f1d17;
+}
+
+/* ---- Notices (honest empty / error states) ------------------------------ */
+
+.k-note {
+  border: 1px dashed var(--tinta);
+  padding: 8px 10px;
+  font-size: 12px;
+  line-height: 1.5;
+  margin-top: 8px;
+}
+
+.k-note.error {
+  border: none;
+  background: var(--merah);
+  color: var(--papan);
+}
+
+/* ---- Forms --------------------------------------------------------------- */
+
+.k-form {
+  display: grid;
+  gap: 12px;
+  max-width: 560px;
+}
+
+.k-field {
+  display: grid;
+  gap: 4px;
+}
+
+.k-field > label {
+  font-size: 10px;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.16em;
+}
+
+.k-field .k-hint {
+  font-family: var(--mono);
+  font-size: 10px;
+  opacity: 0.7;
+}
+
+.k-input,
+.k-select,
+.k-textarea {
+  font-family: var(--mono);
+  font-size: 13px;
+  color: var(--tinta);
+  background: var(--meja);
+  border: 2px solid var(--tinta);
+  padding: 7px 9px;
+  border-radius: 0;
+  width: 100%;
+}
+
+.k-textarea {
+  min-height: 72px;
+  resize: vertical;
+}
+
+.k-select {
+  appearance: none;
+  background-image: linear-gradient(45deg, transparent 50%, var(--tinta) 50%),
+    linear-gradient(135deg, var(--tinta) 50%, transparent 50%);
+  background-position:
+    calc(100% - 14px) 55%,
+    calc(100% - 9px) 55%;
+  background-size: 5px 5px;
+  background-repeat: no-repeat;
+  padding-right: 28px;
+}
+
+.k-check {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.k-check input {
+  width: 14px;
+  height: 14px;
+  accent-color: var(--hijau);
+}
+
+/* ---- Simple tables (audit) ----------------------------------------------- */
+
+.k-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12px;
+}
+
+.k-table th {
+  font-size: 10px;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.16em;
+  text-align: left;
+  border-bottom: var(--rule);
+  padding: 6px 8px 6px 0;
+}
+
+.k-table td {
+  border-bottom: var(--hairline);
+  padding: 6px 8px 6px 0;
+  vertical-align: top;
+}
+
+.k-table .k-mono {
+  font-family: var(--mono);
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+/* ---- Section heading inside content pages -------------------------------- */
+
+.k-page-head {
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 1.5;
+  max-width: 68ch;
+  margin-bottom: 16px;
+}
+
+/* ---- Skeleton (while the board loads) ------------------------------------- */
+
+.k-skel {
+  height: 14px;
+  margin: 6px 0;
+  background: var(--tinta);
+  opacity: 0.14;
+  animation: k-pulse 1.4s ease-in-out infinite;
+}
+
+@keyframes k-pulse {
+  0%,
+  100% {
+    opacity: 0.14;
+  }
+  50% {
+    opacity: 0.28;
+  }
+}
