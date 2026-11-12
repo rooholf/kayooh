@@ -1,1 +1,1 @@
-export type TabId = "antrean" | "sepeda" | "periksa" | "akun";
+export type TabId = "antrean" | "sepeda" | "periksa" | "lambat" | "terjadwal" | "akun";

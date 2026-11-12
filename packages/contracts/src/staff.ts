@@ -273,6 +273,7 @@ export const staffBikeItemSchema = z
     state: bikeStateSchema,
   })
   .strict();
+export type StaffBikeItem = z.infer<typeof staffBikeItemSchema>;
 
 /** GET /staff/outlet/expected?date= — WIB calendar day (V-DATE). */
 export const staffExpectedQuerySchema = z.object({ date: vDate }).strict();
@@ -290,6 +291,7 @@ export const staffExpectedItemSchema = z
     renterPhoneMasked: z.string(),
   })
   .strict();
+export type StaffExpectedItem = z.infer<typeof staffExpectedItemSchema>;
 
 /** GET /staff/outlet/overdue — open rentals past expected_end_at. */
 export const staffOverdueItemSchema = z
@@ -302,4 +304,5 @@ export const staffOverdueItemSchema = z
     escalationStage: z.number().int().min(0).max(4),
   })
   .strict();
+export type StaffOverdueItem = z.infer<typeof staffOverdueItemSchema>;
 

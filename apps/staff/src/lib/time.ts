@@ -20,6 +20,12 @@ export function formatDate(date: Date): string {
   }).format(date);
 }
 
+/** Today's WIB calendar day as `YYYY-MM-DD` (V-DATE — what the staff
+ * `expected` read takes). */
+export function todayWibDate(): string {
+  return new Intl.DateTimeFormat("en-CA", { timeZone: WIB }).format(new Date());
+}
+
 export interface Shift {
   name: string;
   start: string;
