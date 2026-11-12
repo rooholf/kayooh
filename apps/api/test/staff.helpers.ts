@@ -183,6 +183,7 @@ export interface ConfirmedReservation {
   priceIdr: number;
   discountIdr: number;
   finalIdr: number;
+  dpIdr: number;
   voucherToken: string;
   window: { startsAt: string; endsAt: string };
 }
@@ -214,6 +215,7 @@ export async function seedConfirmedReservation(opts: {
     priceIdr: held.reservation.priceIdr,
     discountIdr: held.reservation.discountIdr,
     finalIdr: held.reservation.finalIdr,
+    dpIdr: Number(held.reservation.dpIdr),
     voucherToken: signVoucher({ reservationId: held.reservation.id, expiresAt: new Date(Date.now() + 15 * 60_000) }),
     window: opts.window,
   };
