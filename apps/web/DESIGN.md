@@ -373,3 +373,103 @@ The screen is fully responsive: designed phone-first (360 px minimum width) and 
 - Text: `${totalBikes} unit · ${ready} siap · ${rented} tersewa · ${maintenance} servis`.
 - CTA: Solid Kuning `BUKA ARMADA` button with Archivo Black typography.
 
+---
+
+<!-- Carbonized from the implementation in apps/web/src/app/(admin) (admin console shipped). Tokens below reflect the shipped CSS in apps/web/src/app/(admin)/admin.css; re-run /impeccable document to refresh if the board drifts. -->
+
+# Design System: Kayooh Admin — Papan Harga Pasar
+
+**Scope: the admin console only.** This document governs `apps/web/src/app/(admin)` — the platform admin console (`/admin`). Visitor **mode: Operate** — one platform admin, seated at a desk, desktop-first (≥1280 px); mobile is a nice-to-have, not a target. The renter poster world and the owner ledger sheet do not apply here.
+
+## Creative North Star: "Papan Harga Pasar"
+
+The console reads as a **market price board**: network health painted as figures on one ruled buff board, read standing up in one glance. Where the renter surface is a poster and the owner surface a ledger sheet, the admin surface is a board in a wooden frame — a dark wood rail on the left, a 56 px header bar across the top, and ruled panels that always end in a **painted total**: one large mono number, coloured by state, that resolves the panel.
+
+The board refuses the category default of admin consoles — white ground, blue accents, sortable tables, chrome. There are no cards with soft shadows and no rounded chrome: every panel is a ruled area with a 2 px ink edge, every row is separated by a dashed hairline, and every figure is set in tabular mono so columns align and scan. If something is short, a red chip names it; the admin opens the queue and acts. The board never lies about availability — counts come from the server, never from a cache (Product Principle 1).
+
+**Status: implemented.** The admin console ships in `apps/web/src/app/(admin)`; tokens below are carbonized from `admin.css` and the route components. Re-run `/impeccable document` if the board drifts.
+
+## Palette
+
+- **Kayu Tua** (`#2B1F14`): dark wood — the 230 px navigation rail and the top bar's frame edge. Depth anchor of the whole screen.
+- **Papan** (`#F4EFE2`): buff board ground — panels, top bar, rail text, and unselected surfaces.
+- **Meja** (`#EDE7D6`): table ground — the page surround visible around the board frame.
+- **Tinta Pasar** (`#1B1B18`): market ink — all rules (2 px panel edges, dashed row hairlines), body text, ghost-button strokes, and chip fills.
+- **Hijau Laku** (`#1D7A54`): availability green — healthy totals, primary buttons, positive row values. Clears AA 4.5:1 on Papan (4.6:1); not for text on Kayu Tua (large use only).
+- **Kuning Sorot** (`#C77A00`): highlight amber — the active rail item's fill and money accents. **Fill only, never text on Papan** (2.9:1 on the board would fail).
+- **Merah Kasus** (`#B3271E`): case red — pending badges, warning values, short-state painted totals, danger buttons. Clears AA on Papan both as text (5.6:1) and as badge fill with Papan text.
+
+## Typography
+
+Two voices only: a heavy grotesque for words, Roboto Mono for every numeral.
+
+**Grotesque:** Inter (700/800), system-ui fallback — titles, rail items, panel labels, row labels.
+**Mono:** Roboto Mono (400/700, tabular) — every number, every badge, every meta line. No numeral is ever set in the grotesque.
+
+### Hierarchy
+
+- **Painted total** (mono 700–800, 40 px, line-height 1): the figure that resolves a panel. Optional 14 px mono unit suffix (`tersedia`, `Rp`). Coloured by state — Hijau Laku when healthy, Merah Kasus when short.
+- **Panel label** (grotesque 800, 11 px uppercase, letter-spacing 0.16em, 2 px ink underline): the panel's heading strip; carries the panel's count chip (`150 sepeda`, `3`, `1`) in mono 700.
+- **Row** (grotesque 400, 13 px; value mono 700 right-aligned): ruled by a 1 px dashed ink hairline; values coloured ok (`#1D7A54`), warn (`#B3271E`), or ink.
+- **Rail item** (grotesque 400, 13 px): section labels 10 px uppercase 0.16em at 50 % opacity; brand 800 with 0.06em tracking over an ink hairline.
+- **Meta** (mono 400, 12 px): timestamps and stamps — WIB, `dd/mm`, dot thousands.
+
+### Named Rules
+
+**The Two Voices Rule.** Words live in the grotesque, numbers live in Roboto Mono. A numeral in the grotesque is a defect.
+
+**The Painted Total Rule.** Every board panel ends in exactly one painted total that resolves the panel — large, mono, coloured by state. A panel without a verdict is unfinished.
+
+## Layout
+
+Desktop-first fixed frame: a **230 px Kayu Tua rail** (four sections: Jaringan, Uang, Kasus, Sistem; every pending queue carries a mono badge in Merah Kasus), a **56 px top bar** (title 800 left, mono meta right, 2 px ink bottom rule), then the **board** — a 2-column grid of ruled panels (16 px gap, 20×24 px page padding on Meja). Density is dense-but-legible: a well-kept market board, not a dashboard grid. The primary action of each panel sits in its footer, beneath the painted total — the total is read last, the action is taken next.
+
+Responsive behavior is deliberately minimal: the frame is designed for ≥1280 px; below that the board stacks single-column while the rail stays fixed. Mobile is out of scope until decided.
+
+## Elevation & Depth
+
+**Flat — zero shadows.** Depth is structural: Kayu Tua anchors the left edge, 2 px solid ink rules frame panels, 1 px dashed hairlines rule rows, and the Meja surround sets the board into the page. Nothing floats; the board is ruled, not lifted.
+
+## Shapes
+
+Sharp corners throughout (≤2 px radius, rail items only). The form language is the rule, not the box shadow: solid 2 px ink for structural edges, dashed 1 px ink for data rows. Buttons, chips, badges, panels — all square-cut.
+
+## Components
+
+### Navigation rail
+- Kayu Tua fill, Papan text, 12 px vertical padding; brand block `KAYOOH · ADMIN` over an ink hairline.
+- Section labels: 10 px uppercase, 50 % opacity. Items: 13 px with counts in line; active item = Kuning Sorot fill with Tinta Pasar text, 700.
+- Pending queues carry mono badges: Merah Kasus fill, Papan text (AA 5.6:1).
+
+### Board panel
+- Papan fill, 2 px solid Tinta Pasar edge, 16 px padding.
+- Heading strip: 11 px uppercase label + mono count chip, 2 px ink underline.
+- Body: dashed-hairline rows; footer: action buttons below the painted total.
+
+### Chips / badges
+- Mono 10 px, square, tight padding (1–2 px × 5–6 px). Ink fill with Papan text for neutral states (`pending`, `open`); Merah Kasus fill for alarm states; Merah Kasus text on Papan for warning values.
+
+### Buttons
+- Grotesque 700, 12 px, square, padding 6 px 12 px.
+- **Primary:** Hijau Laku fill, Papan text.
+- **Ghost:** transparent fill, 2 px Tinta Pasar stroke, Tinta Pasar text.
+- **Danger:** Merah Kasus fill, Papan text (destructive or case-rejecting actions).
+
+### Painted total (signature)
+- The panel-resolving figure: mono 800 at 40 px, unit suffix at 14 px, coloured by state. Two painted totals — availability and money — read together as one verdict on the network.
+
+## Do's and Don'ts
+
+### Do:
+- **Do** set every numeral in Roboto Mono, right-aligned, with dot thousands separators (`Rp 1.240.000`) and WIB stamps (`07:12 WIB`).
+- **Do** end each board panel with a painted total coloured by state; pair the availability total and money total as the screen's verdict.
+- **Do** reserve Merah Kasus chips for pending, actionable work — a badge is a promise that the queue needs the admin today.
+- **Do** source every count from the server; render honest empty states (`Tidak ada kasus terbuka.`) when a queue is clear.
+
+### Don't:
+- **Don't** use shadows, gradients, or radii above 2 px — the board is ruled, not lifted.
+- **Don't** set Kuning Sorot (`#C77A00`) as text on Papan; it is fill and accent only.
+- **Don't** import the renter or owner worlds: no Archivo Black stamps, no marching-text strips, no Kertas cream (`#F0E3C4`), no Merah Cetak (`#B81B0D`) — this is buff board and dark wood.
+- **Don't** hard-code money, config, or pricing values on the board; they come from server config, and money stays integer rupiah (`bigint`) — no decimals anywhere.
+- **Don't** fabricate dashboard figures: mock numbers live in fixtures and are labelled as such, never shipped as real.
+

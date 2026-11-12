@@ -3,7 +3,7 @@
  * Next.js server can carry (the API's CORS deliberately reflects nothing
  * for credentialed requests).
  *
- * GET + POST are forwarded verbatim (method, body, path, query) for an
+ * GET, POST and PATCH are forwarded verbatim (method, body, path, query) for an
  * upstream base path; the API's response is returned unchanged — INCLUDING
  * `Set-Cookie`: the Better Auth session cookie must land on the WEB origin
  * for the browser to attach it to subsequent same-origin proxy calls
@@ -19,8 +19,10 @@ const API_BASE =
   process.env.NEXT_PUBLIC_API_BASE_URL ??
   "http://localhost:3001";
 
-/** Headers the API contract consumes on these surfaces; everything else is dropped. */
-const FORWARDED = ["authorization", "content-type", "idempotency-key"] as const;
+/** Headers the API contract consumes on these surfaces; everything else is dropped.
+ * `origin` is forwarded for Better Auth's form-CSRF check (POST /sign-in/email
+ * rejects a missing origin outright) — the value is the web origin itself. */
+const FORWARDED = ["authorization", "content-type", "idempotency-key", "origin"] as const;
 
 export const dynamic = "force-dynamic";
 
@@ -30,10 +32,11 @@ export type RouteParams = { params: Promise<{ path?: string[] }> };
 export function createApiPipe(
   upstreamBase: string,
   { networkMessage = "Tidak bisa menghubungi server." }: { networkMessage?: string } = {},
+  methods: Array<"GET" | "POST" | "PATCH"> = ["GET", "POST"],
 ) {
   async function pipe(
     request: NextRequest,
-    method: "GET" | "POST",
+    method: "GET" | "POST" | "PATCH",
     { params }: RouteParams,
   ): Promise<Response> {
     const { path } = await params;
@@ -56,7 +59,7 @@ export function createApiPipe(
       upstream = await fetch(target, {
         method,
         headers,
-        ...(method === "POST" ? { body: await request.text() } : {}),
+        ...(method === "POST" || method === "PATCH" ? { body: await request.text() } : {}),
         cache: "no-store",
       });
     } catch {
@@ -82,5 +85,11 @@ export function createApiPipe(
       pipe(request, "GET", ctx),
     POST: (request: NextRequest, ctx: RouteParams): Promise<Response> =>
       pipe(request, "POST", ctx),
+    ...(methods.includes("PATCH")
+      ? {
+          PATCH: (request: NextRequest, ctx: RouteParams): Promise<Response> =>
+            pipe(request, "PATCH", ctx),
+        }
+      : {}),
   };
 }
