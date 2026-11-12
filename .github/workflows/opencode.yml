@@ -92,6 +92,14 @@ jobs:
           model: crowllm/glm-5.3-flash:free
           agent: ${{ steps.persona.outputs.agent }}
           use_github_token: true
+          prompt: |
+            Fix the issue from this GitHub event. Create a new branch from the current HEAD of `staging` and open a pull request when the work is complete.
+
+            CRITICAL — AGENTS.md §8 (promotion-only `main`):
+            When you create the pull request you MUST run exactly:
+              gh pr create --base staging --head <your-branch-name>
+            Never omit `--base staging`: `gh pr create` defaults to the repository's default branch (`main`), which is promotion-only. A PR opened against `main` from a non-`staging` branch fails the `enforce-pr-base` status check and cannot be merged.
+            Never push to or open a PR against `main` directly.
 
   opencode-fallback:
     # An if: with no status-check function gets success() auto-prepended by
@@ -169,3 +177,11 @@ jobs:
           model: agnes/agnes-3.0-flash
           agent: ${{ steps.persona.outputs.agent }}
           use_github_token: true
+          prompt: |
+            Fix the issue from this GitHub event. Create a new branch from the current HEAD of `staging` and open a pull request when the work is complete.
+
+            CRITICAL — AGENTS.md §8 (promotion-only `main`):
+            When you create the pull request you MUST run exactly:
+              gh pr create --base staging --head <your-branch-name>
+            Never omit `--base staging`: `gh pr create` defaults to the repository's default branch (`main`), which is promotion-only. A PR opened against `main` from a non-`staging` branch fails the `enforce-pr-base` status check and cannot be merged.
+            Never push to or open a PR against `main` directly.
