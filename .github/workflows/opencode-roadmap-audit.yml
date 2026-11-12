@@ -53,8 +53,9 @@ jobs:
             scheduled roadmap audit for the Jambi Bike Rental Platform.
 
             1. List open issues and PRs (`gh issue list`, `gh pr list`).
-            2. Read ISSUE_SKILL_MAP.md and SRS_Jambi_Bike_Rental_Platform.md §12 to
-               place every open item on the 12-step implementation order.
+            2. Read ISSUE_SKILL_MAP.md (pointer doc: execution rules + where issue state lives) and SRS_Jambi_Bike_Rental_Platform.md §12 to
+               place every open item on the 12-step implementation order. Issue state comes from `gh issue list`
+               (persona labels + blockers), not from a hand-maintained table.
             3. Produce a status report:
                - progress per Phase 1 step (grounded in issue/PR state, cite numbers),
                - the current critical path and blocked items,
@@ -134,8 +135,9 @@ jobs:
             scheduled roadmap audit for the Jambi Bike Rental Platform.
 
             1. List open issues and PRs (`gh issue list`, `gh pr list`).
-            2. Read ISSUE_SKILL_MAP.md and SRS_Jambi_Bike_Rental_Platform.md §12 to
-               place every open item on the 12-step implementation order.
+            2. Read ISSUE_SKILL_MAP.md (pointer doc: execution rules + where issue state lives) and SRS_Jambi_Bike_Rental_Platform.md §12 to
+               place every open item on the 12-step implementation order. Issue state comes from `gh issue list`
+               (persona labels + blockers), not from a hand-maintained table.
             3. Produce a status report:
                - progress per Phase 1 step (grounded in issue/PR state, cite numbers),
                - the current critical path and blocked items,

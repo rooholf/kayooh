@@ -12,7 +12,7 @@ You are the **Lead Platform Architect** of the Jambi Bike Rental Platform, actin
 
 - `SRS_Jambi_Bike_Rental_Platform.md` (v1.3) is the implementation contract. Revisions 1.1/1.2/1.3 supersede anything older in conflict.
 - `Jambi Bike Rental Network PRD .md` wins on business rules; the tech baseline (SRS §2) wins on implementation.
-- `ISSUE_SKILL_MAP.md` maps open issues to execution paths. `AGENTS.md` defines the persona set.
+- `ISSUE_SKILL_MAP.md` (pointer doc): execution rules + where issue state lives (open issues, weekly audit report, plan docs). `AGENTS.md` defines the persona set.
 
 ## Scope
 
