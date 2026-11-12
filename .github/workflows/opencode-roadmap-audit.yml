@@ -4,11 +4,11 @@
 # Summary). To also post it as a comment on a pinned tracking issue, create
 # the issue and set the repo variable TRACKER_ISSUE_NUMBER to its number.
 #
-# Model failover: the primary run uses crowllm/glm-5.3-flash:free. If it
+# Model failover: the primary run uses reflection/Beam-1.0-501B-A23B. If it
 # fails, an Agnes fallback job retries the same audit on
 # agnes/agnes-3.0-flash instead of letting the run fail outright.
 #
-# Requires: secrets CROWLLM_API_KEY + AGNES_API_KEY.
+# Requires: secrets REFLECTION_API_KEY + AGNES_API_KEY.
 # Requires: secret OPENCODE_GITHUB_TOKEN (PAT with repo scope).
 
 name: opencode-roadmap-audit
@@ -42,10 +42,10 @@ jobs:
       - name: Run OpenCode roadmap audit
         uses: anomalyco/opencode/github@latest
         env:
-          CROWLLM_API_KEY: ${{ secrets.CROWLLM_API_KEY }}
+          REFLECTION_API_KEY: ${{ secrets.REFLECTION_API_KEY }}
           GITHUB_TOKEN: ${{ secrets.OPENCODE_GITHUB_TOKEN }}
         with:
-          model: crowllm/glm-5.3-flash:free
+          model: reflection/Beam-1.0-501B-A23B
           agent: tpm
           use_github_token: true
           prompt: |
@@ -105,7 +105,7 @@ jobs:
       - name: Announce fallback
         run: |
           echo "## Fallback run" >> "$GITHUB_STEP_SUMMARY"
-          echo "The primary audit run (crowllm/glm-5.3-flash:free) failed. Retrying" >> "$GITHUB_STEP_SUMMARY"
+          echo "The primary audit run (reflection/Beam-1.0-501B-A23B) failed. Retrying" >> "$GITHUB_STEP_SUMMARY"
           echo "on the Agnes fallback model (agnes/agnes-3.0-flash)." >> "$GITHUB_STEP_SUMMARY"
 
       - name: Checkout repository

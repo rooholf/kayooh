@@ -16,16 +16,17 @@ Actions workflows use these personas to automate the issue tracker.
 | `tpm` | `tpm.md` | #6 Technical Project Manager | `Technical Project Manager` | `#B60205` |
 | `ui-ux` | `ui-ux.md` | #7 UI/UX Designer | `UI/UX Designer` | `#a2eeef` |
 
-All personas run on **GLM 5.3 Flash (free)**:
+All personas run on **Beam 1.0 501B A23B (Reflection)**:
 
-- Local (this machine): `omniroute/crw/glm-5.3-flash:free` via `omniroute`
-  (the `crw/` relay to CrowLLM through `http://localhost:20128/v1`).
-- GitHub Actions: `crowllm/glm-5.3-flash:free` — same model on CrowLLM's hosted
-  endpoint (`https://crowllm.com/v1`), which runners can reach. The project
-  config (`.opencode/opencode.json`) registers the `crowllm` provider with the
-  key read from `CROWLLM_API_KEY`.
+- GitHub Actions: `reflection/Beam-1.0-501B-A23B` — Reflection's hosted
+  endpoint (`https://api.reflection.ai/openai/v1`), which runners can reach. The
+  project config (`.opencode/opencode.json`) registers the `reflection` provider
+  with the key read from `REFLECTION_API_KEY`.
+- Local (this machine): `reflection/Beam-1.0-501B-A23B` via the `reflection`
+  provider (same endpoint), or `omniroute/rf/Beam-1.0-501B-A23B` through the
+  local `omniroute` proxy.
 
-**Model failover (Agnes fallback).** If the primary CrowLLM run fails (503s,
+**Model failover (Agnes fallback).** If the primary Reflection run fails (503s,
 outage), each workflow's fallback job retries the *same task* on
 `agnes/agnes-3.0-flash` — the Agnes API hub (`https://apihub.agnes-ai.com/v1`),
 also reachable from runners. The `agnes` provider is registered in
@@ -49,12 +50,11 @@ checkout, 1.3 link-in-bio direct entry) and the currently open issues
 ## Setup
 
 1. **Secrets** (repo Settings → Secrets and variables → Actions):
-   - `CROWLLM_API_KEY` — your CrowLLM key (free model; the hosted endpoint is
-     required because the local `omniroute` proxy at `localhost:20128` is
-     unreachable from runners).
-   - `AGNES_API_KEY` — your Agnes API key (fallback model
-     `agnes-3.0-flash` at `https://apihub.agnes-ai.com/v1`). Only used by the
-     fallback jobs when the primary CrowLLM run fails.
+    - `REFLECTION_API_KEY` — your Reflection key (primary model
+      `reflection/Beam-1.0-501B-A23B` at `https://api.reflection.ai/openai/v1`).
+    - `AGNES_API_KEY` — your Agnes API key (fallback model
+      `agnes-3.0-flash` at `https://apihub.agnes-ai.com/v1`). Only used by the
+      fallback jobs when the primary Reflection run fails.
    - `OPENCODE_GITHUB_TOKEN` — a PAT with **repo** scope (needed by the triage
      and audit workflows which use `use_github_token: true`; the main
      `/oc` workflow falls back to the built-in `github.token`).
@@ -84,7 +84,7 @@ checkout, 1.3 link-in-bio direct entry) and the currently open issues
 
 ## Known trade-offs
 
-- CrowLLM's free tier measured **~80 s average latency** (24 h window,
+- Reflection's primary model measured **~80 s average latency** (24 h window,
   2026-11-10) with a ~97% success rate — acceptable for async CI, not for
   interactive pair programming. When it flakes or a run fails, the fallback job
   retries on the Agnes model (`agnes-3.0-flash`) rather than failing outright.

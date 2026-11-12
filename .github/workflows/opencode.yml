@@ -5,11 +5,11 @@
 # routes to the right project agent (architect, backend, web-frontend,
 # pwa-engineer, qa, tpm, ui-ux) via the label → agent map below.
 #
-# Model failover: the primary run uses crowllm/glm-5.3-flash:free. If that run
-# fails (503s, provider outage, ...), an Agnes fallback job retries the same
+# Model failover: the primary run uses reflection/Beam-1.0-501B-A23B. If that
+# run fails (503s, provider outage, ...), an Agnes fallback job retries the same
 # task on agnes/agnes-3.0-flash instead of letting the run fail outright.
 #
-# Requires: secret CROWLLM_API_KEY (https://crowllm.com — hosted, free tier).
+# Requires: secret REFLECTION_API_KEY (https://api.reflection.ai — primary).
 # Requires: secret AGNES_API_KEY (https://apihub.agnes-ai.com — fallback).
 # Requires: secret OPENCODE_GITHUB_TOKEN (PAT with repo scope). This workflow
 # uses use_github_token mode (no OpenCode GitHub App needed): the PAT powers
@@ -86,10 +86,10 @@ jobs:
       - name: Run OpenCode
         uses: anomalyco/opencode/github@latest
         env:
-          CROWLLM_API_KEY: ${{ secrets.CROWLLM_API_KEY }}
+          REFLECTION_API_KEY: ${{ secrets.REFLECTION_API_KEY }}
           GITHUB_TOKEN: ${{ secrets.OPENCODE_GITHUB_TOKEN }}
         with:
-          model: crowllm/glm-5.3-flash:free
+          model: reflection/Beam-1.0-501B-A23B
           agent: ${{ steps.persona.outputs.agent }}
           use_github_token: true
           prompt: |
@@ -129,7 +129,7 @@ jobs:
       - name: Announce fallback
         run: |
           echo "## Fallback run" >> "$GITHUB_STEP_SUMMARY"
-          echo "The primary run (crowllm/glm-5.3-flash:free) failed. Retrying the" >> "$GITHUB_STEP_SUMMARY"
+          echo "The primary run (reflection/Beam-1.0-501B-A23B) failed. Retrying the" >> "$GITHUB_STEP_SUMMARY"
           echo "same task on the Agnes fallback model (agnes/agnes-3.0-flash)." >> "$GITHUB_STEP_SUMMARY"
 
       - name: Checkout repository
