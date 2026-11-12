@@ -27,6 +27,26 @@ export const staffConfig = {
   /** Voucher token (compact JWT) max length. */
   voucherTokenMaxLength: 2048,
   /**
+   * FR-RNT-02.4 late-fee preview values. Server config keys
+   * `late.grace_minutes` / `late.fee_per_30min_idr`; the defaults mirror
+   * the API's CONFIG_DEFAULTS until `GET /config` is wired. The preview is
+   * advisory only — the authoritative fee is computed server-side at sync.
+   */
+  lateGraceMinutes: 15,
+  lateFeePer30MinIdr: 20_000,
+  /**
+   * UI labels for the FR-RNT-04 escalation stages (config key
+   * `late.escalation_minutes` — reminder, staff_call, owner_flag,
+   * claim_eligible). Index 0 = not escalated yet.
+   */
+  escalationStageLabels: [
+    "Menunggu eskalasi",
+    "Pengingat terkirim",
+    "Waktu hubungi renter",
+    "Pemilik ditandai",
+    "Klaim siap",
+  ] as const,
+  /**
    * FR-SEC-01.3: bike-tag HMAC-SHA256 pre-check. The secret is injected at
    * build time (`VITE_TAG_HMAC_SECRET`) — the dev default is for the offline
    * dev loop only; production builds get the tag key from the build env,
