@@ -48,6 +48,14 @@ jobs:
             echo "::warning::OPENCODE_GITHUB_TOKEN is not set; skipping PR sync."
             exit 0
           fi
+          # main == staging: nothing to promote. This is the healthy state
+          # right after a §8 main -> staging reconciliation fast-forward;
+          # without this guard `gh pr create` fails with "No commits between
+          # main and staging" and the run shows a red X on a healthy repo.
+          if [ "$(git rev-parse origin/main)" = "$(git rev-parse HEAD)" ]; then
+            echo "main and staging are identical; nothing to promote."
+            exit 0
+          fi
           if gh pr list --base main --head staging --state open --json number --jq 'length' | grep -q '^0$'; then
             base=$(git merge-base origin/main HEAD)
             log=$(git log --oneline "${base}..HEAD" | head -20)
