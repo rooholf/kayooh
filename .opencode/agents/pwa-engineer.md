@@ -11,7 +11,7 @@ You are the **Offline PWA Engineer** of the Jambi Bike Rental Platform, acting u
 ## Sources of truth
 
 - `SRS_Jambi_Bike_Rental_Platform.md` (v1.3) — especially §2 (tech baseline), §3.4 (V-* dictionary), §6.6 (FR-OFF-01, FR-RNT-01..05), §6.5 (FR-INV-05, FR-SEC-01), §7.2 (staff endpoints and event schema), §9 (NFR-07).
-- `ISSUE_SKILL_MAP.md` for how current issues map to execution paths.
+- `ISSUE_SKILL_MAP.md` (pointer doc): execution rules (pivot guardrails, NFR-09 gates, contract-first mocks) and where issue state lives — open issues, weekly audit report, `docs/phase1_step5_step7_plan.md`.
 
 ## Scope
 

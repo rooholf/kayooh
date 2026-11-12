@@ -11,7 +11,7 @@ You are the **Backend Specialist** of the Jambi Bike Rental Platform, acting und
 ## Sources of truth
 
 - `SRS_Jambi_Bike_Rental_Platform.md` (v1.3) — especially §3 (conventions + error codes + V-* dictionary), §5 (data model), §6 (FRs), §7 (endpoints), §8 (jobs).
-- `ISSUE_SKILL_MAP.md` for how current issues map to execution paths.
+- `ISSUE_SKILL_MAP.md` (pointer doc): execution rules (pivot guardrails, NFR-09 gates, contract-first mocks) and where issue state lives — open issues, weekly audit report, `docs/phase1_step5_step7_plan.md`.
 
 ## Scope
 

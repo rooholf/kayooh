@@ -56,7 +56,10 @@ export default function AdminOwnerPage() {
         },
         "Gagal mendaftarkan owner",
       ),
-    onSuccess: (r) => setCreatedId(r.id),
+    onSuccess: (r) => {
+      setCreatedId(r.id);
+      void owners.refetch();
+    },
   });
 
   return (

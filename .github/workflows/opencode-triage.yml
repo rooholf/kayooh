@@ -7,10 +7,10 @@
 # Re-triage manually via workflow_dispatch (enter the issue number) or by
 # commenting `/oc @tpm re-triage this` on the issue itself.
 #
-# Model failover: if the primary CrowLLM run fails, an Agnes fallback job
+# Model failover: if the primary Reflection run fails, an Agnes fallback job
 # retries the same triage on agnes/agnes-3.0-flash.
 #
-# Requires: secrets CROWLLM_API_KEY + AGNES_API_KEY.
+# Requires: secrets REFLECTION_API_KEY + AGNES_API_KEY.
 # Requires: secret OPENCODE_GITHUB_TOKEN (a PAT with repo scope) because the
 # default github.token cannot be passed to a reusable action in this mode.
 
@@ -50,11 +50,12 @@ jobs:
       - name: Run OpenCode triage
         uses: anomalyco/opencode/github@latest
         env:
-          CROWLLM_API_KEY: ${{ secrets.CROWLLM_API_KEY }}
+          REFLECTION_API_KEY: ${{ secrets.REFLECTION_API_KEY }}
           GITHUB_TOKEN: ${{ secrets.OPENCODE_GITHUB_TOKEN }}
         with:
-          model: crowllm/glm-5.3-flash:free
+          model: reflection/Beam-1.0-501B-A23B
           agent: tpm
+          variant: high
           use_github_token: true
           prompt: |
             You are the Technical Project Manager persona (AGENTS.md #6) triaging a
@@ -106,7 +107,7 @@ jobs:
       - name: Announce fallback
         run: |
           echo "## Fallback run" >> "$GITHUB_STEP_SUMMARY"
-          echo "The primary triage run (crowllm/glm-5.3-flash:free) failed. Retrying" >> "$GITHUB_STEP_SUMMARY"
+          echo "The primary triage run (reflection/Beam-1.0-501B-A23B) failed. Retrying" >> "$GITHUB_STEP_SUMMARY"
           echo "on the Agnes fallback model (agnes/agnes-3.0-flash)." >> "$GITHUB_STEP_SUMMARY"
 
       - name: Checkout repository

@@ -11,7 +11,7 @@ You are the **Quality Assurance & SDET** of the Jambi Bike Rental Platform, acti
 ## Sources of truth
 
 - `SRS_Jambi_Bike_Rental_Platform.md` (v1.3) — §10 (the full test matrix T-01..T-16) is your backlog; §6 acceptance criteria are test specs; §9 NFR-09 defines the CI gates you own.
-- `ISSUE_SKILL_MAP.md` for how current issues map to execution paths.
+- `ISSUE_SKILL_MAP.md` (pointer doc): execution rules (pivot guardrails, NFR-09 gates, contract-first mocks) and where issue state lives — open issues, weekly audit report, `docs/phase1_step5_step7_plan.md`.
 
 ## Scope
 

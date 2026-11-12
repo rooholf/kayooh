@@ -1,16 +1,41 @@
 {
   "$schema": "https://opencode.ai/config.json",
-  "model": "omniroute/crw/glm-5.3-flash:free",
+  "model": "reflection/Beam-1.0-501B-A23B",
   "provider": {
-    "crowllm": {
+    "omniroute": {
       "npm": "@ai-sdk/openai-compatible",
-      "name": "CrowLLM",
+      "name": "OmniRoute",
       "options": {
-        "baseURL": "https://crowllm.com/v1",
-        "apiKey": "{env:CROWLLM_API_KEY}"
+        "baseURL": "http://localhost:20128/v1",
+        "apiKey": "sk-d7a299d7aaf0802a-96e7ed-85d85a46"
       },
       "models": {
-        "glm-5.3-flash:free": { "name": "glm-5.3-flash:free" }
+        "cfp/zai-org/glm-5.2": { "name": "omni-glm-5.2" },
+        "kiro/sonnet-4.5": { "name": "sonnet.4.5-combo" },
+        "kiro/GLM": { "name": "GLM-5-combo" },
+        "antigravity": { "name": "antigravity" },
+        "agy-combo": { "name": "agy-combo" },
+        "agy-flash": { "name": "agy-flash" },
+        "agy/claude-sonnet-4-6": { "name": "agy/claude-sonnet-4-6" },
+        "agy/claude-opus-4-6-thinking": { "name": "agy/claude-opus-4-6-thinking" },
+        "agy/gemini-3.8-flash-high": { "name": "agy/gemini-3.8-flash-high" },
+        "crw/caw/glm-5.3-flash:free": { "name": "caw/glm-5.3-flash:free" },
+        "crw/caw/glm-5.3-flash-thinking:free": { "name": "caw/glm-5.3-flash-thinking:free" },
+        "crw/glm-5.3-flash:free": { "name": "glm-5.3-flash:free" },
+        "agnes/agnes-3.0-flash": { "name": "agnes-3.0-flash" },
+        "main-agnes": { "name": "main-agnes" },
+        "rf/Beam-1.0-501B-A23B": { "name": "Beam-1.0-501B-A23B" }
+      }
+    },
+    "reflection": {
+      "npm": "@ai-sdk/openai-compatible",
+      "name": "Reflection",
+      "options": {
+        "baseURL": "https://api.reflection.ai/openai/v1",
+        "apiKey": "{env:REFLECTION_API_KEY}"
+      },
+      "models": {
+        "Beam-1.0-501B-A23B": { "name": "Beam-1.0-501B-A23B" }
       }
     },
     "agnes": {
