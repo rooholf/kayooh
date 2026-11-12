@@ -61,3 +61,9 @@ This document defines the specialized AI agents for this workspace. When interac
 - Identify and eliminate UX friction: remove redundant buttons, clarify hidden or confusing Calls to Action (CTAs), and streamline navigation.
 - Ensure Tailwind CSS and shadcn/ui are used consistently to maintain a cohesive, professional design system.
 - Focus heavily on optimizing the Guest Checkout flow to maximize digital conversion rates.
+
+## 8. Branching and PR Conventions (all roles, all sources)
+**Applies to local work AND to every OpenCode GitHub-Action run (`opencode.yml`, `opencode-roadmap-audit.yml`).**
+- `staging` is the integration branch: every issue-fix branch (local or action-created) branches from `staging` and its PR targets `staging`.
+- `main` is promotion-only: it receives `staging` via fast-forward PRs (`.github/workflows/sync-main.yml`) and never takes feature work directly. No agent, workflow, or local push writes to `main`.
+- Reconciliation rule: if a PR ever lands on `main` directly (historical drift), merge `main` → `staging` (fast-forward when possible) before the next PR, and log the exception in the PR body.

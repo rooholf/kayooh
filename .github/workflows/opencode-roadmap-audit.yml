@@ -29,6 +29,7 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v6
         with:
+          ref: staging
           token: ${{ secrets.OPENCODE_GITHUB_TOKEN }}
           persist-credentials: true
           fetch-depth: 1
@@ -109,6 +110,7 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v6
         with:
+          ref: staging
           token: ${{ secrets.OPENCODE_GITHUB_TOKEN }}
           persist-credentials: true
           fetch-depth: 1

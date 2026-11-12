@@ -14,6 +14,9 @@
 # Requires: secret OPENCODE_GITHUB_TOKEN (PAT with repo scope). This workflow
 # uses use_github_token mode (no OpenCode GitHub App needed): the PAT powers
 # API calls, branch pushes and PRs, so it needs contents/issues/PR write.
+#
+# Branching (AGENTS.md §8): all runs branch from and PR into `staging`.
+# `main` is promotion-only and must never be used as a PR base by any agent.
 
 name: opencode
 
@@ -29,6 +32,10 @@ jobs:
       contains(github.event.comment.body, '/oc') ||
       contains(github.event.comment.body, '/opencode')
     runs-on: ubuntu-latest
+    # Cap a hung run (e.g. an unanswered permission prompt, or a stalled
+    # stream) so it can't burn a ~90-min runner. A healthy agent session on
+    # these tasks finishes well within 60 min; anything beyond is a hang.
+    timeout-minutes: 60
     permissions:
       contents: write
       issues: write
@@ -38,6 +45,7 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v6
         with:
+          ref: staging
           fetch-depth: 1
           # default persist-credentials: true — the checkout token stays in
           # .git/config so OpenCode can push the implementation branch.
@@ -46,6 +54,17 @@ jobs:
         run: |
           git config user.name "${{ github.actor }}"
           git config user.email "${{ github.actor_id }}+${{ github.actor }}@users.noreply.github.com"
+
+      - name: Branching rules for this run (AGENTS.md §8)
+        run: |
+          {
+            echo "## Branching rules"
+            echo "- Work on `staging`. Create your branch from the current `staging` HEAD."
+            echo "- Open your PR with **base `staging`** — never `main`."
+            echo "- Never push to or open a PR against `main` (promotion-only branch)."
+            echo "- If a review happens on a PR that targets `main`, open the fix"
+            echo "  as a new branch from `staging` with base `staging` instead."
+          } >> "$GITHUB_STEP_SUMMARY"
 
       - name: Resolve persona from issue label
         id: persona
@@ -90,6 +109,9 @@ jobs:
     # concurrently (a parallel /oc batch can run N Agnes sessions at once —
     # acceptable for a paid key) rather than being "serialized".
     runs-on: ubuntu-latest
+    # Same hang-cap as the primary job: a stalled permission prompt or stream
+    # must not burn a 90-min runner. 60 min is plenty for a real session.
+    timeout-minutes: 60
     permissions:
       contents: write
       issues: write
@@ -105,12 +127,21 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v6
         with:
+          ref: staging
           fetch-depth: 1
 
       - name: Configure git identity
         run: |
           git config user.name "${{ github.actor }}"
           git config user.email "${{ github.actor_id }}+${{ github.actor }}@users.noreply.github.com"
+
+      - name: Branching rules for this run (AGENTS.md §8)
+        run: |
+          {
+            echo "## Branching rules (fallback run)"
+            echo "- Work on `staging`. Create your branch from the current `staging` HEAD."
+            echo "- Open your PR with **base `staging`** — never `main`."
+          } >> "$GITHUB_STEP_SUMMARY"
 
       - name: Resolve persona from issue label
         id: persona

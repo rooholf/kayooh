@@ -26,4 +26,18 @@ export const staffConfig = {
   maxPhotos: 8,
   /** Voucher token (compact JWT) max length. */
   voucherTokenMaxLength: 2048,
+  /**
+   * FR-SEC-01.3: bike-tag HMAC-SHA256 pre-check. The secret is injected at
+   * build time (`VITE_TAG_HMAC_SECRET`) — the dev default is for the offline
+   * dev loop only; production builds get the tag key from the build env,
+   * never from the repo (FR-SEC-01.4).
+   */
+  tagHmac: {
+    keyId: import.meta.env.VITE_TAG_HMAC_KID ?? "k1",
+    secret: import.meta.env.VITE_TAG_HMAC_SECRET ?? "dev-insecure-tag-hmac-secret",
+    revokedKeyIds: String(import.meta.env.VITE_TAG_HMAC_REVOKED_KEYS ?? "")
+      .split(",")
+      .map((s) => s.trim())
+      .filter((s) => s.length > 0),
+  },
 };

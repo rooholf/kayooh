@@ -69,6 +69,12 @@ pnpm dev
 | `pnpm db:generate` | Generate Drizzle migrations |
 | `pnpm db:migrate` | Apply migrations |
 
+## Branching and PR conventions (AGENTS.md §8)
+
+- `staging` is the integration branch: every issue-fix branch — local or created by an OpenCode GitHub-Action run (`opencode.yml`, `opencode-triage.yml`, `opencode-roadmap-audit.yml`) — branches from `staging` and its PR targets `staging`.
+- `main` is promotion-only: it never takes feature work directly. `.github/workflows/sync-main.yml` opens a fast-forward `staging` → `main` PR whenever staging is ahead; merge it after the NFR-09 gates pass on staging.
+- If a PR ever lands on `main` by mistake, merge `main` → `staging` (fast-forward when possible) before the next PR and log the exception in the PR body.
+
 ## Environment
 
 Create a `.env` at the repository root (or per app) with at least:
