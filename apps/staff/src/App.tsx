@@ -5,6 +5,7 @@ import { AppBar, TabBar } from "./components/shell";
 import { CapNotice, StockCard } from "./components/stock-card";
 import {
   QUEUE_CAPACITY,
+  QueueFullError,
   enqueueEvent,
   listEvents,
   queuedCount,
@@ -14,12 +15,14 @@ import { boot, outletContext } from "./lib/boot";
 import { buildLedger } from "./lib/ledger";
 import { useLiveQuery, useSyncSnapshot } from "./lib/live";
 import type { TabId } from "./lib/nav";
-import { syncEngine } from "./sync/engine";
+import { syncEngine, DEFAULT_DRIFT_MAX_PCT } from "./sync/engine";
 import { AccountView, InspectionsView, QueueView } from "./views/panels";
 
 export function App() {
   const [tab, setTab] = useState<TabId>("sepeda");
   const [sheet, setSheet] = useState<{ mode: ScanMode; focus: "voucher" | "tag" } | null>(null);
+  const [queueFull, setQueueFull] = useState(false);
+  const [healthSyncing, setHealthSyncing] = useState(false);
 
   const snapshot = useSyncSnapshot();
   const events = useLiveQuery(() => listEvents(), [], []);
@@ -32,8 +35,22 @@ export function App() {
   const all = events ?? [];
   const queuedCountNow = queued ?? 0;
   const blocked = queuedCountNow >= QUEUE_CAPACITY;
+
+  useEffect(() => {
+    if (!queueFull || !blocked) setQueueFull(false);
+  }, [queueFull, blocked]);
+
   const rows = useMemo(() => buildLedger(all, outletContext.openingBalance), [all]);
   const hasSample = all.some((event) => event.synthetic);
+
+  async function handleHealthSync() {
+    setHealthSyncing(true);
+    // A.2.5 (FR-INV-05.1): the queue flushes BEFORE the health-sync posts,
+    // so the server's expected counts see the staff's physical events first.
+    await syncEngine.flushQueue();
+    await syncEngine.runHealthSync();
+    setHealthSyncing(false);
+  }
 
   async function handleSubmit(draft: ScanDraft) {
     const payload: ScanEventPayload = {
@@ -47,15 +64,25 @@ export function App() {
       ...(draft.collateral ? { collateral: draft.collateral } : {}),
       ...(draft.balanceCollection ? { balanceCollection: draft.balanceCollection } : {}),
     };
-    await enqueueEvent({ type: draft.type, payload });
-    syncEngine.kick();
-    setSheet(null);
+    try {
+      await enqueueEvent({ type: draft.type, payload });
+      syncEngine.kick();
+      setSheet(null);
+    } catch (error) {
+      // A.2.2: a full queue blocks the scan with a visible warning, never
+      // silently. The draft stays on screen in the sheet.
+      if (error instanceof QueueFullError) {
+        setQueueFull(true);
+        return;
+      }
+      throw error;
+    }
   }
 
   return (
     <div className="flex min-h-full justify-center bg-desk">
       <div className="relative flex h-[100dvh] w-full max-w-[430px] flex-col overflow-hidden bg-card sm:border-x-2 sm:border-ink">
-        <AppBar />
+        <AppBar snapshot={snapshot} queued={queuedCountNow} />
 
         <main className="flex min-h-0 flex-1 flex-col">
           {tab === "sepeda" && (
@@ -79,6 +106,9 @@ export function App() {
               events={all}
               snapshot={snapshot}
               onRetry={() => syncEngine.kick()}
+              onHealthSync={() => void handleHealthSync()}
+              healthSyncing={healthSyncing}
+              driftMaxPct={DEFAULT_DRIFT_MAX_PCT}
             />
           )}
 
@@ -87,7 +117,7 @@ export function App() {
           {tab === "akun" && <AccountView queued={queuedCountNow} snapshot={snapshot} />}
         </main>
 
-        <CapNotice queued={queuedCountNow} />
+        <CapNotice queued={queuedCountNow} forced={queueFull} />
 
         <div className="flex flex-none gap-2 border-t-2 border-ink px-3 py-[10px]">
           <button

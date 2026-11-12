@@ -90,8 +90,20 @@ jobs:
           use_github_token: true
 
   opencode-fallback:
-    if: needs.opencode.result == 'failure'
+    # An if: with no status-check function gets success() auto-prepended by
+    # GitHub, so a bare `.result == 'failure'` check is ALWAYS false when the
+    # primary failed — that is why the fallback never fired. Prefixing
+    # !cancelled() (a status-check function) opts the job in. The .result
+    # clause then selects the outcomes we care about: failure, or cancelled
+    # (GitHub cancels the primary when a run is re-triggered / new commit
+    # lands). A fully cancelled run stays skipped (!cancelled() = false).
+    if: ${{ !cancelled() && (needs.opencode.result == 'failure' || needs.opencode.result == 'cancelled') }}
     needs: opencode
+    # No job-level concurrency group here: a queued fallback job gets CANCELLED
+    # when its own run completes while it waits on another run's slot, so a
+    # cross-run queue silently loses the fallback. Fallbacks therefore start
+    # concurrently (a parallel /oc batch can run N Agnes sessions at once —
+    # acceptable for a paid key) rather than being "serialized".
     runs-on: ubuntu-latest
     permissions:
       contents: write

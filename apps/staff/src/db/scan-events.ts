@@ -95,8 +95,22 @@ export interface EnqueueInput {
   synthetic?: boolean;
 }
 
-/** FR-OFF-01.1 step one: write the event to IndexedDB, then let sync send it. */
+/** A.2.2 — the queue is at capacity; the scan must not be recorded silently. */
+export class QueueFullError extends Error {
+  constructor(queued: number) {
+    super(`Antrean penuh: ${queued} dari ${QUEUE_CAPACITY} — pindaian diblokir.`);
+    this.name = "QueueFullError";
+  }
+}
+
+/**
+ * FR-OFF-01.1 step one: write the event to IndexedDB, then let sync send it.
+ * A.2.2: past QUEUE_CAPACITY this throws `QueueFullError` so the caller can
+ * surface the block — the scan is never dropped and never recorded.
+ */
 export async function enqueueEvent(input: EnqueueInput): Promise<ScanEvent> {
+  const depth = await queuedCount();
+  if (depth >= QUEUE_CAPACITY) throw new QueueFullError(depth);
   const event: ScanEvent = {
     clientEventId: newClientEventId(),
     type: input.type,

@@ -34,17 +34,27 @@ function backoffLabel(snapshot: SyncSnapshot): string {
 
 /* ---------------------------------------------------------------- Antrean */
 
+interface QueueViewProps {
+  events: ScanEvent[];
+  snapshot: SyncSnapshot;
+  onRetry: () => void;
+  onHealthSync: () => void;
+  healthSyncing: boolean;
+  driftMaxPct: number;
+}
+
 export function QueueView({
   events,
   snapshot,
   onRetry,
-}: {
-  events: ScanEvent[];
-  snapshot: SyncSnapshot;
-  onRetry: () => void;
-}) {
+  onHealthSync,
+  healthSyncing,
+  driftMaxPct,
+}: QueueViewProps) {
   const queued = events.filter((e) => e.status === "pending" || e.status === "syncing");
   const full = queued.length >= QUEUE_CAPACITY;
+  const flagged = events.filter((e) => e.status === "flagged");
+  const rejected = events.filter((e) => e.status === "rejected");
 
   return (
     <>
@@ -66,6 +76,15 @@ export function QueueView({
             style={{ width: `${Math.min(100, (queued.length / QUEUE_CAPACITY) * 100)}%` }}
           />
         </div>
+        {snapshot.driftAlert && snapshot.driftAlert.driftPct > driftMaxPct && (
+          <p
+            role="alert"
+            className="mt-2 border-2 border-signal bg-[var(--signal-tint)] px-2 py-1 font-sans text-[11px] font-semibold leading-snug text-signal"
+          >
+            Selisih stok {snapshot.driftAlert.driftPct}% — lebih dari batas {driftMaxPct}%.
+            Periksa hitungan fisik outlet.
+          </p>
+        )}
         {snapshot.lastError && (
           <p className="mt-2 font-sans text-[11px] leading-snug text-signal">
             Kirim terakhir gagal: {snapshot.lastError}
@@ -79,7 +98,49 @@ export function QueueView({
         >
           {snapshot.running ? "Mengirim…" : "Coba kirim sekarang"}
         </button>
+        <button
+          type="button"
+          onClick={onHealthSync}
+          disabled={healthSyncing || !snapshot.online}
+          className="mt-2 min-h-[44px] w-full border-2 border-rule font-sans text-[12px] font-semibold text-rule disabled:cursor-not-allowed disabled:border-ink/30 disabled:text-ink/40"
+        >
+          {healthSyncing ? "Sinkron kesehatan…" : "Kirim health-sync (kancing antrean dulu)"}
+        </button>
       </div>
+
+      {(flagged.length > 0 || rejected.length > 0) && (
+        <div className="flex-none border-b border-line px-[14px] py-3">
+          <h3 className="font-mono text-[9px] font-medium uppercase tracking-[0.12em] text-rule">
+            Hasil per kejadian
+          </h3>
+          <ul className="mt-2 space-y-2">
+            {flagged.map((event) => (
+              <li
+                key={`flagged-${event.clientEventId}`}
+                role="alert"
+                className="border-l-2 border-signal bg-[var(--signal-tint)] px-2 py-1.5 font-sans text-[11px] leading-snug text-signal"
+              >
+                <b className="font-mono text-[10px]">
+                  SCAN_FLAGGED · {event.payload.bikeAssetTag ?? event.type}
+                </b>
+                <span className="block">{event.reason ?? "Perlu ditinjau"}</span>
+              </li>
+            ))}
+            {rejected.map((event) => (
+              <li
+                key={`rejected-${event.clientEventId}`}
+                role="alert"
+                className="border-l-2 border-signal px-2 py-1.5 font-sans text-[11px] leading-snug text-signal"
+              >
+                <b className="font-mono text-[10px]">
+                  DITOLAK · {event.payload.bikeAssetTag ?? event.type}
+                </b>
+                <span className="block">{event.reason ?? "Tidak berlaku"}</span>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
 
       {queued.length === 0 ? (
         <Empty>Antrean kosong. Semua gerakan sudah tersinkron.</Empty>
