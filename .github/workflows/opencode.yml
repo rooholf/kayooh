@@ -32,6 +32,10 @@ jobs:
       contains(github.event.comment.body, '/oc') ||
       contains(github.event.comment.body, '/opencode')
     runs-on: ubuntu-latest
+    # Cap a hung run (e.g. an unanswered permission prompt, or a stalled
+    # stream) so it can't burn a ~90-min runner. A healthy agent session on
+    # these tasks finishes well within 60 min; anything beyond is a hang.
+    timeout-minutes: 60
     permissions:
       contents: write
       issues: write
@@ -105,6 +109,9 @@ jobs:
     # concurrently (a parallel /oc batch can run N Agnes sessions at once —
     # acceptable for a paid key) rather than being "serialized".
     runs-on: ubuntu-latest
+    # Same hang-cap as the primary job: a stalled permission prompt or stream
+    # must not burn a 90-min runner. 60 min is plenty for a real session.
+    timeout-minutes: 60
     permissions:
       contents: write
       issues: write

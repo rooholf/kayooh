@@ -33,5 +33,10 @@
     "qa": { "mode": "all" },
     "tpm": { "mode": "all" },
     "ui-ux": { "mode": "all" }
+  },
+  "permission": {
+    "external_directory": {
+      "/tmp/**": "allow"
+    }
   }
 }
