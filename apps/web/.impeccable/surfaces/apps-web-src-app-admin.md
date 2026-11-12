@@ -16,7 +16,7 @@ related_targets: []
 - **Audience:** the platform admin (single operator), seated, desktop, read-mostly but with real mutations (onboarding, config, settlement, dispute resolution).
 - **Job:** keep the network honest — every bike accounted for, every rupiah reconciled, every case resolved.
 - **Primary task:** read network health at a glance (availability by outlet, money in/out, pending cases), then act on the one thing that needs it.
-- **Also in scope:** owner/outlet/bike/staff onboarding, pricing & promotions config, weekly settlement runs, dispute resolution, ID-verification review queue, damage-claim decisions, audit log review.
+- **Also in scope:** owner/outlet/bike/staff onboarding, pricing & promotions config, weekly settlement runs, dispute resolution, flagged-scan review queue ("Pindai ditandai"), damage-claim decisions, audit log review. *(Digital ID-verification was removed by SRS rev 1.3; the queue is real flagged staff scans instead.)*
 
 ## Proof / content
 
@@ -40,9 +40,12 @@ related_targets: []
 
 ## Unresolved
 
-- Exact palette values and type faces (to be recorded in DESIGN.md at finish, since this is a new world).
-- Whether the console needs a mobile companion (currently out of scope).
-- Config-editing UX (inline vs. dedicated page) — to be settled in build.
+- ~~Exact palette values and type faces~~ — resolved: committed as a seed in `apps/web/DESIGN.md` ("Kayooh Admin — Papan Harga Pasar", carbonized from `mocks/decision/assigned-papan-harga.html`); re-carbonize in scan mode once the implementation lands.
+- ~~Whether the console needs a mobile companion (currently out of scope)~~ — resolved in build: no separate mobile app; the board stacks single-column below the desktop frame and stays usable down to 360 px, but mobile remains a non-target.
+- ~~Config-editing UX (inline vs. dedicated page)~~ — resolved: **dedicated page** (`Konfigurasi`). Dashboard panels read; edits happen in one audited place.
+- ~~Money panel on the dashboard~~ — resolved: the money panel ships as an honest **P2 placeholder** ("menunggu P2", painted `—`): settlement is a Phase 2 module, and the board never fabricates figures. Same treatment for the Uang rail pages (Settlement, Refund, Deposit) and case-queue pages without P1 endpoints.
+- ~~Dashboard case queue contents~~ — resolved: real flagged-scan queue (Pindai ditandai) + audit tail from `GET /admin/audit-log`; verification queue dropped with SRS rev 1.3.
+- Backend note for review: `apps/api` Better Auth config gained `trustedOrigins` for the web origin (form-CSRF on `POST /sign-in/email` from the admin masuk page); `pipe.ts` gained PATCH support and `origin` header forwarding.
 
 ## Direction contract
 
@@ -52,7 +55,7 @@ related_targets: []
 
 **STORY** — The admin arrives, reads the two painted totals, and knows in seconds whether the network is healthy. If something is short, a red chip names it; they open the queue and act. They trust that every mutation is audit-logged, that money is exact integer rupiah, and that the board never lies about availability.
 
-**FIRST VIEWPORT** — A **230 px dark wood rail** on the left listing every admin section (Dashboard, Outlet, Sepeda, Owner, Staff, Settlement, Refund, Deposit, Verifikasi ID, Sengketa, Klaim rusak, Harga & promo, Konfigurasi, Audit log) with red badges on pending queues; then a **56 px top bar** (title + timestamp); then the **board** — two ruled panels side by side: availability by outlet (left) and money (right), each ending in a painted mono total; then a row of case queues (verification, disputes, claims) with counts and an action button. The primary action sits in each panel's footer; the painted totals are the last thing read.
+**FIRST VIEWPORT** — A **230 px dark wood rail** on the left listing every admin section (Dashboard, Outlet, Sepeda, Owner, Staff, Settlement, Refund, Deposit, Pindai ditandai, Sengketa, Klaim rusak, Harga & promo, Konfigurasi, Audit log) with red badges on pending queues; then a **56 px top bar** (title + timestamp); then the **board** — two ruled panels side by side: availability by outlet (left) and money (right, P2 placeholder until the settlement module lands), each ending in a painted mono total; then a row of case queues (flagged scans, disputes, claims) with counts and an action button. The primary action sits in each panel's footer; the painted totals are the last thing read.
 
 **FORM** — **Papan Harga Pasar**, position **3** on the grounded list (assigned by the roll; user locked it over the bolder re-roll). Signature interaction: the **painted total** — the large mono number that resolves each panel, coloured by state. SEED REFERENCE: seed:1b4de3a48f334fbc9a30f56a0f4ac0b8.
 
