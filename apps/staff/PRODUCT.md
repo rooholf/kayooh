@@ -75,7 +75,7 @@ Each staff action is an event stamped at the device and replayed idempotently to
 
 ## Evidence on Hand
 
-- **Real:** the event contract and staff endpoints in the SRS, the bike state machine, and the custody rules.
+- **Real:** the event contract and staff endpoints in the SRS, the bike state machine, the custody rules, and the PWA shell (service-worker precache, installable manifest, install prompt).
 - **Absent:** no device selection, no logo, no photography, no PWA icon set. Nothing visual may be fabricated to fill this.
 - **Scaffold gap:** unlike `apps/web`, this app currently carries no styling dependency, while the SRS asks both to follow the Tailwind and shadcn/ui patterns.
 

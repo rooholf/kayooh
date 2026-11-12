@@ -3,6 +3,7 @@ import { QUEUE_CAPACITY } from "../db/scan-events";
 import { BACKOFF_MS, type SyncSnapshot } from "../sync/engine";
 import { formatTime } from "../lib/time";
 import { outletContext } from "../lib/boot";
+import { useInstallPrompt } from "../lib/install";
 import type { ReactNode } from "react";
 
 export function PanelHeader({ title, note }: { title: string; note: string }) {
@@ -247,6 +248,7 @@ export function AccountView({
   snapshot: SyncSnapshot;
 }) {
   const { outlet, staff, shift, openingBalance } = outletContext;
+  const { canInstall, install } = useInstallPrompt();
   return (
     <>
       <PanelHeader title="Akun & shift" note="Satu outlet, satu petugas per shift." />
@@ -258,10 +260,24 @@ export function AccountView({
         <Stat label="Antrean" value={`${queued}/${QUEUE_CAPACITY}`} />
         <Stat label="Koneksi" value={snapshot.online ? "Daring" : "Luring"} />
       </dl>
-      <p className="flex-none px-[14px] py-3 font-sans text-[11px] leading-relaxed text-ink/70">
-        Aplikasi ini dapat dipasang ke layar utama. Setelah dipasang, shell aplikasi
-        tersimpan di perangkat sehingga pindaian tetap berjalan tanpa jaringan.
-      </p>
+      <div className="flex-none px-[14px] py-3">
+        {canInstall ? (
+          <button
+            type="button"
+            onClick={() => void install()}
+            className="min-h-[44px] w-full border-2 border-rule bg-rule px-3 font-sans text-[12px] font-semibold tracking-[0.02em] text-card"
+          >
+            Pasang aplikasi di perangkat ini
+          </button>
+        ) : (
+          <p className="font-sans text-[11px] leading-relaxed text-ink/70">
+            Aplikasi ini dapat dipasang ke layar utama lewat menu tautan browser
+            (“Pasang aplikasi” / “Tambah ke layar beranda”). Setelah dipasang, shell
+            aplikasi tersimpan di perangkat sehingga pindaian tetap berjalan tanpa
+            jaringan.
+          </p>
+        )}
+      </div>
       <p className="flex-none px-[14px] pb-4 font-sans text-[10px] leading-relaxed text-ink/70">
         Nilai pemeriksaan, jumlah foto, dan tenggang waktu akan dibaca dari konfigurasi
         server. Sementara ini nilai bawaan di perangkat yang dipakai sampai endpoint
