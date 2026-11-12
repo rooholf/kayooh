@@ -55,6 +55,7 @@ jobs:
         with:
           model: reflection/Beam-1.0-501B-A23B
           agent: tpm
+          variant: high
           use_github_token: true
           prompt: |
             You are the Technical Project Manager persona (AGENTS.md #6) triaging a

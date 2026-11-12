@@ -80,8 +80,15 @@ jobs:
           elif echo "$LABELS" | grep -q 'Technical Project Manager'; then agent=tpm
           elif echo "$LABELS" | grep -q 'UI/UX Designer'; then agent=ui-ux
           fi
+          case "$agent" in
+            architect|backend|qa) variant=max ;;
+            web-frontend|pwa-engineer|ui-ux) variant=high ;;
+            tpm) variant=high ;;
+            *) variant=medium ;;
+          esac
           echo "agent=$agent" >> "$GITHUB_OUTPUT"
-          echo "Resolved persona agent: $agent"
+          echo "variant=$variant" >> "$GITHUB_OUTPUT"
+          echo "Resolved persona agent: $agent (variant: $variant)"
 
       - name: Run OpenCode
         uses: anomalyco/opencode/github@latest
@@ -91,6 +98,7 @@ jobs:
         with:
           model: reflection/Beam-1.0-501B-A23B
           agent: ${{ steps.persona.outputs.agent }}
+          variant: ${{ steps.persona.outputs.variant }}
           use_github_token: true
           prompt: |
             Fix the issue from this GitHub event. Create a new branch from the current HEAD of `staging` and open a pull request when the work is complete.
@@ -165,8 +173,15 @@ jobs:
           elif echo "$LABELS" | grep -q 'Technical Project Manager'; then agent=tpm
           elif echo "$LABELS" | grep -q 'UI/UX Designer'; then agent=ui-ux
           fi
+          case "$agent" in
+            architect|backend|qa) variant=max ;;
+            web-frontend|pwa-engineer|ui-ux) variant=high ;;
+            tpm) variant=high ;;
+            *) variant=medium ;;
+          esac
           echo "agent=$agent" >> "$GITHUB_OUTPUT"
-          echo "Resolved persona agent: $agent"
+          echo "variant=$variant" >> "$GITHUB_OUTPUT"
+          echo "Resolved persona agent: $agent (variant: $variant)"
 
       - name: Run OpenCode (Agnes fallback)
         uses: anomalyco/opencode/github@latest
