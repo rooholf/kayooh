@@ -56,7 +56,7 @@ services:
       context: ..
       dockerfile: deploy/Dockerfile.api
     restart: unless-stopped
-    command: ["node", "apps/api/dist/worker.js"]
+    command: ["node", "/app/deploy/dist/worker.js"]
     env_file: .env
     environment:
       NODE_ENV: production

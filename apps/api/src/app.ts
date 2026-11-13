@@ -19,7 +19,7 @@ import { createRateLimiter } from "./lib/rate-limit.js";
 import { createNotificationProvider } from "./lib/notifications.js";
 import { loadEnv, type Env } from "./lib/env.js";
 import { getDb } from "./lib/db.js";
-import { db, eq, users } from "@repo/db";
+
 import type { RateLimiter } from "./lib/types.js";
 import {
   createAuthBundle,
@@ -30,7 +30,7 @@ import { registerReservationRoutes } from "./modules/reservations/create-reserva
 import { registerReservationReadRoutes } from "./modules/reservations/get-reservation.js";
 import { registerReallocationRoutes } from "./modules/reservations/reallocation-routes.js";
 import { registerStaffRoutes } from "./modules/staff/routes.js";
-import { registerDevStorageRoutes } from "./modules/staff/dev-routes.js";
+
 import { registerAdminRoutes } from "./modules/admin/index.js";
 import { registerCatalogRoutes } from "./modules/catalog/index.js";
 import { registerPricingRoutes } from "./modules/pricing/index.js";
@@ -38,9 +38,7 @@ import { registerOwnerRoutes } from "./modules/owner/index.js";
 import { registerOutboxSchedule, registerSweeperSchedule } from "./modules/jobs/index.js";
 import { registerSseRoutes, initSseBus, closeSseBus } from "./modules/sse/index.js";
 import { registerWebhookRoutes } from "./modules/payments/webhook-routes.js";
-import { registerDevRoutes } from "./modules/payments/dev-routes.js";
-import { registerDevOwnerRoutes } from "./modules/owner/dev-routes.js";
-import { registerDevStaffSeedRoutes } from "./modules/staff/dev-seed-routes.js";
+
 
 declare module "fastify" {
   interface FastifyRequest {
@@ -176,28 +174,6 @@ export async function buildApp(options: BuildAppOptions = {}): Promise<{
     if (!request.url.startsWith("/api/v1")) return;
     const principal = await resolvePrincipal(request, async (headers) => {
       const authHeader = headers.get("authorization");
-      const token = authHeader?.replace(/^Bearer\s+/i, "").trim();
-      const devToken = process.env.STAFF_DEV_TOKEN ?? "dev-staff-token";
-      if (token && token === devToken && env.nodeEnv !== "production") {
-        const [staffUser] = await db.select().from(users).where(eq(users.email, "staff.jmb-001@kayooh.dev")).limit(1);
-        if (staffUser?.outletId) {
-          return {
-            session: {
-              id: "dev-staff-session",
-              token,
-              createdAt: new Date(),
-              expiresAt: new Date(Date.now() + 12 * 60 * 60 * 1000),
-              userId: staffUser.id,
-            },
-            user: {
-              id: staffUser.id,
-              role: "staff",
-              ownerId: null,
-              outletId: staffUser.outletId,
-            },
-          } as never;
-        }
-      }
       return (await auth.api.getSession({ headers })) as never;
     });
     if (principal) {
@@ -234,12 +210,6 @@ export async function buildApp(options: BuildAppOptions = {}): Promise<{
   registerSseRoutes(app);
   // FR-PAY-02: the gateway webhook is public and lives OUTSIDE /api/v1.
   registerWebhookRoutes(app, { nodeEnv: env.nodeEnv, webhookSecret: env.paymentWebhookSecret });
-  // Dev-only payment auto-confirm (no-op in production).
-  registerDevRoutes(app, { nodeEnv: env.nodeEnv, webhookSecret: env.paymentWebhookSecret });
-  registerDevOwnerRoutes(app, { nodeEnv: env.nodeEnv });
-  registerDevStaffSeedRoutes(app, { nodeEnv: env.nodeEnv });
-  // Dev-only fixture storage PUT sink (V-PHOTO-KEY; no-op in production).
-  registerDevStorageRoutes(app, { nodeEnv: env.nodeEnv });
 
   /* Better Auth scoped mount (raw body preserved for the BA handler). */
   await app.register(async (scope) => {

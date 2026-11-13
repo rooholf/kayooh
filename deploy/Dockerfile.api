@@ -12,8 +12,12 @@ RUN pnpm --filter @repo/api build
 FROM node:20-alpine AS runner
 WORKDIR /app
 ENV NODE_ENV=production
+RUN apk add --no-cache python3 make g++
 RUN corepack enable
+# Create a production-only bundle (no devDependencies) of the API.
 COPY --from=base /app /app
+RUN cd /app && CI=true pnpm --filter @repo/api deploy --prod --ignore-scripts /app/deploy
+# Drop dev-only files from the production bundle.
+RUN cd /app/deploy && rm -rf src test tests e2e e2e-artifacts scripts vitest.config.ts tsconfig.json
 EXPOSE 3001
-# Override with `node apps/api/dist/worker.js` for the worker service.
-CMD ["node", "apps/api/dist/index.js"]
+CMD ["node", "/app/deploy/dist/index.js"]

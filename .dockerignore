@@ -1,0 +1,17 @@
+node_modules
+.git
+.turbo
+.turbo-cache
+*.log
+.env
+.env.*
+!.env.example
+deploy/.env
+
+# Dev/test/e2e artifacts not needed in production images
+**/test
+**/e2e
+**/e2e-artifacts
+**/.impeccable
+**/coverage
+**/.next/cache
