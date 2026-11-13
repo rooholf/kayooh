@@ -1,0 +1,12 @@
+# Caddy auto-provisions HTTPS (Let's Encrypt) for each host.
+{$DOMAIN} {
+  reverse_proxy web:3000
+}
+
+{$API_DOMAIN} {
+  reverse_proxy api:3001
+}
+
+{$STAFF_DOMAIN} {
+  reverse_proxy staff:80
+}

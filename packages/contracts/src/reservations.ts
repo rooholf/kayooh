@@ -14,7 +14,7 @@
  * shared {@link ErrorEnvelope} shape (SRS 3.2).
  */
 import { z } from "zod";
-import { vCategoryCode, vCursor, vIdr, vLimit, vPhone, vPromo, vQty, vTs, vUuid } from "./validation";
+import { vCategoryCode, vCursor, vIdr, vLimit, vPhone, vPromo, vQty, vTs, vUuid } from "./validation.js";
 
 export const createReservationBodySchema = z
   .object({

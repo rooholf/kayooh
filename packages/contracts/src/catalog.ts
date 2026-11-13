@@ -6,7 +6,7 @@
  * and are never persisted or logged.
  */
 import { z } from "zod";
-import { vCategoryCode } from "./validation";
+import { vCategoryCode } from "./validation.js";
 
 /**
  * FR-CAT-01.1: lat/lng are both-or-neither (400 otherwise). They exist only

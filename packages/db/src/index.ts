@@ -1,6 +1,6 @@
 import { drizzle } from "drizzle-orm/node-postgres";
 import { Pool } from "pg";
-import * as schema from "./schema";
+import * as schema from "./schema.js";
 
 export const pool = new Pool({
   connectionString: process.env.DATABASE_URL,
@@ -38,4 +38,4 @@ export type { SQL } from "drizzle-orm";
  * (computeAvailability, quote) that run inside the reservation lock. */
 export type TxOrDb = typeof db | Parameters<Parameters<typeof db.transaction>[0]>[0];
 
-export * from "./schema";
+export * from "./schema.js";

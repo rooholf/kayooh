@@ -24,7 +24,7 @@ import {
   vUuid,
   vWeekKey,
   vEmail,
-} from "./validation";
+} from "./validation.js";
 
 /* ------------------------------------------------------------------ */
 /* Shared enums + param shapes                                         */

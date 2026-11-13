@@ -6,8 +6,8 @@
  * RLS (FR-ID-03); these schemas only fix the request/response shapes.
  */
 import { z } from "zod";
-import { vAssetTag, vCategoryCode, vCursor, vLimit, vTextL, vTs, vUuid } from "./validation";
-import { bikeStateSchema } from "./admin";
+import { vAssetTag, vCategoryCode, vCursor, vLimit, vTextL, vTs, vUuid } from "./validation.js";
+import { bikeStateSchema } from "./admin.js";
 
 /** Postgres enum `rental_status` (SRS section 5). */
 export const rentalStatusSchema = z.enum(["open", "returned", "completed"]);

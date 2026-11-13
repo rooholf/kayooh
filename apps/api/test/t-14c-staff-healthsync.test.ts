@@ -24,12 +24,6 @@ afterAll(async () => {
   await t.close();
 });
 
-function expectBoundary(res: { statusCode: number; body: string }, path: string): void {
-  expect(res.statusCode).toBe(400);
-  const body = JSON.parse(res.body) as { error: { code: string; details?: Array<{ path: string }> } };
-  expect(body.error.code).toBe("VALIDATION_ERROR");
-  expect(body.error.details?.some((d) => d.path === path || d.path?.endsWith(path))).toBe(true);
-}
 
 describe("T-14 (PR C): staff event outer boundary values", () => {
   it("clientEventId malformed (not UUID v4) -> 400 path clientEventId", async () => {

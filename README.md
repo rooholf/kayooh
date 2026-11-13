@@ -84,6 +84,10 @@ DATABASE_URL=postgres://user:password@localhost:5432/jambi
 REDIS_URL=redis://localhost:6379
 ```
 
+## Deployment
+
+See [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md) for the production deployment guide (free VPS + Docker Compose, and a managed free-tier alternative).
+
 ## Roadmap
 
 - **Phase 1 (launch):** all four outlets as white-labeled direct booking pages (`/<outletCode>`), reservation lock, staff scanning, payments, basic dashboard.

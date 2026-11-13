@@ -8,9 +8,9 @@
  *     server-side per owner channel.
  */
 import { z } from "zod";
-import { vAssetTag, vCategoryCode, vTs, vUuid } from "./validation";
-import { bikeStateSchema } from "./admin";
-import { rentalStatusSchema } from "./owner";
+import { vAssetTag, vCategoryCode, vTs, vUuid } from "./validation.js";
+import { bikeStateSchema } from "./admin.js";
+import { rentalStatusSchema } from "./owner.js";
 
 export const availabilityEventSchema = z
   .object({

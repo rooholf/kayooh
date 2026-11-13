@@ -7,7 +7,7 @@ export {
   type ErrorCode,
   type ErrorDetail,
   type ErrorEnvelope,
-} from "./errors";
+} from "./errors.js";
 export {
   vAssetTag,
   vCategoryCode,
@@ -39,16 +39,16 @@ export {
   isValidNominalPhone,
   normalizeEmail,
   normalizePhone,
-} from "./validation";
+} from "./validation.js";
 
-export * from "./reservations";
-export * from "./catalog";
-export * from "./staff";
-export * from "./admin";
-export * from "./owner";
-export * from "./sse";
+export * from "./reservations.js";
+export * from "./catalog.js";
+export * from "./staff.js";
+export * from "./admin.js";
+export * from "./owner.js";
+export * from "./sse.js";
 
-import * as v from "./validation";
+import * as v from "./validation.js";
 
 /* Legacy aliases (pre-step-2 scaffolding names), kept as thin wrappers. */
 export const uuidSchema = z.string().uuid();

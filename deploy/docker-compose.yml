@@ -1,0 +1,118 @@
+# Single-host production stack for the Jambi Bike Rental platform.
+# Run on a free VPS (Oracle Cloud Always Free / GCP e2-micro) with Docker + Caddy.
+# Usage:
+#   cd deploy
+#   cp .env.example .env && edit .env
+#   docker compose up -d
+#   docker compose exec api node -e "..."  # or run migrations: see DEPLOYMENT.md
+services:
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: jambi
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: jambi
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U jambi -d jambi"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    command: redis-server --appendonly yes
+    volumes:
+      - redisdata:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  api:
+    build:
+      context: ..
+      dockerfile: deploy/Dockerfile.api
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      NODE_ENV: production
+      DATABASE_URL: postgres://jambi:${POSTGRES_PASSWORD}@postgres:5432/jambi
+      REDIS_URL: redis://redis:6379
+      PORT: "3001"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    # No host port: only Caddy reaches it on the docker network.
+
+  worker:
+    build:
+      context: ..
+      dockerfile: deploy/Dockerfile.api
+    restart: unless-stopped
+    command: ["node", "apps/api/dist/worker.js"]
+    env_file: .env
+    environment:
+      NODE_ENV: production
+      DATABASE_URL: postgres://jambi:${POSTGRES_PASSWORD}@postgres:5432/jambi
+      REDIS_URL: redis://redis:6379
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+  web:
+    build:
+      context: ..
+      dockerfile: deploy/Dockerfile.web
+    restart: unless-stopped
+    environment:
+      NODE_ENV: production
+      PORT: "3000"
+      HOSTNAME: "0.0.0.0"
+      API_BASE_URL: http://api:3001
+      NEXT_PUBLIC_API_BASE_URL: https://${API_DOMAIN}
+    depends_on:
+      - api
+
+  staff:
+    build:
+      context: ..
+      dockerfile: deploy/Dockerfile.staff
+      args:
+        VITE_API_BASE: https://${API_DOMAIN}/api/v1
+        VITE_TAG_HMAC_KID: ${VOUCHER_KID:-k1}
+        VITE_TAG_HMAC_SECRET: ${TAG_HMAC_SECRET:-}
+    restart: unless-stopped
+
+  caddy:
+    image: caddy:2-alpine
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    environment:
+      DOMAIN: ${DOMAIN}
+      API_DOMAIN: ${API_DOMAIN}
+      STAFF_DOMAIN: ${STAFF_DOMAIN}
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    depends_on:
+      - web
+      - api
+      - staff
+
+volumes:
+  pgdata:
+  redisdata:
+  caddy_data:
+  caddy_config:

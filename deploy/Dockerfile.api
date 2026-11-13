@@ -1,0 +1,19 @@
+# Kayooh API + worker image (Fastify modular monolith).
+FROM node:20-alpine AS base
+WORKDIR /app
+RUN apk add --no-cache python3 make g++
+RUN corepack enable
+COPY pnpm-workspace.yaml package.json pnpm-lock.yaml ./
+COPY packages ./packages
+COPY apps/api ./apps/api
+RUN pnpm install --frozen-lockfile
+RUN pnpm --filter @repo/api build
+
+FROM node:20-alpine AS runner
+WORKDIR /app
+ENV NODE_ENV=production
+RUN corepack enable
+COPY --from=base /app /app
+EXPOSE 3001
+# Override with `node apps/api/dist/worker.js` for the worker service.
+CMD ["node", "apps/api/dist/index.js"]

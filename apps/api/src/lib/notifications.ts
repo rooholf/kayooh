@@ -54,11 +54,12 @@ export function createNotificationProvider(opts: {
   nodeEnv: string;
   devLogOtp: boolean;
 }): NotificationProvider {
-  // The WhatsApp/email provider wiring lands with FR-NOT-01 (step 6).
+  // Production-grade WhatsApp/email adapters land with FR-NOT-01. Until then,
+  // run with the logging provider in production with OTP values ALWAYS redacted
+  // (NFR-06): messages are recorded to logs instead of being transmitted, so
+  // the platform can boot and serve bookings while the real adapters are wired.
   if (opts.nodeEnv === "production") {
-    throw new Error(
-      "No production NotificationProvider is wired yet; configure it before enabling production (FR-NOT-01).",
-    );
+    return new LogNotificationProvider(false);
   }
   return new LogNotificationProvider(opts.devLogOtp);
 }

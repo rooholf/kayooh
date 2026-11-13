@@ -17,7 +17,7 @@
 import { z } from "zod";
 import {
   bikeStateSchema,
-} from "./admin";
+} from "./admin.js";
 import {
   vAssetTag,
   vCategoryCode,
@@ -33,7 +33,7 @@ import {
   vTextL,
   vTs,
   vUuid,
-} from "./validation";
+} from "./validation.js";
 
 /* ------------------------------------------------------------------ */
 /* Event type + clock rule                                             */
