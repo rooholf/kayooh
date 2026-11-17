@@ -4,6 +4,7 @@ build/
 .next/
 out/
 coverage/
+.vitest/
 turbo/
 .turbo/
 *.tsbuildinfo

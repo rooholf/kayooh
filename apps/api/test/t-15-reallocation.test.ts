@@ -27,7 +27,7 @@ import { buildTestApp, sessionCookie, truncateAll, type TestApp } from "./helper
 import { createReservationHold } from "../src/modules/inventory/index.js";
 import type { CreateReservationBody } from "@repo/contracts";
 import { db } from "@repo/db";
-import { seedOffering, seedStaff, staffSessionCookie } from "./staff.helpers.js";
+import { seedOffering, seedStaff, slotWindow, staffSessionCookie } from "./staff.helpers.js";
 
 let t: TestApp;
 
@@ -48,8 +48,7 @@ const STAFF_PASSWORD = "staff-password-t15-x";
 
 /** Slot-aligned window tomorrow; safe for the FR-INV-02 hold service. */
 function windowFor(offsetMinutes = 24 * 60): { startsAt: string; endsAt: string } {
-  const aligned = Math.ceil((Date.now() + offsetMinutes * 60_000) / 900_000) * 900_000;
-  return { startsAt: new Date(aligned).toISOString(), endsAt: new Date(aligned + 60 * 60_000).toISOString() };
+  return slotWindow(offsetMinutes);
 }
 
 /**

@@ -28,6 +28,7 @@ import { createReservationHold } from "../src/modules/inventory/index.js";
 import { computeAvailability } from "../src/modules/inventory/index.js";
 import type { ReservationActor } from "../src/modules/inventory/index.js";
 import { AppError } from "../src/lib/errors.js";
+import { slotWindow } from "./staff.helpers.js";
 import type { CreateReservationBody } from "@repo/contracts";
 import { truncateAll } from "./helpers.js";
 
@@ -108,12 +109,9 @@ async function seedOffering(bikeCount: number): Promise<SeedPartner> {
   return { ownerId: owner.id, outletId: outlet.id };
 }
 
-/** Next day, aligned to a 15-minute slot, whole seconds (V-TS output). */
+/** Slot-aligned window that always fits the seeded 00:00–23:45 WIB hours. */
 function window(hhmmOffsetMinutes = 24 * 60): { startsAt: string; endsAt: string } {
-  const aligned = Math.ceil((Date.now() + hhmmOffsetMinutes * 60_000) / 900_000) * 900_000;
-  const startsAt = new Date(aligned);
-  const endsAt = new Date(aligned + 60 * 60_000);
-  return { startsAt: startsAt.toISOString(), endsAt: endsAt.toISOString() };
+  return slotWindow(hhmmOffsetMinutes);
 }
 
 function actorFor(userId: string): ReservationActor {

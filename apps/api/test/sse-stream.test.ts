@@ -25,6 +25,7 @@ import {
   seedOffering,
   seedRenter,
   seedStaff,
+  slotWindow,
   staffSessionCookie,
 } from "./staff.helpers.js";
 
@@ -144,13 +145,12 @@ describe("FR-REP-02 Server-Sent Events", () => {
     await seedOffering(1, "commuter", { ownerId: ownerB.ownerId });
 
     const renter = await seedRenter();
-    const window = { startsAt: new Date(Math.ceil((Date.now() + 20 * 60_000) / 900_000) * 900_000).toISOString(), endsAt: "" };
-    const endsAt = new Date(new Date(window.startsAt).getTime() + 60 * 60_000).toISOString();
+    const { startsAt, endsAt } = slotWindow(20);
     const confirmed = await seedConfirmedReservation({
       userId: renter.userId,
       outletId: partner.outletId,
       category: "commuter",
-      window: { startsAt: window.startsAt, endsAt },
+      window: { startsAt, endsAt },
     });
 
     const staff = await seedStaff(STAFF_EMAIL, STAFF_PASSWORD, partner.outletId);
@@ -168,7 +168,7 @@ describe("FR-REP-02 Server-Sent Events", () => {
       const event = await checkoutEvent({
         reservationId: confirmed.reservationId,
         bikeAssetTags: [partner.bikeTags[0]!],
-        occurredAt: new Date(new Date(window.startsAt).getTime() + 60_000).toISOString(),
+        occurredAt: new Date(Date.parse(startsAt) + 60_000).toISOString(),
       });
       const res = await t.app.inject({
         method: "POST",
@@ -218,10 +218,9 @@ describe("FR-REP-02 Server-Sent Events", () => {
     const instantStream = await openSseCollector("/api/v1/outlets/stream");
     // Slot-mirroring mode: the renter's chosen window — the same window the
     // reservation will be seeded into, so the count must go to 0.
-    const startsAt = new Date(Math.ceil((Date.now() + 20 * 60_000) / 900_000) * 900_000);
-    const endsAt = new Date(startsAt.getTime() + 60 * 60_000);
+    const { startsAt, endsAt } = slotWindow(20);
     const slotStream = await openSseCollector(
-      `/api/v1/outlets/stream?outletId=${partner.outletId}&category=commuter&startsAt=${encodeURIComponent(startsAt.toISOString())}&endsAt=${encodeURIComponent(endsAt.toISOString())}`,
+      `/api/v1/outlets/stream?outletId=${partner.outletId}&category=commuter&startsAt=${encodeURIComponent(startsAt)}&endsAt=${encodeURIComponent(endsAt)}`,
     );
     await instantStream.ready;
     await slotStream.ready;
@@ -231,7 +230,7 @@ describe("FR-REP-02 Server-Sent Events", () => {
         userId: renter.userId,
         outletId: partner.outletId,
         category: "commuter",
-        window: { startsAt: startsAt.toISOString(), endsAt: endsAt.toISOString() },
+        window: { startsAt, endsAt },
       });
 
       // Instant mode: 1 bike in service; the FUTURE window does not occupy now.
@@ -247,7 +246,7 @@ describe("FR-REP-02 Server-Sent Events", () => {
       const slot = slotStream.events.find((e) => e.type === "availability")!
         .data as unknown as { outletId: string; availableNow: number; window?: { startsAt: string; endsAt: string } };
       expect(slot.availableNow).toBe(0);
-      expect(slot.window?.startsAt).toBe(startsAt.toISOString());
+      expect(slot.window?.startsAt).toBe(startsAt);
     } finally {
       instantStream.close();
       slotStream.close();

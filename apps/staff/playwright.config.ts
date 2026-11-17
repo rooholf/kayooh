@@ -13,10 +13,14 @@ export default defineConfig({
     screenshot: "off",
   },
   webServer: {
-    command: "npm run dev",
+    command: "npm run build && npm run preview",
     url: "http://localhost:3002",
-    reuseExistingServer: true,
-    timeout: 60_000,
+    reuseExistingServer: false,
+    timeout: 180_000,
+    env: {
+      VITE_STAFF_TOKEN: "dev-staff-token",
+      VITE_TAG_HMAC_SECRET: "dev-insecure-tag-hmac-secret",
+    },
   },
   projects: [{ name: "chromium", use: { ...devices["Desktop Chrome"] } }],
 });

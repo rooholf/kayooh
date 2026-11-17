@@ -25,5 +25,18 @@ export default defineConfig({
           ? process.env.DATABASE_URL
           : "postgresql://kayooh@127.0.0.1:5433/kayooh_test"),
     },
+    coverage: {
+      provider: "v8",
+      // NFR-09 floor: >= 90% line coverage on the money/locking modules.
+      // `modules/ledger` is Phase 2 — included here once it exists.
+      include: ["src/modules/inventory/**", "src/modules/pricing/**"],
+      thresholds: {
+        lines: 90,
+        functions: 90,
+        branches: 80,
+        statements: 90,
+      },
+      reporter: ["text", "html"],
+    },
   },
 });

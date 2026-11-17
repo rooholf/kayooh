@@ -8,6 +8,7 @@ export default defineConfig({
     VitePWA({
       registerType: "autoUpdate",
       includeAssets: ["icon.svg"],
+      devOptions: { enabled: true },
       manifest: {
         name: "Kayooh Pindai Staf",
         short_name: "Pindai Staf",
@@ -32,5 +33,12 @@ export default defineConfig({
       },
     }),
   ],
-  server: { port: 3002 },
+  server: {
+    port: 3002,
+    proxy: { "/api": "http://localhost:3001" },
+  },
+  preview: {
+    port: 3002,
+    proxy: { "/api": "http://localhost:3001" },
+  },
 });
