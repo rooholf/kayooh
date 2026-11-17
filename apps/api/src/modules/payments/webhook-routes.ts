@@ -226,40 +226,55 @@ export interface WebhookRouteOptions {
 }
 
 export function registerWebhookRoutes(app: FastifyInstance, options: WebhookRouteOptions): void {
-  app.post("/webhooks/:gateway", async (request, reply) => {
-    const params = paramsSchema.safeParse(request.params);
-    if (!params.success) throw validationError(params.error);
+  app.register(async (scope) => {
+    // Preserve the raw body for signature verification (Kasera signs the exact
+    // bytes it sends). Parsing happens below from the raw string.
+    scope.addContentTypeParser("application/json", { parseAs: "string" }, (_req, body, done) => {
+      done(null, body);
+    });
+    scope.post("/:gateway", async (request, reply) => {
+      const params = paramsSchema.safeParse(request.params);
+      if (!params.success) throw validationError(params.error);
 
-    let gateway;
-    try {
-      gateway = createPaymentGateway({ nodeEnv: options.nodeEnv, webhookSecret: options.webhookSecret, kaseraApiKey: options.kaseraApiKey });
-    } catch {
-      throw new AppError("GATEWAY_UNAVAILABLE", "Payment gateway is not configured.");
-    }
-    if (gateway.provider !== params.data.gateway) {
-      throw new AppError("NOT_FOUND", "Unknown payment gateway.");
-    }
+      const rawBody = typeof request.body === "string" ? request.body : JSON.stringify(request.body ?? {});
+      let parsedBody: unknown = {};
+      try {
+        parsedBody = rawBody.length > 0 ? JSON.parse(rawBody) : {};
+      } catch {
+        parsedBody = request.body;
+      }
 
-    // ---- 1. signature (constant-time); mismatch -> 401, nothing stored ----
-    const event = await gateway.verifyWebhook({ headers: request.headers, body: request.body });
+      let gateway;
+      try {
+        gateway = createPaymentGateway({ nodeEnv: options.nodeEnv, webhookSecret: options.webhookSecret, kaseraApiKey: options.kaseraApiKey });
+      } catch {
+        throw new AppError("GATEWAY_UNAVAILABLE", "Payment gateway is not configured.");
+      }
+      if (gateway.provider !== params.data.gateway) {
+        throw new AppError("NOT_FOUND", "Unknown payment gateway.");
+      }
 
-    const outcome = await db.transaction((tx) => handleEvent(tx, event, request.body));
+      // ---- 1. signature (constant-time); mismatch -> 401, nothing stored ----
+      const event = await gateway.verifyWebhook({ headers: request.headers, body: rawBody });
 
-    if (outcome.kind === "refunded") {
-      // FR-PAY-03.2: the gateway refund leg runs strictly after commit.
-      await settleRefund(outcome.refundId);
-    } else if (outcome.kind === "mismatch") {
-      // FR-PAY-02.4: alert the admin (audit) — the amount did not match.
-      await recordAudit({
-        actorRole: "system",
-        action: "payment.amount_mismatch",
-        entity: "payment_intents",
-        entityId: outcome.intentId,
-        after: { expectedIdr: Number(outcome.expectedIdr), receivedIdr: outcome.receivedIdr },
-      });
-    }
+      const outcome = await db.transaction((tx) => handleEvent(tx, event, parsedBody));
 
-    // ---- 8. always 200 after commit ---------------------------------------
-    return reply.code(200).send({ status: outcome.kind });
-  });
+      if (outcome.kind === "refunded") {
+        // FR-PAY-03.2: the gateway refund leg runs strictly after commit.
+        await settleRefund(outcome.refundId);
+      } else if (outcome.kind === "mismatch") {
+        // FR-PAY-02.4: alert the admin (audit) — the amount did not match.
+        await recordAudit({
+          actorRole: "system",
+          action: "payment.amount_mismatch",
+          entity: "payment_intents",
+          entityId: outcome.intentId,
+          after: { expectedIdr: Number(outcome.expectedIdr), receivedIdr: outcome.receivedIdr },
+        });
+      }
+
+      // ---- 8. always 200 after commit ---------------------------------------
+      return reply.code(200).send({ status: outcome.kind });
+    });
+  }, { prefix: "/webhooks" });
 }
