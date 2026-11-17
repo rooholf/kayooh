@@ -1,8 +1,9 @@
 # Promote `staging` to `main` (AGENTS.md §8: main is promotion-only).
 #
 # On every push to staging, open (or keep) a staging -> main PR when staging
-# is ahead and no such PR is open. The PR is a fast-forward promotion: merge
-# it after the NFR-09 gates pass on staging. Never push to main directly.
+# has commits that main does not have. The PR is promoted with a merge commit
+# (GitHub default), which keeps `staging` an ancestor of `main` — so no §8
+# reconciliation is needed between cycles. Never push to main directly.
 #
 # Requires: secret OPENCODE_GITHUB_TOKEN (PAT with repo scope, incl. PR write).
 # If the secret is not set, the run exits cleanly with an advisory — it must
@@ -32,11 +33,22 @@ jobs:
         id: check
         run: |
           git fetch origin main --depth=1
-          if git merge-base --is-ancestor origin/main HEAD; then
+          # Promotion state is checked in the *promotion direction*: staging is
+          # fully promoted when it is an ancestor of main. This stays true
+          # across merge-commit promotions (the PR merge commit on main carries
+          # staging's head as its second parent), so no §8 reconciliation is
+          # ever needed for routine cycles — only for real drift (commits that
+          # bypassed staging).
+          if git merge-base --is-ancestor HEAD origin/main; then
+            echo "ahead=false" >> "$GITHUB_OUTPUT"
+          elif git merge-base --is-ancestor origin/main HEAD; then
+            # True fast-forward possible (staging strictly ahead of main).
             echo "ahead=true" >> "$GITHUB_OUTPUT"
           else
-            echo "::warning::main is not an ancestor of staging — reconcile (merge main into staging) before opening a fast-forward PR."
-            echo "ahead=false" >> "$GITHUB_OUTPUT"
+            # Diverged: merge-commit promotion still works (GitHub merges with
+            # a merge commit), but log an advisory so drift stays visible.
+            echo "::warning::main and staging have diverged (main has commits not on staging) — reconcile (merge main into staging) at the next convenient PR."
+            echo "ahead=true" >> "$GITHUB_OUTPUT"
           fi
 
       - name: Open or confirm staging -> main PR
@@ -48,19 +60,18 @@ jobs:
             echo "::warning::OPENCODE_GITHUB_TOKEN is not set; skipping PR sync."
             exit 0
           fi
-          # main == staging: nothing to promote. This is the healthy state
-          # right after a §8 main -> staging reconciliation fast-forward;
-          # without this guard `gh pr create` fails with "No commits between
-          # main and staging" and the run shows a red X on a healthy repo.
-          if [ "$(git rev-parse origin/main)" = "$(git rev-parse HEAD)" ]; then
-            echo "main and staging are identical; nothing to promote."
+          # staging already fully promoted: nothing to do. Without this guard
+          # `gh pr create` fails with "No commits between main and staging"
+          # and the run shows a red X on a healthy repo.
+          if git merge-base --is-ancestor HEAD origin/main; then
+            echo "staging is already an ancestor of main; nothing to promote."
             exit 0
           fi
           if gh pr list --base main --head staging --state open --json number --jq 'length' | grep -q '^0$'; then
             base=$(git merge-base origin/main HEAD)
             log=$(git log --oneline "${base}..HEAD" | head -20)
             gh pr create --base main --head staging \
-              --title "Promote staging -> main (fast-forward)" \
+              --title "Promote staging -> main" \
               --body "Automatic promotion from \`.github/workflows/sync-main.yml\` (AGENTS.md §8: main is promotion-only).
 
             Merge this after the NFR-09 gates (lint, tsc, integration tests) pass on staging.
