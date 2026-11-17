@@ -30,6 +30,7 @@
     "@better-auth/cli": "^1.4.21",
     "@repo/config": "workspace:*",
     "@types/node": "^22.10.5",
+    "@vitest/coverage-v8": "^5.1.0",
     "tsx": "^4.19.2",
     "typescript": "^5.7.3",
     "vitest": "^5.1.0"

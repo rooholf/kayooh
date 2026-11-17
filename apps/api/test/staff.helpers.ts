@@ -168,10 +168,28 @@ export async function staffSessionCookie(app: TestApp, staff: SeededStaff): Prom
 
 /** Next day, 15 min slot aligned, whole seconds (V-TS output). */
 export function nextWindow(hhmmOffsetMinutes = 24 * 60): { startsAt: string; endsAt: string } {
-  const aligned = Math.ceil((Date.now() + hhmmOffsetMinutes * 60_000) / 900_000) * 900_000;
-  const startsAt = new Date(aligned);
-  const endsAt = new Date(aligned + 60 * 60_000);
-  return { startsAt: startsAt.toISOString(), endsAt: endsAt.toISOString() };
+  return slotWindow(hhmmOffsetMinutes);
+}
+
+/**
+ * Slot-aligned test window that is always inside the 00:00–23:45 WIB hours the
+ * test outlets seed. A slot computed from `now + offset` can land between
+ * 22:45 and 24:00 WIB, where `endsAt` (start + 60 min) crosses the 23:45 close
+ * and `POST /reservations` fails OUTSIDE_OPENING_HOURS — the time-of-day
+ * flakiness observed on 2026-11-17 in the batch-50, SSE and offline-queue
+ * specs. In that band the window rolls forward to the next WIB day at 00:15.
+ */
+export function slotWindow(offsetMinutes = 20): { startsAt: string; endsAt: string } {
+  const SLOT_MS = 900_000;
+  const DURATION_MS = 60 * 60_000;
+  const WIB_OFFSET_S = 7 * 3_600;
+  let t = Math.ceil((Date.now() + offsetMinutes * 60_000) / SLOT_MS) * SLOT_MS;
+  const wibSecOfDay = (Math.floor(t / 1000) + WIB_OFFSET_S) % 86_400;
+  if (wibSecOfDay + DURATION_MS / 1000 > 23 * 3600 + 45 * 60) {
+    const msToNextWibMidnight = (86_400 - wibSecOfDay) * 1000;
+    t = Math.ceil((t + msToNextWibMidnight + 15 * 60_000) / SLOT_MS) * SLOT_MS;
+  }
+  return { startsAt: new Date(t).toISOString(), endsAt: new Date(t + DURATION_MS).toISOString() };
 }
 
 export function actorFor(userId: string): ReservationActor {

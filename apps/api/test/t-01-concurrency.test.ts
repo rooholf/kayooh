@@ -29,6 +29,7 @@ import {
   truncateAll,
   type TestApp,
 } from "./helpers.js";
+import { slotWindow } from "./staff.helpers.js";
 
 /* ------------------------------------------------------------------ */
 /* Seeds                                                               */
@@ -96,12 +97,9 @@ async function seedOffering(bikeCount: number): Promise<SeedPartner> {
   return { ownerId: owner.id, outletId: outlet.id };
 }
 
-/** Next day, aligned to a 15-minute slot, whole seconds (V-TS output). */
+/** Slot-aligned window that always fits the seeded 00:00–23:45 WIB hours. */
 function windowFor(): { startsAt: string; endsAt: string } {
-  const aligned = Math.ceil((Date.now() + 24 * 60 * 60_000) / 900_000) * 900_000;
-  const startsAt = new Date(aligned);
-  const endsAt = new Date(aligned + 60 * 60_000);
-  return { startsAt: startsAt.toISOString(), endsAt: endsAt.toISOString() };
+  return slotWindow(24 * 60);
 }
 
 const PHONE = "081234567890";
