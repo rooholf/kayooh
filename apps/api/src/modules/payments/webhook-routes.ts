@@ -225,6 +225,44 @@ export interface WebhookRouteOptions {
   kaseraApiKey?: string;
 }
 
+export async function syncPaymentIntent(intentId: string): Promise<{ status: string }> {
+  const gateway = createPaymentGateway({
+    nodeEnv: process.env.NODE_ENV ?? "development",
+    webhookSecret: process.env.PAYMENT_WEBHOOK_SECRET ?? "dev-fake-webhook-secret",
+    kaseraApiKey: process.env.KASERA_API ?? process.env.KASERA_API_KEY,
+  });
+
+  const intentRows = await db.select({ amountIdr: paymentIntents.amountIdr }).from(paymentIntents).where(eq(paymentIntents.id, intentId)).limit(1);
+  const intentAmount = intentRows[0]?.amountIdr;
+  if (!intentAmount) return { status: "not_found" };
+
+  const invoice = await gateway.getInvoice({ externalId: intentId });
+  if (invoice.status === "pending") return { status: "pending" };
+  if (invoice.status === "expired" || invoice.status === "failed") {
+    await db
+      .update(paymentIntents)
+      .set({ status: invoice.status })
+      .where(and(eq(paymentIntents.id, intentId), sql`${paymentIntents.status} IN ('created','pending')`));
+    return { status: invoice.status };
+  }
+  if (invoice.status === "paid") {
+    const paidAmount = invoice.paidAmount ?? Number(intentAmount);
+    const event = {
+      provider: gateway.provider,
+      eventId: `sync-${Date.now()}-${Math.random().toString(36).slice(2)}`,
+      type: "PAID" as const,
+      externalId: intentId,
+      paidAmount,
+    };
+    const outcome = await db.transaction((tx) => handleEvent(tx, event as never, { source: "sync" }));
+    if (outcome.kind === "refunded") {
+      await settleRefund(outcome.refundId);
+    }
+    return { status: "paid" };
+  }
+  return { status: invoice.status };
+}
+
 export function registerWebhookRoutes(app: FastifyInstance, options: WebhookRouteOptions): void {
   app.register(async (scope) => {
     // Preserve the raw body for signature verification (Kasera signs the exact

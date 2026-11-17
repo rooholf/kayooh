@@ -37,3 +37,5 @@ export {
   type IssueRefundInput,
   type RecordedRefund,
 } from "./refunds.js";
+
+export { syncPaymentIntent } from "./webhook-routes.js";
