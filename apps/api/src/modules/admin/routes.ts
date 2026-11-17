@@ -7,6 +7,7 @@ import {
   createOutletSchema,
   createOwnerSchema,
   bulkBikesSchema,
+  commissionRuleSchema,
   flaggedScanQuerySchema,
   flaggedScanResolveSchema,
   idParamSchema,
@@ -20,6 +21,7 @@ import { requireRole } from "../identity/guards.js";
 import { db, bikes, bikeEvents, eq } from "@repo/db";
 import { createOwner, createOutlet, createBike, createBikesBulk } from "./onboarding.js";
 import { setConfig } from "../app-config/index.js";
+import { createCommissionRule } from "../ledger/index.js";
 import {
   createPricingRule,
   listAuditLog,
@@ -140,6 +142,22 @@ export function registerAdminRoutes(app: FastifyInstance): void {
     const parsed = pricingRuleSchema.safeParse(request.body);
     if (!parsed.success) throw validationError(parsed.error);
     const result = await createPricingRule(parsed.data, request.principal!.userId);
+    return reply.code(201).send(result);
+  });
+
+  // POST /admin/commission-rules — FR-LED-02 commission rules engine.
+  app.post("/api/v1/admin/commission-rules", { preHandler: requireRole("admin") }, async (request, reply) => {
+    const parsed = commissionRuleSchema.safeParse(request.body);
+    if (!parsed.success) throw validationError(parsed.error);
+    const result = await createCommissionRule(
+      {
+        ownerId: parsed.data.ownerId ?? null,
+        rateBps: parsed.data.rateBps,
+        base: parsed.data.base,
+        effectiveFrom: parsed.data.effectiveFrom,
+      },
+      request.principal!.userId,
+    );
     return reply.code(201).send(result);
   });
 

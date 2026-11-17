@@ -29,7 +29,7 @@ export default defineConfig({
       provider: "v8",
       // NFR-09 floor: >= 90% line coverage on the money/locking modules.
       // `modules/ledger` is Phase 2 — included here once it exists.
-      include: ["src/modules/inventory/**", "src/modules/pricing/**"],
+      include: ["src/modules/inventory/**", "src/modules/pricing/**", "src/modules/ledger/**"],
       thresholds: {
         lines: 90,
         functions: 90,

@@ -223,7 +223,11 @@ export const commissionRuleSchema = z
     base: commissionBaseSchema,
     effectiveFrom: vTs,
   })
-  .strict();
+  .strict()
+  .refine((v) => new Date(v.effectiveFrom).getTime() > Date.now(), {
+    message: "effectiveFrom must be in the future",
+    path: ["effectiveFrom"],
+  });
 export type CommissionRuleBody = z.infer<typeof commissionRuleSchema>;
 
 /* ------------------------------------------------------------------ */

@@ -6,9 +6,8 @@
  * Tests are grouped to minimise auth round-trips (rate limiter, SRS 3.2).
  */
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
-import { randomUUID } from "node:crypto";
 import { sql } from "@repo/db";
-import { db, reservations } from "@repo/db";
+import { db } from "@repo/db";
 import { normalizePhone } from "@repo/contracts";
 import { buildTestApp, newIdempotencyKey, sessionCookie, truncateAll, type TestApp } from "./helpers.js";
 import { seedOffering, nextWindow } from "./staff.helpers.js";

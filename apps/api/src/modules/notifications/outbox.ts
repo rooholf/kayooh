@@ -25,8 +25,9 @@
  * Money is never involved here (notifications carry display vars only); the
  * deposit/payment top-up path stays bigint in its own module (INV-5).
  */
-import { and, eq, inArray, isNull, type TxOrDb } from "@repo/db";
+import { eq, inArray, isNull, type TxOrDb } from "@repo/db";
 import { db, auditLog, notifications, outboxEvents, users } from "@repo/db";
+import { postRentalCompletion, postRefundReversal } from "../ledger/index.js";
 import type { NotificationChannel, NotificationProvider, NotificationTemplateName } from "../../lib/types.js";
 import { createNotificationProvider } from "../../lib/notifications.js";
 import { loadEnv } from "../../lib/env.js";
@@ -222,12 +223,27 @@ export interface OutboxDispatchOptions extends DeliverNotificationOptions {
 export async function runOutboxDispatch(opts: OutboxDispatchOptions = {}): Promise<{ claimed: number }> {
   const claimed = await db.transaction(async (tx) => {
     const due = (await tx
-      .select({ id: outboxEvents.id, payload: outboxEvents.payload })
+      .select({ id: outboxEvents.id, type: outboxEvents.type, payload: outboxEvents.payload })
       .from(outboxEvents)
-      .where(and(eq(outboxEvents.type, "notification.send"), isNull(outboxEvents.dispatchedAt)))
+      .where(isNull(outboxEvents.dispatchedAt))
       .limit(opts.limit ?? 50)
-      .for("update", { skipLocked: true })) as Array<{ id: string; payload: unknown }>;
+      .for("update", { skipLocked: true })) as Array<{ id: string; type: string; payload: unknown }>;
     if (due.length === 0) return [];
+    // Ledger side effects run in the SAME transaction as the dispatched_at
+    // mark (FR-LED-01 consumer of outbox rental.completed / refund.issued).
+    for (const ev of due) {
+      if (ev.type === "rental.completed") {
+        const payload = ev.payload as { rentalId?: string };
+        if (payload?.rentalId) {
+          await postRentalCompletion(payload.rentalId, tx);
+        }
+      } else if (ev.type === "refund.issued") {
+        const payload = ev.payload as { rentalId?: string | null; amountIdr?: number };
+        if (payload?.rentalId) {
+          await postRefundReversal(payload.rentalId, BigInt(payload.amountIdr ?? 0), null, tx);
+        }
+      }
+    }
     await tx
       .update(outboxEvents)
       .set({ dispatchedAt: new Date() })
@@ -236,6 +252,7 @@ export async function runOutboxDispatch(opts: OutboxDispatchOptions = {}): Promi
   });
 
   for (const ev of claimed) {
+    if (ev.type !== "notification.send") continue;
     const payload = ev.payload as { notificationId?: string; to?: string | null };
     if (!payload?.notificationId) continue; // malformed row: claimed, dropped
     const data: NotificationJobData = { notificationId: payload.notificationId, to: payload.to ?? undefined };
