@@ -94,7 +94,7 @@ export interface WebhookEvent {
   provider: string;
   /** Gateway-side unique id — the UNIQUE (provider, event_id) dedupe key. */
   eventId: string;
-  type: "PAID" | "EXPIRED" | "FAILED";
+  type: "PAID" | "EXPIRED" | "FAILED" | "TEST_PING";
   /** payment_intents.id (the external_id we handed out). */
   externalId: string;
   /** Integer rupiah reported by the gateway (checked against the intent). */
@@ -394,10 +394,11 @@ export class KaseraPaymentGateway implements PaymentGateway {
       type: string;
       data?: { payment_request_id?: string; external_id?: string; amount?: number; status?: string };
     };
-    const typeMap: Record<string, "PAID" | "EXPIRED" | "FAILED"> = {
+    const typeMap: Record<string, "PAID" | "EXPIRED" | "FAILED" | "TEST_PING"> = {
       "payment.paid": "PAID",
       "payment.expired": "EXPIRED",
       "payment.failed": "FAILED",
+      "test.ping": "TEST_PING",
     };
     const type = typeMap[payload.type];
     if (!type) throw new AppError("VALIDATION_ERROR", "Malformed webhook payload.");

@@ -47,7 +47,7 @@ afterAll(async () => {
 function signBody(body: Record<string, unknown>): Record<string, string> {
   const raw = JSON.stringify(body);
   const ts = Math.floor(Date.now() / 1000);
-  const v1 = createHmac("sha256", "dev-fake-webhook-secret").update(`${ts}.${raw}`).digest("hex");
+  const v1 = createHmac("sha256", process.env.PAYMENT_WEBHOOK_SECRET ?? "dev-fake-webhook-secret").update(`${ts}.${raw}`).digest("hex");
   return { "Kasera-Signature-V1": `t=${ts},v1=${v1}` };
 }
 

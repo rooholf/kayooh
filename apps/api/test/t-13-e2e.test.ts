@@ -101,7 +101,7 @@ async function confirmedGuestBooking(quantity: number) {
   };
   const raw = JSON.stringify(webhookBody);
   const ts = Math.floor(Date.now() / 1000);
-  const v1 = createHmac("sha256", "dev-fake-webhook-secret").update(`${ts}.${raw}`).digest("hex");
+  const v1 = createHmac("sha256", process.env.PAYMENT_WEBHOOK_SECRET ?? "dev-fake-webhook-secret").update(`${ts}.${raw}`).digest("hex");
   const webhook = await t.app.inject({
     method: "POST",
     url: WEBHOOK_URL,
