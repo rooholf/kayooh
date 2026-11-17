@@ -13,6 +13,7 @@ import {
   seedOffering,
   seedRenter,
   seedStaff,
+  slotWindow,
   staffSessionCookie,
 } from "./staff.helpers.js";
 
@@ -36,8 +37,8 @@ afterAll(async () => {
 describe("D.7: 50-event batch replayed out of order applies in ascending occurredAt", () => {
   it("applies all 50 and reports applied, in chronological order", async () => {
     const partner = await seedOffering(N);
-    const startsAt = new Date(Math.ceil((Date.now() + 20 * 60_000) / 900_000) * 900_000);
-    const endsAt = new Date(startsAt.getTime() + 60 * 60_000);
+    const { startsAt, endsAt } = slotWindow(20);
+    const startsAtMs = Date.parse(startsAt);
 
     const setups: Array<{ reservationId: string; bikeTag: string; occurredAt: string }> = [];
     for (let i = 0; i < N; i += 1) {
@@ -46,11 +47,11 @@ describe("D.7: 50-event batch replayed out of order applies in ascending occurre
         userId: renter.userId,
         outletId: partner.outletId,
         category: "commuter",
-        window: { startsAt: startsAt.toISOString(), endsAt: endsAt.toISOString() },
+        window: { startsAt, endsAt },
       });
       // Distinct occurredAt offsets, deliberately not sorted by index.
       const offsetMin = (i * 7 + 3) % 40; // 0..39, shuffled-ish
-      const occurredAt = new Date(startsAt.getTime() + offsetMin * 60_000).toISOString();
+      const occurredAt = new Date(startsAtMs + offsetMin * 60_000).toISOString();
       setups.push({ reservationId: confirmed.reservationId, bikeTag: partner.bikeTags[i], occurredAt });
     }
 

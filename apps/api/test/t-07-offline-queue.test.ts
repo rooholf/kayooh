@@ -18,6 +18,7 @@ import {
   seedOffering,
   seedRenter,
   seedStaff,
+  slotWindow,
   staffSessionCookie,
 } from "./staff.helpers.js";
 
@@ -48,9 +49,10 @@ interface Setup {
 async function setupThreeReservations(): Promise<Setup> {
   const partner = await seedOffering(3);
   // The shared window starts on the first 15-min slot boundary >= now+20 min
-  // (immediate scan, but not TOO_EARLY, and slot-aligned per FR-INV-02).
-  const startsAt = new Date(Math.ceil((Date.now() + 20 * 60_000) / 900_000) * 900_000);
-  const endsAt = new Date(startsAt.getTime() + 60 * 60_000);
+  // (immediate scan, but not TOO_EARLY, slot-aligned per FR-INV-02, and rolled
+  // forward past the 23:45 WIB close when `now + 20 min` lands in the last
+  // hour of the day).
+  const { startsAt, endsAt } = slotWindow(20);
 
   const rigged: Array<{ reservationId: string; bikeTag: string; occurredAt: string }> = [];
   for (let i = 0; i < 3; i += 1) {
@@ -59,12 +61,12 @@ async function setupThreeReservations(): Promise<Setup> {
       userId: renter.userId,
       outletId: partner.outletId,
       category: "commuter",
-      window: { startsAt: startsAt.toISOString(), endsAt: endsAt.toISOString() },
+      window: { startsAt, endsAt },
     });
     // occurredAt offsets AFTER starts_at, deliberately out of order:
     // i=0 -> starts+5, i=1 -> starts+9, i=2 -> starts+3.
     const offsetMin = i === 0 ? 5 : i === 1 ? 9 : 3;
-    const occurredAt = new Date(startsAt.getTime() + offsetMin * 60_000).toISOString();
+    const occurredAt = new Date(Date.parse(startsAt) + offsetMin * 60_000).toISOString();
     rigged.push({ reservationId: confirmed.reservationId, bikeTag: partner.bikeTags[i], occurredAt });
   }
   return { partner, reservations: rigged };
