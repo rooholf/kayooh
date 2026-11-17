@@ -255,9 +255,16 @@ export function registerWebhookRoutes(app: FastifyInstance, options: WebhookRout
       }
 
       // ---- 1. signature (constant-time); mismatch -> 401, nothing stored ----
-      const event = await gateway.verifyWebhook({ headers: request.headers, body: rawBody });
+      let event;
+      try { event = await gateway.verifyWebhook({ headers: request.headers, body: rawBody }); }
+      catch (e) { throw e; }
 
-      const outcome = await db.transaction((tx) => handleEvent(tx, event, parsedBody));
+      // Kasera dashboard "test" delivery (test.ping) — ack and stop.
+      if (event.type === "TEST_PING") {
+        return reply.code(200).send({ status: "ok" });
+      }
+
+      const outcome = await db.transaction((tx) => handleEvent(tx, event as never, parsedBody));
 
       if (outcome.kind === "refunded") {
         // FR-PAY-03.2: the gateway refund leg runs strictly after commit.

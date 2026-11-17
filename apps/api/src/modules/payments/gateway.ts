@@ -388,7 +388,7 @@ export class KaseraPaymentGateway implements PaymentGateway {
     }
 
     const parsed = kaseraWebhookBodySchema.safeParse(typeof input.body === "string" ? JSON.parse(input.body) : input.body);
-    if (!parsed.success) throw new AppError("VALIDATION_ERROR", "Malformed webhook payload.", zodToDetails(parsed.error));
+    if (!parsed.success) { console.error("ZOD ERR", JSON.stringify(parsed.error.issues)); throw new AppError("VALIDATION_ERROR", "Malformed webhook payload.", zodToDetails(parsed.error)); }
     const payload = parsed.data as {
       id: string;
       type: string;
@@ -402,6 +402,15 @@ export class KaseraPaymentGateway implements PaymentGateway {
     };
     const type = typeMap[payload.type];
     if (!type) throw new AppError("VALIDATION_ERROR", "Malformed webhook payload.");
+    if (type === "TEST_PING") {
+      return {
+        provider: this.provider,
+        eventId: payload.id,
+        type,
+        externalId: payload.data?.external_id ?? payload.id,
+        paidAmount: 0,
+      };
+    }
     const externalId = payload.data?.external_id ?? payload.data?.payment_request_id;
     if (!externalId) throw new AppError("VALIDATION_ERROR", "Malformed webhook payload.");
     return {
