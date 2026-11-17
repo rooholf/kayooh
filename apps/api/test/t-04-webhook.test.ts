@@ -12,6 +12,7 @@
  *   - EXPIRED/FAILED only move the intent (the sweeper reclaims the hold).
  */
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
+import { createHmac } from "node:crypto";
 import { eq, sql } from "@repo/db";
 import {
   auditLog,
@@ -27,8 +28,7 @@ import { nextWindow, actorFor, seedOffering, seedRenter } from "./staff.helpers.
 import { createReservationHold } from "../src/modules/inventory/index.js";
 import type { CreateReservationBody } from "@repo/contracts";
 
-const WEBHOOK_URL = "/webhooks/fake";
-const GOOD_HEADERS = { "x-callback-token": "dev-fake-webhook-secret" };
+const WEBHOOK_URL = "/webhooks/kasera";
 
 let t: TestApp;
 
@@ -44,8 +44,15 @@ afterAll(async () => {
   await t.close();
 });
 
-async function postWebhook(body: Record<string, unknown>, headers: Record<string, string> = GOOD_HEADERS) {
-  return await t.app.inject({ method: "POST", url: WEBHOOK_URL, headers, payload: body });
+function signBody(body: Record<string, unknown>): Record<string, string> {
+  const raw = JSON.stringify(body);
+  const ts = Math.floor(Date.now() / 1000);
+  const v1 = createHmac("sha256", process.env.PAYMENT_WEBHOOK_SECRET ?? "dev-fake-webhook-secret").update(`${ts}.${raw}`).digest("hex");
+  return { "Kasera-Signature-V1": `t=${ts},v1=${v1}` };
+}
+
+async function postWebhook(body: Record<string, unknown>, headers?: Record<string, string>) {
+  return await t.app.inject({ method: "POST", url: WEBHOOK_URL, headers: headers ?? signBody(body), payload: body });
 }
 
 interface HeldBooking {
@@ -90,10 +97,9 @@ describe("T-04 (FR-PAY-02): webhook is idempotent and reconciles the DP", () => 
   it("applies a paid event once; a replayed event changes nothing", async () => {
     const b = await heldBooking();
     const event = {
-      event_id: "evt-dup-1",
-      external_id: b.intentId,
-      status: "PAID",
-      paid_amount: Number(b.intentAmountIdr),
+      id: "evt-dup-1",
+      type: "payment.paid",
+      data: { external_id: b.intentId, amount: Number(b.intentAmountIdr) },
     };
 
     const first = await postWebhook(event);
@@ -118,9 +124,11 @@ describe("T-04 (FR-PAY-02): webhook is idempotent and reconciles the DP", () => 
 
   it("rejects a bad callback token (401) and stores nothing", async () => {
     const b = await heldBooking();
+    const badBody = { id: "evt-bad", type: "payment.paid", data: { external_id: b.intentId, amount: Number(b.intentAmountIdr) } };
+    const ts = Math.floor(Date.now() / 1000);
     const res = await postWebhook(
-      { event_id: "evt-bad", external_id: b.intentId, status: "PAID", paid_amount: Number(b.intentAmountIdr) },
-      { "x-callback-token": "not-the-secret" },
+      badBody,
+      { "Kasera-Signature-V1": `t=${ts},v1=not-the-secret` },
     );
     expect(res.statusCode).toBe(401);
     expect((res.json() as { error: { code: string } }).error.code).toBe("WEBHOOK_SIGNATURE_INVALID");
@@ -133,10 +141,9 @@ describe("T-04 (FR-PAY-02): webhook is idempotent and reconciles the DP", () => 
   it("ignores a mismatched paid amount: no state change, event processed + audit", async () => {
     const b = await heldBooking();
     const res = await postWebhook({
-      event_id: "evt-wrong-amount",
-      external_id: b.intentId,
-      status: "PAID",
-      paid_amount: Number(b.intentAmountIdr) + 1,
+      id: "evt-wrong-amount",
+      type: "payment.paid",
+      data: { external_id: b.intentId, amount: Number(b.intentAmountIdr) + 1 },
     });
     expect(res.statusCode).toBe(200);
     expect(res.json()).toMatchObject({ status: "mismatch" });
@@ -193,10 +200,9 @@ describe("T-04 (FR-PAY-02): webhook is idempotent and reconciles the DP", () => 
 
     // The late DP arrives after expiry.
     const res = await postWebhook({
-      event_id: "evt-late",
-      external_id: intentA.id,
-      status: "PAID",
-      paid_amount: Number(intentA.amountIdr),
+      id: "evt-late",
+      type: "payment.paid",
+      data: { external_id: intentA.id, amount: Number(intentA.amountIdr) },
     });
     expect(res.statusCode).toBe(200);
     expect(res.json()).toMatchObject({ status: "refunded" });
@@ -209,10 +215,10 @@ describe("T-04 (FR-PAY-02): webhook is idempotent and reconciles the DP", () => 
     expect(refundRows).toHaveLength(1); // exactly one
     expect(refundRows[0].reason).toBe("late_payment_sold_out");
     expect(refundRows[0].amountIdr).toBe(intentA.amountIdr);
-    expect(refundRows[0].status).toBe("succeeded"); // fixture refund settles
+    expect(refundRows[0].status).toBe("failed"); // Kasera cannot refund QRIS (manual)
 
     const [intentAfter] = await db.select().from(paymentIntents).where(eq(paymentIntents.id, intentA.id));
-    expect(intentAfter.status).toBe("refunded"); // fully refunded
+    expect(intentAfter.status).toBe("paid"); // refund failed; intent stays paid
   });
 
   it("does NOT confirm a late DP when free capacity is below quantity (INV-2)", async () => {
@@ -241,10 +247,9 @@ describe("T-04 (FR-PAY-02): webhook is idempotent and reconciles the DP", () => 
     });
 
     const res = await postWebhook({
-      event_id: "evt-late-qty",
-      external_id: heldA.intentId,
-      status: "PAID",
-      paid_amount: Number(heldA.intentAmountIdr),
+      id: "evt-late-qty",
+      type: "payment.paid",
+      data: { external_id: heldA.intentId, amount: Number(heldA.intentAmountIdr) },
     });
     expect(res.statusCode).toBe(200);
     expect(res.json()).toMatchObject({ status: "refunded" });
@@ -261,10 +266,9 @@ describe("T-04 (FR-PAY-02): webhook is idempotent and reconciles the DP", () => 
   it("EXPIRED moves only the intent (the sweeper reclaims the hold)", async () => {
     const b = await heldBooking();
     const res = await postWebhook({
-      event_id: "evt-expired",
-      external_id: b.intentId,
-      status: "EXPIRED",
-      paid_amount: 0,
+      id: "evt-expired",
+      type: "payment.expired",
+      data: { external_id: b.intentId, amount: 0 },
     });
     expect(res.statusCode).toBe(200);
 

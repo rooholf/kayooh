@@ -170,6 +170,8 @@ describe("FR-INV-02 edge paths (D.8 coverage)", () => {
     const partner = await seedOffering(2);
     const userId = await seedRenterUser();
     const prevNodeEnv = process.env.NODE_ENV;
+    const prevKasera = process.env.KASERA_API;
+    delete process.env.KASERA_API;
     process.env.NODE_ENV = "production"; // the factory refuses to return a gateway
     try {
       await expectAppError(
@@ -179,6 +181,7 @@ describe("FR-INV-02 edge paths (D.8 coverage)", () => {
       );
     } finally {
       process.env.NODE_ENV = prevNodeEnv;
+      if (prevKasera) process.env.KASERA_API = prevKasera;
     }
     const [reservation] = await db
       .select({ status: reservations.status, cancelReason: reservations.cancelReason })

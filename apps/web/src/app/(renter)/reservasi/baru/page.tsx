@@ -181,8 +181,12 @@ function ReservasiInner() {
           const id = data.reservation.id;
           if (data.guestToken !== undefined) saveGuestToken(id, data.guestToken);
           // Dev/test only: confirm the DP immediately instead of handing off
-          // to the fake gateway page (the fake URL is not a real site).
-          if (process.env.NODE_ENV === "development") {
+          // to the gateway page. Disabled by default now that Kasera Pay is
+          // wired; set NEXT_PUBLIC_DEV_AUTO_PAY=true to re-enable.
+          if (
+            process.env.NODE_ENV === "development" &&
+            process.env.NEXT_PUBLIC_DEV_AUTO_PAY === "true"
+          ) {
             void autoPayDev(id).then(() => router.replace(`/reservasi/${id}`));
             return;
           }
