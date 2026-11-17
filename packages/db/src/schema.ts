@@ -93,6 +93,18 @@ export const refundStatus = pgEnum("refund_status", ["pending", "succeeded", "fa
 // FR-PRC-01: weekday/weekend tier on a pricing rule (`all` = any day).
 export const pricingDayType = pgEnum("pricing_day_type", ["all", "weekday", "weekend"]);
 
+// FR-LED-01/02 (P2): ledger entry types.
+export const ledgerType = pgEnum("ledger_type", [
+  "rental_revenue",
+  "platform_commission",
+  "promo_share",
+  "late_fee_share",
+  "refund_reversal",
+  "damage_claim_credit",
+  "manual_adjustment",
+  "payout",
+]);
+
 /* ------------------------------------------------------------------ */
 /* Platform config (SRS section 4)                                     */
 /* ------------------------------------------------------------------ */
@@ -763,5 +775,50 @@ export const idempotencyKeys = pgTable(
       "idempotency_keys_response_check",
       sql`(status_code IS NULL AND response IS NULL) OR (status_code BETWEEN 200 AND 599 AND response IS NOT NULL)`,
     ),
+  ],
+);
+
+
+/* ------------------------------------------------------------------ */
+/* Phase 2: commission rules + ledger (FR-LED-01, FR-LED-02)            */
+/* ------------------------------------------------------------------ */
+
+export const commissionRules = pgTable(
+  "commission_rules",
+  {
+    id: uuid("id").primaryKey().default(sql`gen_random_uuid()`),
+    ownerId: uuid("owner_id").references(() => owners.id),
+    rateBps: integer("rate_bps").notNull(),
+    base: text("base").notNull(),
+    effectiveFrom: timestamp("effective_from", { withTimezone: true }).notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    check("commission_rules_rate_bps_check", sql`rate_bps >= 0 AND rate_bps <= 10000`),
+    check("commission_rules_base_check", sql`base IN ('pre_discount','post_discount')`),
+    index("commission_rules_owner_effective_idx").on(t.ownerId, t.effectiveFrom),
+  ],
+);
+
+export const ledgerEntries = pgTable(
+  "ledger_entries",
+  {
+    id: uuid("id").primaryKey().default(sql`gen_random_uuid()`),
+    ownerId: uuid("owner_id")
+      .notNull()
+      .references(() => owners.id),
+    outletId: uuid("outlet_id").references(() => outlets.id),
+    rentalId: uuid("rental_id").references(() => rentals.id),
+    type: ledgerType("type").notNull(),
+    amountIdr: bigint("amount_idr", { mode: "bigint" }).notNull(),
+    groupId: uuid("group_id").notNull(),
+    weekKey: text("week_key").notNull(),
+    ref: text("ref"),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    uniqueIndex("ledger_entries_rental_type_uq").on(t.rentalId, t.type),
+    index("ledger_entries_owner_week_idx").on(t.ownerId, t.weekKey),
+    index("ledger_entries_group_idx").on(t.groupId),
   ],
 );

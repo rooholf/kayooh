@@ -293,9 +293,7 @@ export function registerWebhookRoutes(app: FastifyInstance, options: WebhookRout
       }
 
       // ---- 1. signature (constant-time); mismatch -> 401, nothing stored ----
-      let event;
-      try { event = await gateway.verifyWebhook({ headers: request.headers, body: rawBody }); }
-      catch (e) { throw e; }
+      const event = await gateway.verifyWebhook({ headers: request.headers, body: rawBody });
 
       // Kasera dashboard "test" delivery (test.ping) — ack and stop.
       if (event.type === "TEST_PING") {
