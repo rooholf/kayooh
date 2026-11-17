@@ -162,7 +162,7 @@ describe("FR-INV-02 create reservation (build_transactional_inventory_lock)", ()
     expect(checked.reservation.dpIdr).toBe(5_000);
     expect(checked.reservation.expiresAt).not.toBeNull();
     expect(checked.price).toEqual({ priceIdr: 10_000, discountIdr: 0, finalIdr: 10_000, dpIdr: 5_000 });
-    expect(checked.paymentUrl).toMatch(/^https:\/\/pay\.fixtures\.jambi\.test\//);
+    expect(checked.paymentUrl).toMatch(/^https:\/\/pay\.kasera\.id\//);
 
     const [row] = await db
       .select()
@@ -180,7 +180,7 @@ describe("FR-INV-02 create reservation (build_transactional_inventory_lock)", ()
     expect(intent.status).toBe("pending"); // fixture invoice stored
     // The online charge is the 50% DP, not the full rental.
     expect(intent.amountIdr).toBe(5_000n);
-    expect(intent.gatewayRef).toMatch(/^fixture-/);
+    expect(intent.gatewayRef).toMatch(/^payreq_/);
 
     const [outbox] = await db
       .select()

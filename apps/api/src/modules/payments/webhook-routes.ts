@@ -222,6 +222,7 @@ async function handleEvent(
 export interface WebhookRouteOptions {
   nodeEnv: string;
   webhookSecret: string;
+  kaseraApiKey?: string;
 }
 
 export function registerWebhookRoutes(app: FastifyInstance, options: WebhookRouteOptions): void {
@@ -231,7 +232,7 @@ export function registerWebhookRoutes(app: FastifyInstance, options: WebhookRout
 
     let gateway;
     try {
-      gateway = createPaymentGateway({ nodeEnv: options.nodeEnv, webhookSecret: options.webhookSecret });
+      gateway = createPaymentGateway({ nodeEnv: options.nodeEnv, webhookSecret: options.webhookSecret, kaseraApiKey: options.kaseraApiKey });
     } catch {
       throw new AppError("GATEWAY_UNAVAILABLE", "Payment gateway is not configured.");
     }

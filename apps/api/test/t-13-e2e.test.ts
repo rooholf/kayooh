@@ -10,7 +10,7 @@
  * Expected: 2 `rentals` `completed` under one reservation, both bikes back to
  * `available`, and the reservation `fulfilled`.
  */
-import { randomUUID } from "node:crypto";
+import { randomUUID, createHmac } from "node:crypto";
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import { db, eq } from "@repo/db";
 import { bikes, paymentIntents, rentals, reservations } from "@repo/db";
@@ -24,8 +24,8 @@ import {
   type Offering,
 } from "./staff.helpers.js";
 
-const WEBHOOK_URL = "/webhooks/fake";
-const WEBHOOK_HEADERS = { "x-callback-token": "dev-fake-webhook-secret" };
+const WEBHOOK_URL = "/webhooks/kasera";
+
 const GUEST_PHONE = "+6281234567890";
 
 let t: TestApp;
@@ -80,7 +80,7 @@ async function confirmedGuestBooking(quantity: number) {
   expect(body.price.finalIdr).toBe(20_000);
   expect(body.price.priceIdr).toBe(body.price.finalIdr);
   expect(body.price.dpIdr).toBe(10_000);
-  expect(body.paymentUrl).toEqual(expect.stringContaining("pay.fixtures.jambi.test"));
+  expect(body.paymentUrl).toEqual(expect.stringContaining("pay.kasera.id"));
   expect(body.guestToken).toEqual(expect.any(String));
 
   const [intent] = await db
@@ -91,16 +91,22 @@ async function confirmedGuestBooking(quantity: number) {
   expect(intent?.status).toBe("pending");
   expect(intent?.amountIdr).toBe(BigInt(body.price.dpIdr));
 
+  const webhookBody = {
+    id: `evt-t13-${body.reservation.id}`,
+    type: "payment.paid",
+    data: {
+      external_id: intent?.id ?? "",
+      amount: Number(intent?.amountIdr ?? 0),
+    },
+  };
+  const raw = JSON.stringify(webhookBody);
+  const ts = Math.floor(Date.now() / 1000);
+  const v1 = createHmac("sha256", "dev-fake-webhook-secret").update(`${ts}.${raw}`).digest("hex");
   const webhook = await t.app.inject({
     method: "POST",
     url: WEBHOOK_URL,
-    headers: WEBHOOK_HEADERS,
-    payload: {
-      event_id: `evt-t13-${body.reservation.id}`,
-      external_id: intent?.id ?? "",
-      status: "PAID",
-      paid_amount: Number(intent?.amountIdr ?? 0),
-    },
+    headers: { "Kasera-Signature-V1": `t=${ts},v1=${v1}` },
+    payload: webhookBody,
   });
   expect(webhook.statusCode).toBe(200);
   expect(webhook.json()).toMatchObject({ status: "processed" });

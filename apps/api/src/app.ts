@@ -233,9 +233,16 @@ export async function buildApp(options: BuildAppOptions = {}): Promise<{
   registerAdminRoutes(app);
   registerSseRoutes(app);
   // FR-PAY-02: the gateway webhook is public and lives OUTSIDE /api/v1.
-  registerWebhookRoutes(app, { nodeEnv: env.nodeEnv, webhookSecret: env.paymentWebhookSecret });
+  registerWebhookRoutes(app, {
+    nodeEnv: env.nodeEnv,
+    webhookSecret: env.kaseraWebhookSecret ?? env.paymentWebhookSecret,
+    kaseraApiKey: env.kaseraApiKey,
+  });
   // Dev-only payment auto-confirm (no-op in production).
-  registerDevRoutes(app, { nodeEnv: env.nodeEnv, webhookSecret: env.paymentWebhookSecret });
+  registerDevRoutes(app, {
+    nodeEnv: env.nodeEnv,
+    webhookSecret: env.kaseraWebhookSecret ?? env.paymentWebhookSecret,
+  });
   registerDevOwnerRoutes(app, { nodeEnv: env.nodeEnv });
   registerDevStaffSeedRoutes(app, { nodeEnv: env.nodeEnv });
   // Dev-only fixture storage PUT sink (V-PHOTO-KEY; no-op in production).
