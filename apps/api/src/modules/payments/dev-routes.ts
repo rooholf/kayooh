@@ -53,10 +53,12 @@ export function registerDevRoutes(
 
     const eventId = `dev-auto-${randomUUID()}`;
     const payload = {
-      event_id: eventId,
-      external_id: intent.id,
-      status: "PAID",
-      paid_amount: Number(intent.amountIdr),
+      id: eventId,
+      type: "payment.paid",
+      data: {
+        external_id: intent.id,
+        amount: Number(intent.amountIdr),
+      },
     };
 
     const gateway = createPaymentGateway({ nodeEnv: opts.nodeEnv, webhookSecret: opts.webhookSecret });
