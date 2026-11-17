@@ -10,6 +10,12 @@ export interface Env {
   logLevel: string;
   /** Callback token compared by the gateway webhook check (FR-PAY-02.1). */
   paymentWebhookSecret: string;
+  /** Kasera Pay API key (KASERA_API). When set, KaseraPaymentGateway is used. */
+  kaseraApiKey?: string;
+  /** Kasera Pay API base URL (optional). */
+  kaseraBaseUrl?: string;
+  /** Kasera webhook signing secret (optional; falls back to paymentWebhookSecret). */
+  kaseraWebhookSecret?: string;
   /** Dev convenience ONLY: never set in production (OTP codes must not be logged). */
   devLogOtp: boolean;
   /**
@@ -33,6 +39,9 @@ export function loadEnv(overrides: Partial<Record<string, string | undefined>> =
     authSecret: authSecret ?? "",
     logLevel: get("LOG_LEVEL") ?? "info",
     paymentWebhookSecret: get("PAYMENT_WEBHOOK_SECRET") ?? "dev-fake-webhook-secret",
+    kaseraApiKey: get("KASERA_API") ?? get("KASERA_API_KEY"),
+    kaseraBaseUrl: get("KASERA_BASE_URL"),
+    kaseraWebhookSecret: get("KASERA_WEBHOOK_SECRET"),
     devLogOtp: get("DEV_LOG_OTP") === "true",
     storageBaseUrl: get("STORAGE_BASE_URL"),
   };

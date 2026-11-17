@@ -17,7 +17,8 @@ import { z } from "zod";
 import { and, eq } from "@repo/db";
 import { db, paymentIntents } from "@repo/db";
 import { AppError, validationError } from "../../lib/errors.js";
-import { FIXTURE_WEBHOOK_HEADER } from "./gateway.js";
+import { FIXTURE_WEBHOOK_HEADER, createPaymentGateway } from "./gateway.js";
+import { createHmac } from "node:crypto";
 
 const bodySchema = z.object({ reservationId: z.string().uuid() }).strict();
 
@@ -50,16 +51,34 @@ export function registerDevRoutes(
       );
     }
 
+    const eventId = `dev-auto-${randomUUID()}`;
+    const payload = {
+      id: eventId,
+      type: "payment.paid",
+      data: {
+        external_id: intent.id,
+        amount: Number(intent.amountIdr),
+      },
+    };
+
+    const gateway = createPaymentGateway({ nodeEnv: opts.nodeEnv, webhookSecret: opts.webhookSecret });
+    let url = `/webhooks/${gateway.provider}`;
+    let headers: Record<string, string> = {};
+    if (gateway.provider === "fake") {
+      url = "/webhooks/fake";
+      headers = { [FIXTURE_WEBHOOK_HEADER]: opts.webhookSecret };
+    } else {
+      const raw = JSON.stringify(payload);
+      const t = Math.floor(Date.now() / 1000);
+      const v1 = createHmac("sha256", opts.webhookSecret).update(`${t}.${raw}`).digest("hex");
+      headers = { "Kasera-Signature-V1": `t=${t},v1=${v1}` };
+    }
+
     const injected = await app.inject({
       method: "POST",
-      url: "/webhooks/fake",
-      headers: { [FIXTURE_WEBHOOK_HEADER]: opts.webhookSecret },
-      payload: {
-        event_id: `dev-auto-${randomUUID()}`,
-        external_id: intent.id,
-        status: "PAID",
-        paid_amount: Number(intent.amountIdr),
-      },
+      url,
+      headers,
+      payload,
     });
 
     let webhookBody: unknown = null;

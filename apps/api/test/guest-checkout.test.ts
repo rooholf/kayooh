@@ -99,7 +99,7 @@ describe("Issue #29: guest checkout (public POST /reservations)", () => {
     expect(body.reservation.status).toBe("held");
     // FR-INV-02.4: the online charge is the 50% DP (rate 10_000/h -> 5_000).
     expect(body.reservation.dpIdr).toBe(5_000);
-    expect(body.paymentUrl).toMatch(/^https:\/\/pay\.fixtures\.jambi\.test\//);
+    expect(body.paymentUrl).toMatch(/^https:\/\/pay\.kasera\.id\//);
     // A-18: a guest booking carries a reservation-scoped token.
     expect(body.guestToken).toBeTypeOf("string");
 

@@ -15,7 +15,7 @@
 import type { FastifyInstance, FastifyRequest } from "fastify";
 import { z } from "zod";
 import { and, desc, eq, lt, or } from "@repo/db";
-import { db, renters, reservations } from "@repo/db";
+import { db, paymentIntents, renters, reservations } from "@repo/db";
 import {
   listReservationsQuerySchema,
   reservationListResponseSchema,
@@ -28,6 +28,7 @@ import {
 } from "@repo/contracts";
 import { AppError, validationError } from "../../lib/errors.js";
 import { verifyGuestToken } from "../../lib/guest-token.js";
+import { syncPaymentIntent } from "../payments/index.js";
 import { signVoucher } from "../../lib/voucher.js";
 import { getConfig } from "../app-config/index.js";
 
@@ -217,8 +218,48 @@ export function registerReservationReadRoutes(app: FastifyInstance): void {
       .from(reservations)
       .where(eq(reservations.id, reservationId))
       .limit(1);
-    const row = rows[0];
+    let row = rows[0];
     if (!row) throw new AppError("NOT_FOUND", "Reservation does not exist.");
+
+    // Live payment status: a held reservation may have just been paid on
+    // Kasera; check and confirm it instead of waiting for the webhook.
+    if (row.status === "held") {
+      const intentRows = await db
+        .select({ id: paymentIntents.id, status: paymentIntents.status })
+        .from(paymentIntents)
+        .where(eq(paymentIntents.reservationId, reservationId))
+        .limit(1);
+      const intent = intentRows[0];
+      if (intent && (intent.status === "created" || intent.status === "pending")) {
+        try {
+          await syncPaymentIntent(intent.id);
+        } catch {
+          // Best-effort: fall through to the stored status.
+        }
+        const refreshed = await db
+          .select({
+            id: reservations.id,
+            renterId: reservations.renterId,
+            outletId: reservations.outletId,
+            category: reservations.category,
+            quantity: reservations.quantity,
+            startsAt: reservations.startsAt,
+            endsAt: reservations.endsAt,
+            status: reservations.status,
+            expiresAt: reservations.expiresAt,
+            priceIdr: reservations.priceIdr,
+            discountIdr: reservations.discountIdr,
+            finalIdr: reservations.finalIdr,
+            dpIdr: reservations.dpIdr,
+            atRisk: reservations.atRisk,
+            reallocationDeadlineAt: reservations.reallocationDeadlineAt,
+          })
+          .from(reservations)
+          .where(eq(reservations.id, reservationId))
+          .limit(1);
+        if (refreshed[0]) row = refreshed[0];
+      }
+    }
 
     if (principal) {
       const renterRows = await db
@@ -259,8 +300,48 @@ export function registerReservationReadRoutes(app: FastifyInstance): void {
       .from(reservations)
       .where(eq(reservations.id, reservationId))
       .limit(1);
-    const row = rows[0];
+    let row = rows[0];
     if (!row) throw new AppError("NOT_FOUND", "Reservation does not exist.");
+
+    // Live payment status: a held reservation may have just been paid on
+    // Kasera; check and confirm it instead of waiting for the webhook.
+    if (row.status === "held") {
+      const intentRows = await db
+        .select({ id: paymentIntents.id, status: paymentIntents.status })
+        .from(paymentIntents)
+        .where(eq(paymentIntents.reservationId, reservationId))
+        .limit(1);
+      const intent = intentRows[0];
+      if (intent && (intent.status === "created" || intent.status === "pending")) {
+        try {
+          await syncPaymentIntent(intent.id);
+        } catch {
+          // Best-effort: fall through to the stored status.
+        }
+        const refreshed = await db
+          .select({
+            id: reservations.id,
+            renterId: reservations.renterId,
+            outletId: reservations.outletId,
+            category: reservations.category,
+            quantity: reservations.quantity,
+            startsAt: reservations.startsAt,
+            endsAt: reservations.endsAt,
+            status: reservations.status,
+            expiresAt: reservations.expiresAt,
+            priceIdr: reservations.priceIdr,
+            discountIdr: reservations.discountIdr,
+            finalIdr: reservations.finalIdr,
+            dpIdr: reservations.dpIdr,
+            atRisk: reservations.atRisk,
+            reallocationDeadlineAt: reservations.reallocationDeadlineAt,
+          })
+          .from(reservations)
+          .where(eq(reservations.id, reservationId))
+          .limit(1);
+        if (refreshed[0]) row = refreshed[0];
+      }
+    }
 
     if (principal) {
       const renterRows = await db
