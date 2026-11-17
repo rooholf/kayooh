@@ -32,13 +32,11 @@ jobs:
       - name: Check promotion state
         id: check
         run: |
-          git fetch origin main --depth=1
-          # Promotion state is checked in the *promotion direction*: staging is
-          # fully promoted when it is an ancestor of main. This stays true
-          # across merge-commit promotions (the PR merge commit on main carries
-          # staging's head as its second parent), so no §8 reconciliation is
-          # ever needed for routine cycles — only for real drift (commits that
-          # bypassed staging).
+          # `origin/main` is already fully fetched by checkout (fetch-depth: 0).
+          # Do NOT `--depth=1` re-fetch it here: a shallow main truncates its
+          # history and `merge-base --is-ancestor ... origin/main` (which walks
+          # FROM main) then misses real ancestry, misreporting healthy states
+          # as "diverged".
           if git merge-base --is-ancestor HEAD origin/main; then
             echo "ahead=false" >> "$GITHUB_OUTPUT"
           elif git merge-base --is-ancestor origin/main HEAD; then
@@ -67,7 +65,8 @@ jobs:
             echo "staging is already an ancestor of main; nothing to promote."
             exit 0
           fi
-          if gh pr list --base main --head staging --state open --json number --jq 'length' | grep -q '^0$'; then
+          open_prs=$(gh pr list --base main --head staging --state open --json number --jq 'length')
+          if [ "${open_prs}" = "0" ]; then
             base=$(git merge-base origin/main HEAD)
             log=$(git log --oneline "${base}..HEAD" | head -20)
             gh pr create --base main --head staging \
